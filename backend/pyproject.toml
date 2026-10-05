@@ -1,0 +1,15 @@
+[project]
+name = "viptop-backend"
+version = "0.1.0"
+description = "FastAPI backend for the VipTop waste collection optimisation MVP"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "psycopg[binary]",
+    "pydantic-settings",
+    "sqlalchemy",
+    "uvicorn",
+]
+
+[tool.uv]
+package = false

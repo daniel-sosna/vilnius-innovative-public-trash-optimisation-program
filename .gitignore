@@ -1,0 +1,25 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node and Vite
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Python and uv
+__pycache__/
+*.py[cod]
+.venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
