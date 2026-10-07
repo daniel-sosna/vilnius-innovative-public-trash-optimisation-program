@@ -23,3 +23,6 @@ __pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# OpenSpec Claude command wrappers (duplicates of the shared skills; regenerated when delivery=both)
+.claude/commands/opsx/

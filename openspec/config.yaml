@@ -1,0 +1,66 @@
+schema: spec-driven
+
+context: |
+  Project: VipTop, a waste collection optimisation MVP.
+  Team: 2 software developers and 1 data analyst; one-week hackathon.
+
+  Stack: React, TypeScript, Vite, Tailwind CSS, shadcn/ui; Python 3.12,
+  FastAPI, Pydantic, SQLAlchemy; PostgreSQL; Docker Compose; GitHub Actions.
+
+  Product: a data-driven platform that decides which Vilnius public waste
+  collection points should be serviced and how to route them efficiently.
+  It combines open data, worker observations, historical/synthetic data,
+  fill-level prediction, collection schedules and routing information.
+
+  Decision priorities, in order:
+  1. Working and demonstrable MVP
+  2. Correctness and reliability
+  3. Development speed
+  4. Simplicity
+  5. Maintainability and adaptability
+  6. Visual polish
+
+  Engineering principles:
+  - Reduce scope before increasing complexity.
+  - Prefer complete vertical slices over partially implemented breadth.
+  - Investigate material uncertainty before implementation.
+  - Avoid unnecessary services, abstractions, dependencies and infrastructure.
+  - Keep changes focused; avoid unrelated refactoring.
+  - Keep clear boundaries between frontend, backend, data/ML, optimisation
+    and infrastructure.
+  - Data/ML and optimisation stay independently replaceable behind clear
+    contracts, without separate deployments.
+  - Data analysis, prediction and optimisation are core to the product and
+    should aim for meaningful analytical sophistication.
+  - Maintain one primary ML approach and one primary optimisation approach,
+    not parallel fallback implementations.
+  - Keep significant assumptions explicit.
+  - Keep the system understandable to both humans and AI coding agents.
+
+rules:
+  proposal:
+    - Keep scope realistic for a one-week hackathon.
+    - Explicitly identify material uncertainty and major assumptions.
+    - Prefer a smaller complete feature over a larger incomplete one.
+    - Do not introduce production-oriented scope unless it materially improves the MVP.
+  specs:
+    - Describe observable product behaviour, not internal implementation details.
+    - Clearly distinguish observed, historical, synthetic, predicted and assumed data where relevant.
+  design:
+    - Prefer the existing architecture before introducing new abstractions, services or infrastructure.
+    - Document significant technical tradeoffs and their rationale.
+    - Preserve clear boundaries between frontend, backend, data/ML and optimisation.
+    - Do not introduce separate deployments for ML or optimisation unless explicitly approved.
+  tasks:
+    - Prefer tasks that build toward an end-to-end vertical slice.
+    - Keep changes focused and avoid unrelated refactoring.
+    - Do not add automated tests unless explicitly requested by the team.
+    - Include reproducibility steps for data processing, model training or experiments when relevant.
+
+operations:
+  apply:
+    guidance:
+      - Do not silently deviate from approved specifications or architecture.
+      - If a material deviation becomes necessary, stop and explain why before proceeding when practical.
+      - Do not introduce automated tests unless explicitly requested.
+      - Avoid unrelated refactoring while implementing the current change.
