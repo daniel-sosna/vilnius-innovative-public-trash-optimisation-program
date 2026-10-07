@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "FastAPI backend for the VipTop waste collection optimisation MVP"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi",
     "psycopg[binary]",
     "pydantic-settings",

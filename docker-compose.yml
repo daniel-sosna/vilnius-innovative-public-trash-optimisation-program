@@ -15,6 +15,9 @@ services:
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://viptop:viptop@db:5432/viptop}
+      BIN_SYNC_SOURCE_URL: ${BIN_SYNC_SOURCE_URL:-https://opencity.idvilnius.lt/gis/rest/services/Miesto_tvark/Miesto_tvarkymas_public/MapServer/29/query}
+      BIN_SYNC_INTERVAL_SECONDS: ${BIN_SYNC_INTERVAL_SECONDS:-86400}
+      BIN_SYNC_HTTP_TIMEOUT_SECONDS: ${BIN_SYNC_HTTP_TIMEOUT_SECONDS:-30}
     ports:
       - "8000:8000"
     volumes:
