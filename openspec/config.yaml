@@ -2,33 +2,105 @@ schema: spec-driven
 githubCopilot:
   cloudAgent: true
 
-# Project context (optional)
-# Add only constraints that should guide OpenSpec artifacts and workflows.
-# Include constraints an agent cannot infer by reading the code.
-# Keep general project documentation and discoverable codebase facts out.
-# Example:
-#   context: |
-#     Designs and tasks must cover Windows, macOS, and Linux
-#     Write all artifacts in Spanish
+# Project-wide governance. This file is the single source of truth for the
+# project's principles; agent entry points (AGENTS.md, CLAUDE.md) refer here
+# instead of duplicating them.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always state what is out of scope
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+context: |
+  Project: VipTop waste collection optimisation MVP.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  Team: 2 software developers and 1 data analyst, working in a one-week hackathon.
+
+  Stack:
+  - Frontend: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+  - Backend: Python, FastAPI, Pydantic, SQLAlchemy
+  - Database: PostgreSQL
+  - Data/ML: Python
+  - Infrastructure: Docker, Docker Compose, GitHub Actions
+
+  Product:
+  A data-driven waste collection optimisation platform for Vilnius. It combines
+  open data, worker observations, historical/synthetic data, fill-level
+  prediction, collection schedules and routing information to decide which
+  collection points should be serviced and how to route them efficiently.
+
+  This is a hackathon MVP: optimise for a reliable, demonstrable MVP within
+  limited time, not production-grade completeness. Evaluate every significant
+  decision through this lens.
+
+  Decision priorities (highest first; resolve conflicts in this order):
+  1. Working, demonstrable MVP
+  2. Correctness and reliability
+  3. Development speed
+  4. Simplicity
+  5. Maintainability and adaptability
+  6. Visual polish
+
+  Engineering principles:
+  - Reduce scope before increasing complexity.
+  - Prefer working software over architectural purity; architectural
+    cleanliness must not significantly delay a working vertical slice.
+  - Prefer complete vertical slices, demonstrable through the real system, over
+    partially implemented breadth or isolated components.
+  - Investigate material uncertainty before implementing.
+  - Avoid unnecessary services, abstractions, dependencies, infrastructure,
+    premature optimisation and speculative architecture. Add an abstraction
+    only when it solves a concrete problem.
+  - Avoid production-oriented work that does not materially improve the
+    demo (e.g. unnecessary authentication, microservices, scalability work).
+  - Keep changes focused; avoid unrelated refactoring, which increases merge
+    conflicts and risk.
+  - Keep clear responsibilities and explicit interfaces between frontend,
+    backend, data/ML, optimisation and infrastructure.
+  - Keep data processing, prediction, prioritisation and route optimisation
+    independently developable and replaceable behind clear contracts, without
+    requiring separate services or deployments. Change shared contracts
+    deliberately and coordinate with affected components.
+  - Treat data analysis, prediction, prioritisation and optimisation as core
+    product features. Aim for meaningful analytical sophistication rather than
+    intentionally simplified rule-based or heuristic substitutes. Use the
+    available data effectively and produce measurable outputs that can be
+    evaluated and explained. Complexity is justified when it directly improves
+    the quality of the solution.
+  - Maintain one primary ML approach and one primary optimisation approach, not
+    parallel fallback implementations; make the chosen ones reliable,
+    understandable and integrated into the main end-to-end workflow.
+  - Keep data generation, preprocessing, training, experiments and evaluation
+    reproducible where practical; record important inputs, parameters and
+    assumptions.
+  - Automated tests are not required and must not be added unless the team
+    explicitly requests them. Where useful, non-UI logic that is hard to verify
+    through the running app should expose a simple repeatable command or script
+    with clear inputs, useful output and meaningful exit codes.
+  - UI: minimalist, intuitive and responsive, with a clean shadcn/ui-based
+    design; keep styling and theming adjustable without structural changes.
+    Functionality and usability come before decorative polish.
+  - Make significant assumptions explicit; never introduce them silently.
+  - Document significant architectural, technical, data and product decisions
+    with their rationale, without unnecessary bureaucracy.
+  - Keep the system understandable to both humans and AI coding agents.
+
+rules:
+  proposal:
+    - Keep scope realistic for a one-week hackathon.
+    - Explicitly identify material uncertainties and major assumptions.
+    - Prefer a smaller complete feature over a larger incomplete one.
+  specs:
+    - Describe observable product behaviour, not internal implementation details.
+    - Where relevant, clearly distinguish observed, historical, synthetic, predicted and assumed data.
+    - For prediction, prioritisation and optimisation, specify measurable outputs that can be evaluated and explained.
+  design:
+    - Build on the existing architecture before introducing new abstractions, services or infrastructure.
+    - Document significant technical trade-offs and their rationale.
+    - Do not introduce separate deployments for ML or optimisation unless explicitly approved by the team.
+    - Identify any shared contracts that change and the components affected.
+  tasks:
+    - Order and scope tasks to build toward an end-to-end vertical slice.
+    - Include reproducibility steps for data processing, model training or experiments when relevant.
+    - Where useful, include a task for a repeatable verification command or script for non-UI logic.
+
+operations:
+  apply:
+    guidance:
+      - Do not silently deviate from the approved specs, design, shared contracts or project direction.
+      - If a material deviation becomes necessary, stop and explain why before proceeding whenever practical, and record it in the change artifacts.
