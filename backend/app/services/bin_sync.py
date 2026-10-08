@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from app.core.config import Settings
 from app.infrastructure.database import SYNC_LOCK_TIMEOUT_MS, SYNC_STATEMENT_TIMEOUT_MS
 from app.infrastructure.models import Bin
-from app.infrastructure.vilnius_gis import fetch_bins
+from app.integrations.vilnius_gis import fetch_bins
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -60,6 +60,8 @@ def synchronize_bins(
                                 "lat": statement.excluded.lat,
                                 "lon": statement.excluded.lon,
                                 "address": statement.excluded.address,
+                                "type": statement.excluded.type,
+                                "greening": statement.excluded.greening,
                             },
                         )
                     )

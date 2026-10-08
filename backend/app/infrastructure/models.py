@@ -33,6 +33,8 @@ class Bin(Base):
     lat: Mapped[float] = mapped_column(Double)
     lon: Mapped[float] = mapped_column(Double)
     address: Mapped[str | None] = mapped_column(Text)
+    type: Mapped[str | None] = mapped_column(Text)
+    greening: Mapped[str | None] = mapped_column(Text)
 
 
 class Truck(Base):

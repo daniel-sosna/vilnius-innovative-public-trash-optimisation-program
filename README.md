@@ -1,6 +1,6 @@
 # VipTop Waste Collection Optimisation
 
-VipTop MVP for exploring more efficient public waste-container collection in Vilnius. The backend stores collection records and automatically synchronizes collection sites from public GIS data. Prediction, route generation, and driver interfaces are future changes.
+VipTop MVP for exploring more efficient public waste-container collection in Vilnius. The backend stores collection records and imports collection sites from public GIS data on explicit command invocation. Prediction, route generation, and driver interfaces are future changes.
 
 ## Technologies
 
@@ -25,7 +25,8 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
 │       ├── interfaces/     # API-facing layer
-│       ├── infrastructure/ # Database and external integrations
+│       ├── infrastructure/ # Database engine and ORM persistence
+│       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
 │       ├── optimization/   # Future route optimisation logic
 │       └── main.py
@@ -36,10 +37,11 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 
 ## Run locally
 
-Docker and Docker Compose are the only prerequisites. Start the complete development environment with:
+Docker and Docker Compose are the only prerequisites. From the repository root, create `.env` if it does not already exist, then start the complete development environment:
 
 ```bash
-docker compose up --build
+test -f .env || cp .env.example .env
+docker compose up --build -d
 ```
 
 The services are available at:
@@ -48,9 +50,17 @@ The services are available at:
 - Backend: <http://localhost:8000>
 - FastAPI docs: <http://localhost:8000/docs>
 
-Copy `.env.example` to `.env` only if you want to override the local development defaults.
+`BIN_SYNC_SOURCE_URL` and `BIN_SYNC_HTTP_TIMEOUT_SECONDS` are required alongside the connection. For an existing `.env`, add any missing settings and update the source URL to the full all-attributes query in `.env.example`, preserving your connection details. Remove the obsolete synchronization interval line; leftover unrelated keys are ignored. Equivalent exported environment variables also work.
 
-The backend entrypoint runs `alembic upgrade head` before Uvicorn. Migration failure prevents server startup. FastAPI then attempts an initial GIS import before serving requests. Import failure is logged and the backend starts with its stored registry (which is empty on a first failed import). The application attempts another import approximately 24 hours after each attempt completes, including failures. Development reloads trigger an initial import again, but migrations run in the container entrypoint rather than the application lifecycle.
+The backend entrypoint runs `alembic upgrade head` before Uvicorn. Migration failure prevents server startup. Startup, restart, development reload, and idle runtime make no GIS requests. The registry remains empty or holds its last imported values until an operator explicitly imports sites. There is no background synchronization task or import-related shutdown wait.
+
+After the services are running, populate Bins once:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_sync
+```
+
+This command imports the complete registry and exits. Run it again explicitly when a refresh is needed.
 
 To run the backend outside Docker, install [uv](https://docs.astral.sh/uv/), provide an accessible PostgreSQL database, and run from `backend/`:
 
@@ -61,7 +71,14 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-These credentials are the local Compose defaults; use the connection details for your database. Application settings are read from environment variables. Compose reads the root `.env`; the standalone commands require exported variables.
+After the native server is running, open another terminal in `backend/` and import once using the same accessible connection:
+
+```bash
+export DATABASE_URL=postgresql+psycopg://viptop:viptop@localhost:5432/viptop
+uv run python -m app.interfaces.bin_sync
+```
+
+These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
 
 ## Collection records
 
@@ -69,13 +86,13 @@ One Bin represents a whole collection site, not an individual physical container
 
 | Table | Fields |
 |---|---|
-| `bins` | `id`, `lat`, `lon`, `address` |
+| `bins` | `id`, `lat`, `lon`, `address`, `type`, `greening` |
 | `trucks` | `id`, `name`, `max_bins_per_trip`, `available` |
 | `routes` | `id`, `service_date`, `truck_id`, `status` |
 | `route_stops` | `id`, `route_id`, `bin_id`, `stop_order` |
 | `service_events` | `id`, `bin_id`, `service_ts`, `fill_level`, `duration`, `route_id` |
 
-`bins.id` is the external integer `KAIKS_NR`, with no generator. The other IDs are independently generated PostgreSQL identities. All values and foreign keys are required except `bins.address`, which can be `NULL`. Referenced bins, trucks, and routes cannot be deleted. `alembic_version` is migration bookkeeping.
+`bins.id` is the external integer `KAIKS_NR`, with no generator. The other IDs are independently generated PostgreSQL identities. All values and foreign keys are required except `bins.address`, `bins.type`, and `bins.greening`, which can be `NULL`. Type and greening are unrestricted text: the database accepts labels outside the known GIS mappings. Referenced bins, trucks, and routes cannot be deleted. `alembic_version` is migration bookkeeping.
 
 Routes are assigned work for a particular Europe/Vilnius service date. Status defaults to `PLANNED` and accepts `PLANNED`, `IN_PROGRESS`, or `COMPLETED`. A truck can have multiple routes on one date. `available` is explicitly supplied and will later control routing participation; `max_bins_per_trip` must be positive. Stops use positive, one-based positions unique within their route. The database does not require contiguous positions or prevent a repeated bin at another position.
 
@@ -95,7 +112,8 @@ Useful inspection queries:
 
 ```sql
 SELECT count(*) AS stored_sites FROM bins;
-SELECT id, lat, lon, address FROM bins ORDER BY id LIMIT 10;
+SELECT id, lat, lon, address, type, greening FROM bins ORDER BY id LIMIT 10;
+SELECT type, greening, count(*) FROM bins GROUP BY type, greening;
 
 -- Ordered stops for a route; replace the route ID as appropriate.
 SELECT stop_order, bin_id FROM route_stops
@@ -114,26 +132,29 @@ WHERE e.bin_id = 634 ORDER BY e.service_ts, e.id;
 
 The source is [Vilnius GIS collection sites, layer 29](https://opencity.idvilnius.lt/gis/rest/services/Miesto_tvark/Miesto_tvarkymas_public/MapServer/29). Every run fetches all GeoJSON pages in output reference 4326. Polygon uses `coordinates[0][0]`; MultiPolygon uses `coordinates[0][0][0]`. Both supply `[longitude, latitude]`. The first vertex is a representative location, not a promised road entrance.
 
-Valid sites are inserted or updated by `KAIKS_NR` in one transaction. Only `lat`, `lon`, and `address` change on an existing Bin. Missing, blank, or nontext source addresses become `NULL`, replacing any previous address. Invalid IDs/geometries are skipped with warnings; duplicate usable IDs fail the whole run. Absent sites remain untouched. Failures, empty collections, and wholly unusable collections never clear the registry. No fallback sites or history are fabricated.
+The configured query is retained, including `outFields=*`, the example's 50-record page size, and spatial relation. The client starts at offset zero and uses stable `OBJECTID ASC` ordering. It advances by the requested page size while either continuation flag indicates more data, even after short or empty pages. Supported page sizes are integers from 1 to 1,000; unsupported sizes fail without publishing changes. Bare query URLs retain a 1,000-record default for controlled inputs.
 
-Run a single import after schema initialization, waiting for any automatic import to finish first:
+Valid sites are inserted or updated by `KAIKS_NR` in one transaction. Only `lat`, `lon`, `address`, `type`, and `greening` change on an existing Bin. `TIPAS` uses the exact ten-code type mapping documented in the [manual verification procedure](docs/data-foundation-verification.md); `ZELDINIMAS` maps 1 to `Taip`, 2 to `Ne`, and 3 to `Taip, agentūrai ES pritarus`. Missing/null metadata becomes `NULL` silently. Unknown or unusable non-null codes become `NULL` with a warning identifying the site, field, and raw value; the valid site is still imported. Boolean, float, and text codes are not coerced. GIS is authoritative, so later imports can clear metadata or overwrite manually entered free text.
+
+Missing, blank, or nontext source addresses become `NULL`, replacing any previous address. Invalid IDs/geometries are skipped with warnings; duplicate usable IDs fail the whole run. Absent or skipped sites retain every stored value. Failures, empty collections, and wholly unusable collections never clear the registry. No fallback sites or history are fabricated.
+
+Run a single import after schema initialization:
 
 ```bash
 docker compose exec backend uv run python -m app.interfaces.bin_sync
 ```
 
-Outside Docker, run `uv run python -m app.interfaces.bin_sync` from `backend/` with `DATABASE_URL` exported. The command shares the automatic import workflow and does not launch the timer. It returns zero for a completed run, including warned/skipped/no-data cases, and nonzero for failure. Summaries report retrieved, skipped, and committed upserted counts. Upserted includes rows already holding identical values; address warnings do not count as skipped features.
+Outside Docker, run `uv run python -m app.interfaces.bin_sync` from `backend/` with the accessible `DATABASE_URL` exported and sync settings in the root `.env`. The command runs the reusable import workflow once without starting a server or scheduling another run. It returns zero for a completed run, including warned/skipped/no-data cases, and nonzero for failure. Summaries report retrieved, skipped, and committed upserted counts. Upserted includes rows already holding identical values; address and optional metadata warnings do not count as skipped features.
 
-| Environment setting | Default |
+| Environment setting | Configuration |
 |---|---|
 | `DATABASE_URL` | Compose PostgreSQL connection using `postgresql+psycopg` |
-| `BIN_SYNC_SOURCE_URL` | Layer 29 `/query` endpoint |
-| `BIN_SYNC_INTERVAL_SECONDS` | `86400` (positive seconds after the last attempt completes) |
-| `BIN_SYNC_HTTP_TIMEOUT_SECONDS` | `30` (positive seconds for socket I/O inactivity) |
+| `BIN_SYNC_SOURCE_URL` | Required; full layer 29 query in `.env.example`, selecting all attributes and 50 records per page |
+| `BIN_SYNC_HTTP_TIMEOUT_SECONDS` | Required; example `30` (positive finite seconds for socket I/O inactivity) |
 
-Database connection timeout is 10 seconds; each synchronization transaction uses a 30-second statement timeout and a 5-second lock timeout. HTTP timeout applies to socket operations, not an overall deadline for a whole multi-page import. Startup readiness and graceful shutdown may wait for the current import to settle. Shutdown interrupts an interval wait immediately and waits for in-flight work before releasing the database engine.
+Database connection timeout is 10 seconds; each synchronization transaction uses a 30-second statement timeout and a 5-second lock timeout. HTTP timeout applies to socket operations, not an overall deadline for a whole multi-page import. These limits apply to the explicit importer, which owns and disposes its database engine on success or failure. Application readiness and shutdown do not wait for GIS work in a separately launched import process.
 
-Run one backend worker/replica: its application lifecycle owns one sequential timer. Manual runs are not coordinated with that timer. Restarts import again and do not replay missed daily jobs. External ID stability is assumed. Retained sites absent from the current source cannot be distinguished from currently listed sites until a later activation requirement is introduced.
+Importing is operator-controlled. A source change alone does not refresh stored values, and application restarts preserve them. Avoid simultaneous manual imports; commands are not coordinated with one another. External ID stability is assumed. Retained sites absent from the current source cannot be distinguished from currently listed sites until a later activation requirement is introduced.
 
 ## Migration and verification
 
@@ -144,6 +165,8 @@ uv run alembic upgrade head
 uv run alembic check
 ```
 
-Repeated upgrades preserve records. Later schema changes need reviewed Alembic revisions. Ordinary code rollback can retain these additive tables. An explicit `uv run alembic downgrade base` destroys all five tables and their records; use it only on disposable verification storage or after preserving required data. Import failure never triggers a downgrade.
+Repeated upgrades preserve records. Revision `0002` adds only nullable `type` and `greening` columns; existing rows start with null metadata and all original records survive. Apply migrations before running the updated importer. Rebuild the backend with `docker compose up --build` to package the revision; its entrypoint upgrades automatically. Native operators run the explicit command above with all required settings available from dotenv/environment, including the source URL and HTTP timeout. Alembic uses the shared Settings class, but migrations perform no GIS I/O.
+
+Later schema changes need reviewed Alembic revisions. Ordinary code rollback can retain additive columns. An explicit `uv run alembic downgrade 0001` drops only the two metadata columns and loses their values; original records and references remain. Downgrade to `base` destroys all five tables and their records. Exercise downgrades only on disposable verification storage or after preserving required data. Import failure never triggers a downgrade.
 
 Follow [the manual data-foundation verification procedure](docs/data-foundation-verification.md) for synthetic SQL records, controlled GIS responses, rollback checks, and lifecycle/container verification.
