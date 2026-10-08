@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -13,31 +13,31 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   --radius: 0.625rem;
-  /* Light-only eco palette. These tokens also theme future shadcn components. */
-  --background: #f8fcf9;
-  --foreground: #142b1e;
+  /* Neutral surfaces with green brand accents. */
+  --background: #f4f4f5;
+  --foreground: #18181b;
   --card: #ffffff;
   --card-foreground: var(--foreground);
   --popover: #ffffff;
   --popover-foreground: var(--foreground);
   --primary: #166534;
   --primary-foreground: #ffffff;
-  --secondary: #ecfdf5;
-  --secondary-foreground: #14532d;
-  --muted: #f0f5f1;
-  --muted-foreground: #526358;
-  --accent: #dcfce7;
-  --accent-foreground: #14532d;
+  --secondary: #e4e4e7;
+  --secondary-foreground: #27272a;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --accent: #e4e4e7;
+  --accent-foreground: #27272a;
   --destructive: #b91c1c;
-  --border: #d5e5d9;
-  --input: #d5e5d9;
+  --border: #d4d4d8;
+  --input: #d4d4d8;
   --ring: var(--primary);
   --chart-1: #166534;
   --chart-2: #059669;
   --chart-3: #0f766e;
   --chart-4: #65a30d;
   --chart-5: #a16207;
-  --sidebar: #f0f5f1;
+  --sidebar: #f4f4f5;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -89,50 +89,20 @@
   * {
     @apply border-border outline-ring/50;
   }
-
-  a {
-    font-weight: 500;
-    color: var(--primary);
-    text-decoration: inherit;
-  }
-
-  a:hover {
-    color: var(--secondary-foreground);
-  }
-
   body {
-    margin: 0;
-    display: flex;
-    place-items: center;
-    min-width: 320px;
-    min-height: 100vh;
+    @apply m-0 min-w-[320px] bg-background text-foreground;
   }
-
-  h1 {
-    font-size: 3.2em;
-    line-height: 1.1;
-  }
-
-  button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    color: var(--primary-foreground);
-    background-color: var(--primary);
+  button:not(:disabled),
+  a {
     cursor: pointer;
-    transition: border-color 0.25s;
   }
+}
 
-  button:hover {
-    border-color: var(--ring);
-    background-color: var(--secondary-foreground);
-  }
-
-  button:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 3px;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

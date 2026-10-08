@@ -1,0 +1,1 @@
+"""Truck management HTTP interface."""
