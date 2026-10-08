@@ -1,0 +1,12 @@
+Versioned PostgreSQL schema for VipTop.
+
+From backend/, supply DATABASE_URL (postgresql+psycopg) and run:
+    uv run alembic upgrade head
+    uv run alembic check
+
+Create subsequent revisions with:
+    uv run alembic revision --autogenerate -m "Describe the schema change"
+Review generated revisions before applying them. Revisions retain their own
+schema definitions; they must not import live application model definitions.
+Downgrading to base destroys collection records. Use disposable storage for
+migration verification; application startup never downgrades automatically.
