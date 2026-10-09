@@ -115,7 +115,9 @@ These credentials are the local Compose defaults; use the connection details for
 
 Open `/resident-request/{bin_id}` using the bin's internal `Bin.id`, for example
 `/resident-request/1`. This is a public Lithuanian page designed for phones,
-independent of admin navigation. A fixed map beneath the title marks the bin’s
+independent of admin navigation. The supplied Vilnius logo is centered above
+the title in every pre-success state and disappears with the form after success.
+A fixed map beneath the title marks the bin’s
 physical coordinates and prevents movement or zoom. The first field is `Adresas`
 from the linked collection site, followed by inventory number and waste type;
 unknown values display `N/A`. Map loading/failure does not block submission.
@@ -153,7 +155,7 @@ for repeatable synthetic migration, API, SQL, failure, and mobile checks.
 
 ## Truck management
 
-Open `/` and choose `Administratorius` to enter `/admin/trucks`. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
+Open `/` and choose `Administratorius` to enter `/admin/trucks`. The supplied Vilnius logo is centered near the top, above the VipTop leaf branding and role selection. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar shows a compact Vilnius logo on the right and VipTop on the left; both branding links lead back to `/`. It links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
 
 The screen supports name search, availability and inclusive site-capacity filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available. Capacity counts collection sites, not individual containers. Delete requires confirmation and retains the truck row without changing collection history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
 

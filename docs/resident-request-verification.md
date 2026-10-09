@@ -369,6 +369,64 @@ or after success. This revision uses the same fixed label for both history
 statuses, superseding the earlier two-label presentation. No browser or full
 build was launched; visual centring remains part of the manual walkthrough.
 
+## Vilnius logo verification
+
+The logo is a bundled application asset. For a repeatable walkthrough, use the
+synthetic bin fixtures above or controlled browser responses; perform submission
+checks only against isolated storage or intercepted responses.
+
+1. Open `/` at desktop and 320px widths. Confirm the full red Vilnius logo is
+   centered near the top, above VipTop and role selection. The administrator
+   action still opens `/admin/trucks`; the driver action remains disabled.
+2. Open trucks, sites, and a site-detail route at desktop, 640px, and 320px
+   widths. Confirm the compact city logo sits at the right of the shared
+   navbar with VipTop on the left, and both branding home links return to `/`. At 320px, open the menu,
+   select a link, and reopen/close with Escape; confirm focus returns to the
+   toggle and both identities remain visible.
+3. Open `/resident-request/{bin_id}` directly and refresh. Confirm the logo is
+   centered above the title during loading, ready, failed lookup, missing or
+   invalid bin, pending submission, and failed submission states. Read retry
+   and submit retry remain usable. Success replaces the logo and all form
+   content with the existing confirmation; reload shows the logo again.
+4. Check desktop, 320×640, and a short 320×480 viewport, with long addresses
+   and inventory numbers, and with/without service history. Confirm there is
+   no horizontal overflow, the full image has its original proportions and
+   transparent background, and the 48px submit button is reachable by scrolling
+   with bottom safe-area spacing. Inspect the accessibility tree for
+   `Vilniaus logotipas` before the page heading.
+5. Run `npm run build` and `npm run lint` in `frontend/`, then serve the build
+   with `npm run preview`. Open and refresh `/`, an admin deep link, and a
+   resident deep link. Confirm the logo loads from a bundled `/assets/` URL,
+   without access to the original Downloads file or a third-party image host.
+
+Executed on 10 October 2026 for `add-vilnius-logo`: all placements, the navbar
+home links and mobile menu/focus behavior, resident loading/error/not-found/
+pending/failure/success/reload states, and desktop/320px layouts passed local
+Chromium checks. Long values and service-card presence/absence fit at
+1280×900, 320×640, and 320×480; scrolling reached the full 48px action.
+The accessibility tree exposed the Lithuanian image description. Screenshots
+of entry, navbar, resident form, long-value layout, and success were visually
+inspected. All API responses and submission outcomes were intercepted in the
+browser; no reports were written to real storage. Map configuration was absent
+on these verification servers, so the existing map-unavailable placeholder was
+verified as usable; live map interactions were not rechecked.
+
+Frontend build and lint passed. Build output included the existing large-chunk
+warning. Production preview direct navigation and refresh passed for all three
+placements, and the served logo bytes matched the copied source asset. The
+in-app browser was unavailable; verification used standalone local Chromium
+with temporary checks outside the repository. Existing application services
+and data were left running.
+
+Navbar placement revision on 10 October 2026: the Vilnius logo was moved to
+the far right, with VipTop on the left. Packaged-build checks passed on trucks,
+sites, and site-detail routes at 1280px, 640px, and 320px widths. The logo's
+right edge aligned with the navbar's inner right boundary in both mobile menu
+states. Both home links, menu selection, Escape, focus restoration, and
+horizontal-overflow checks passed. Desktop and open-mobile-menu screenshots
+were visually inspected. Build, lint, and bundled-asset direct-route/refresh
+checks also passed.
+
 ## Cleanup and feature rollback
 
 Stop the separate verification frontend/backend processes. Remove only the

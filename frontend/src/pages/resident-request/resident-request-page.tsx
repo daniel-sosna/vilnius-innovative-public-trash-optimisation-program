@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Check, Info, LoaderCircle } from 'lucide-react'
 import { LocationMap } from '@/components/maps/location-map'
+import { VilniusLogo } from '@/components/vilnius-logo'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast-context'
 import { formatValue, wasteLabel } from '@/pages/sites/format'
@@ -98,6 +99,9 @@ function ResidentRequestContent({ binId }: { binId: string }) {
       aria-labelledby="resident-request-title"
       className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pt-14"
     >
+      <div className="mb-6 flex justify-center">
+        <VilniusLogo />
+      </div>
       <h1 id="resident-request-title" className="break-words text-xl leading-snug font-semibold tracking-tight">
         {missing ? 'Konteineris nerastas' : 'Prašyti šiukšlių išvežimo'}
       </h1>
