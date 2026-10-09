@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # trucks/ HTTP API and bin_sync/ CLI
+│       ├── interfaces/     # trucks/ HTTP API, bin_sync/ and table_import/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -110,6 +110,33 @@ uv run python -m app.interfaces.bin_sync
 ```
 
 These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
+
+## Import table CSV exports
+
+Instead of a full VASA synchronization, load table exports shared by a teammate.
+Put the CSV files in `backend/data/` (git-ignored and excluded from the Docker
+build) and run:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.table_import
+# native, from backend/ with DATABASE_URL exported or set in the root .env
+uv run python -m app.interfaces.table_import --dir /path/to/exports
+```
+
+- **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
+  files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
+- **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
+  (as DBeaver writes it), quoted text. Export after running the same migrations.
+- **Replacement:** only tables that have a file are emptied and reloaded (IDs are kept);
+  other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
+  also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
+  A table referenced by a table without a file (e.g. only `sites`) is rejected.
+- **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
+  **The current contents of the imported tables are discarded.**
+- **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
+  missing or the import fails.
+
+See [table import verification](docs/table-import-verification.md) for repeatable checks.
 
 ## Truck management
 
