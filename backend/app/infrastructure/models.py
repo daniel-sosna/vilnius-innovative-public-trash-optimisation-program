@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -98,6 +99,35 @@ class BinHist(Base):
     non_serviced_reason: Mapped[str | None] = mapped_column(Text)
     fill_level: Mapped[int | None] = mapped_column(SmallInteger)
     bin: Mapped[Bin] = relationship(back_populates="history")
+
+
+class BinDay(Base):
+    """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`."""
+
+    __tablename__ = "bin_days"
+    __table_args__ = (
+        CheckConstraint("day_of_week BETWEEN 1 AND 7", name="ck_bin_days_day_of_week"),
+        CheckConstraint(
+            "week_of_year BETWEEN 1 AND 53", name="ck_bin_days_week_of_year"
+        ),
+        CheckConstraint("month BETWEEN 1 AND 12", name="ck_bin_days_month"),
+        CheckConstraint("season BETWEEN 1 AND 4", name="ck_bin_days_season"),
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_days_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    day_of_week: Mapped[int] = mapped_column(SmallInteger)
+    week_of_year: Mapped[int] = mapped_column(SmallInteger)
+    month: Mapped[int] = mapped_column(SmallInteger)
+    season: Mapped[int] = mapped_column(SmallInteger)
+    site_id: Mapped[int] = mapped_column(BigInteger)
+    waste_type: Mapped[str] = mapped_column(Text)
+    capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
+    sub_district: Mapped[str] = mapped_column(Text)
+    object_group: Mapped[str | None] = mapped_column(Text)
 
 
 class VasaImportRun(Base):

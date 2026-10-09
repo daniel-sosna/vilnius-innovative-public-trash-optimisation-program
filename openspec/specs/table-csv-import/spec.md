@@ -77,7 +77,7 @@ After an import, the next generated identifier of each imported table SHALL be g
 - **THEN** the new bin gets an ID greater than 21950 without a key conflict
 
 ### Requirement: Reject imports that would break references
-The command SHALL fail without changes when it would replace a table that another table without a file still references. Tables that have no file are never emptied implicitly.
+The command SHALL fail without changes when it would replace a table that another table without a file still references. Apart from the synchronization state and bin-day calendar resets described in this specification, tables that have no file are never emptied implicitly.
 
 #### Scenario: Sites without dependents
 - **WHEN** only `sites_*.csv` is present and stored bins reference sites
@@ -98,6 +98,17 @@ When the import replaces `sites`, `bins` or `bin_hist`, it SHALL also discard al
 #### Scenario: Truck-only import keeps sync state
 - **WHEN** only `trucks_*.csv` is present
 - **THEN** stored synchronization runs and progress are unchanged
+
+### Requirement: Empty the bin-day calendar with replaced bins
+When the import replaces `bins` and no `bin_days` file is selected, it SHALL also empty the derived bin-day calendar in the same transaction, so that no calendar row refers to a replaced bin. An import that does not replace `bins` SHALL keep the calendar.
+
+#### Scenario: Collection import empties the calendar
+- **WHEN** the calendar holds rows and files for `sites`, `bins` and `bin_hist` are imported
+- **THEN** the import succeeds and the calendar is empty until it is rebuilt
+
+#### Scenario: History-only import keeps the calendar
+- **WHEN** only `bin_hist_*.csv` is present
+- **THEN** the calendar rows are unchanged
 
 ### Requirement: Clear output and exit codes
 The command SHALL report which file is used for each table and how many rows each table contains after the import. It SHALL exit with 0 on success. It SHALL exit with 1 when there is nothing to import, the directory is missing, or the import fails, with a readable reason that doesn't disclose database credentials.

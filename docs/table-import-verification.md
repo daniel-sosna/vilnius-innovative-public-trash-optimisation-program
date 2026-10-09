@@ -3,7 +3,7 @@
 Repeatable manual checks for `python -m app.interfaces.table_import`. Run them against a
 **disposable or local** database: every import discards the current contents of the imported
 tables. Prerequisites: `docker compose up -d`, migrations applied, and the three exports
-(`sites_*.csv`, `bins_*.csv`, `bin_hist_*.csv`) in `backend/data/`. Checks 7, 8 and 10 create
+(`sites_*.csv`, `bins_*.csv`, `bin_hist_*.csv`) in `backend/data/`. Checks 7, 8, 10 and 12 create
 subfolders there (visible in the container as `/app/data/...`); delete them afterwards.
 
 Shorthand used below:
@@ -126,3 +126,23 @@ SQL "select max(id) from bins"; SQL "select max(id) from bin_hist"
 
 Expected: starts a new pass without key conflicts; any new `bins`/`bin_hist` IDs are greater
 than the imported maxima.
+
+## 12. Bin-day calendar emptied only with bins
+
+Seed a few calendar rows, then import everything, then only history.
+
+```bash
+SEED="insert into bin_days select id, date '2026-10-09', 5, 41, 10, 4, site_id, waste_type, capacity_m3, sub_district, object_group from bins where sub_district is not null limit 3"
+SQL "$SEED"
+$IMPORT; echo "exit=$?"
+SQL "select count(*) from bin_days"                      # 0
+SQL "$SEED"
+mkdir backend/data/histonly && cp backend/data/bin_hist_*.csv backend/data/histonly/
+$IMPORT --dir /app/data/histonly; echo "exit=$?"
+SQL "select count(*) from bin_days"                      # 3
+```
+
+Expected: both imports exit 0. The full import logs `bin_days emptied with the replaced bins`
+and leaves `0` rows; the history-only import keeps the `3` rows and does not log the line.
+Afterwards delete `backend/data/histonly` and rebuild the calendar (see the README section
+"Bin-day calendar").

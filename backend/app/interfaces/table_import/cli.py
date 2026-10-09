@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_DIR = Path(__file__).resolve().parents[3] / "data"
 COLLECTION_TABLES = {"sites", "bins", "bin_hist"}
 SYNC_STATE_TABLES = ("vasa_import_runs", "vasa_import_progress")
+# Derived from bins; rebuilt by `python -m app.interfaces.bin_days`.
+BIN_DAYS_TABLE = "bin_days"
 COPY_CHUNK_BYTES = 1 << 16
 
 
@@ -50,11 +52,17 @@ def read_columns(path: Path) -> list[str]:
     return header
 
 
+def empties_bin_days(files: dict[str, Path]) -> bool:
+    return "bins" in files and BIN_DAYS_TABLE not in files
+
+
 def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
     columns = {table: read_columns(path) for table, path in files.items()}
     truncated = list(files)
     if COLLECTION_TABLES & files.keys():
         truncated += [name for name in SYNC_STATE_TABLES if name not in files]
+    if empties_bin_days(files):
+        truncated.append(BIN_DAYS_TABLE)
     counts: dict[str, int] = {}
     with engine.begin() as connection:
         connection.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
@@ -121,6 +129,12 @@ def main() -> int:
         counts = load_tables(engine, files)
         for table, path in files.items():
             logger.info("%s <- %s: %d rows", table, path.name, counts[table])
+        if empties_bin_days(files):
+            logger.info(
+                "%s emptied with the replaced bins; rebuild it with "
+                "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
+                BIN_DAYS_TABLE,
+            )
         return 0
     except Exception as error:
         cause = getattr(error, "orig", error)

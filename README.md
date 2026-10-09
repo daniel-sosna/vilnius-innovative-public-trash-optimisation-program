@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # trucks/ HTTP API, bin_sync/ and table_import/ CLIs
+│       ├── interfaces/     # trucks/ HTTP API, bin_sync/, table_import/ and bin_days/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -128,6 +128,8 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
   also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
   A table referenced by a table without a file (e.g. only `sites`) is rejected.
+  Importing `bins` also empties the derived `bin_days` table; rebuild it afterwards as
+  described in [Bin-day calendar](#bin-day-calendar).
 - **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
   **The current contents of the imported tables are discarded.**
 - **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
@@ -139,6 +141,47 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
 exports. Do not run `bin_sync` to obtain the data instead.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
+## Bin-day calendar
+
+`bin_days` holds one row per bin per calendar day. It is the input for the future
+synthetic fill-level generator. It is derived only from `bins` and the requested dates:
+it holds no service history, outcomes or fill levels. The generator reads `bin_hist`
+itself and, when one bin has several events on the same day, uses the last one.
+
+Build it after importing the collection data:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
+# native, from backend/
+uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
+```
+
+The current exports give 31 days × 21,804 bins = 675,924 rows. The command takes about 30 s.
+
+| Column | Meaning |
+|---|---|
+| `date` | Each day from `--start` to `--end`, inclusive |
+| `day_of_week` | ISO, 1 = Monday … 7 = Sunday |
+| `week_of_year` | ISO week, 1–53 |
+| `month` | 1–12 |
+| `season` | Meteorological: 1 winter (Dec–Feb), 2 spring, 3 summer, 4 autumn (Sep–Nov) |
+| `bin_id`, `site_id`, `waste_type`, `capacity_m3`, `sub_district`, `object_group` | Copied from `bins`; `capacity_m3` and `object_group` may be NULL |
+
+- **Which bins:** every bin with a `sub_district` gets a row for every date, whatever its
+  history. Bins without one are skipped and counted in the summary.
+- **Replacement:** each run replaces the whole table in one transaction, and a failure leaves
+  it unchanged. Both dates are required, and ranges longer than five years (1,827 days) are
+  rejected. Exit codes: 0 on success, 1 on invalid arguments or failure.
+- **Assumptions:**
+  - Attributes are a snapshot from the time of the rebuild, applied to every date.
+  - Bins have no install or removal dates, so every included bin is assumed to exist on
+    every day.
+  - ISO weeks near New Year can belong to the neighbouring year (2027-01-01 is week 53).
+- **Keeping it in sync:** a deleted bin loses its rows. A CSV import that replaces `bins`
+  empties the table, so rerun the command afterwards.
+
+See [bin-day calendar verification](docs/bin-day-calendar-verification.md) for repeatable checks.
 
 ## Truck management
 
