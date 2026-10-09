@@ -25,4 +25,5 @@ __pycache__/
 Thumbs.db
 
 # Output data
-backend/data/
+backend/data/*
+!backend/data/.gitkeep
