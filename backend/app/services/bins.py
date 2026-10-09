@@ -1,11 +1,40 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.models import Bin, BinHist
+from app.infrastructure.models import Bin, BinHist, Site
 
 
 class BinNotFoundError(Exception):
     pass
+
+
+def get_bin(session: Session, bin_id: int) -> dict:
+    if bin_id > 2**63 - 1:
+        raise BinNotFoundError
+    row = session.execute(
+        select(
+            Bin.id,
+            Site.address,
+            Bin.inventory_number,
+            Bin.waste_type,
+            Bin.latitude,
+            Bin.longitude,
+        )
+        .join(Site, Bin.site_id == Site.id)
+        .where(Bin.id == bin_id)
+    ).mappings().one_or_none()
+    if row is None:
+        raise BinNotFoundError
+    latest_service = session.execute(
+        select(BinHist.date, BinHist.was_serviced)
+        .where(BinHist.bin_id == bin_id)
+        .order_by(BinHist.date.desc(), BinHist.id.desc())
+        .limit(1)
+    ).mappings().one_or_none()
+    return {
+        **dict(row),
+        "latest_service": dict(latest_service) if latest_service is not None else None,
+    }
 
 
 def get_history(session: Session, bin_id: int, *, page: int, page_size: int) -> dict:

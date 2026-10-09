@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # trucks/ HTTP API and bin_sync/ CLI
+│       ├── interfaces/     # trucks/ HTTP API, bin_sync/ and table_import/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -90,20 +90,16 @@ Preserve a backup before
 upgrading if old collection records are needed. Migration failure prevents startup. Startup, restart, reload,
 migrations and idle runtime perform no VASA requests or cleanup.
 
-After schema preparation, run a limited trial:
+After schema preparation, load the collection data (`sites`, `bins`, `bin_hist`)
+from CSV exports as described in [Import table CSV exports](#import-table-csv-exports):
 
 ```bash
-docker compose exec backend uv run python -m app.interfaces.bin_sync --max-sites 10
+docker compose exec backend uv run python -m app.interfaces.table_import
 ```
 
-A trial exits 2 and never removes missing bins. To complete coverage:
-
-```bash
-docker compose exec backend uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
-```
-
-Matching incomplete runs resume. After full success (exit 0), the next invocation
-starts a fresh refresh. Failures exit 1 and retain already committed progress.
+**Do not use `bin_sync` for development.** Parsing the VASA API is very slow (a
+full pass takes hours) and depends on the external source. It is only for
+refreshing the shared data snapshot; see [Bin synchronization](#bin-synchronization).
 
 To run the backend outside Docker, install [uv](https://docs.astral.sh/uv/), provide an accessible PostgreSQL database, and run from `backend/`:
 
@@ -114,18 +110,93 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-After the native server is running, open another terminal in `backend/` and import once using the same accessible connection:
+After the native server is running, open another terminal in `backend/` and import the CSV exports once using the same accessible connection:
 
 ```bash
 export DATABASE_URL=postgresql+psycopg://viptop:viptop@localhost:5432/viptop
-uv run python -m app.interfaces.bin_sync
+uv run python -m app.interfaces.table_import
 ```
 
 These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
 
+## Resident emptying requests
+
+Open `/resident-request/{bin_id}` using the bin's internal `Bin.id`, for example
+`/resident-request/1`. This is a public Lithuanian page designed for phones,
+independent of admin navigation. The supplied Vilnius logo is centered above
+the title in every pre-success state and disappears with the form after success.
+A fixed map beneath the title marks the bin’s
+physical coordinates and prevents movement or zoom. The first field is `Adresas`
+from the linked collection site, followed by inventory number and waste type;
+unknown values display `N/A`. Map loading/failure does not block submission.
+When history exists, a pale translucent light-blue information card is centred
+in the space between the fields and button. It shows `Paskutinis aptarnavimas atliktas`
+and only the latest bin history calendar date; no history means no card.
+Stored Vilnius dates are displayed without timezone conversion.
+Pressing `Siųsti` stores a request and replaces all page content with a centred
+large green circle, white checkmark, `Jau vykstame pas Jus`, and the supplied
+responsive GIF beneath the text. The action is disabled while pending and
+removed after success. Failed submission
+shows `Kažkas nepavyko. Bandykite dar kartą.` and allows retry. A missing bin shows
+`Konteineris nerastas`; loading failures have a read-only retry.
+
+| API | Behaviour |
+| --- | --- |
+| `GET /bins/{bin_id}` | Only `id`, `address`, `inventory_number`, `waste_type`, `latitude`, `longitude`, and nullable `latest_service` (`date`, `was_serviced`); missing bin 404, invalid ID 422 |
+| `POST /bins/{bin_id}/resident-requests` | No body required; 201 `{"success":true}` after committing one request; missing bin 404, invalid ID 422 |
+
+Frontend calls use the existing `/api` proxy. Positive IDs beyond BIGINT range
+return 404. `resident_requests` contains only generated `id`, required `bin_id`,
+and required `timestamp`. The database generates Europe/Vilnius local wall time
+and stores it as `TIMESTAMP WITHOUT TIME ZONE`, independent of the UTC connection
+setting. Parent-bin deletion cascades to resident requests, including importer
+cleanup. Additive migration `0005` preserves existing collection records and
+checkpoints. Startup applies migrations without running import.
+
+Reports are raw resident signals; no verified fill, service event, prediction,
+or route is generated. Separate submissions and a reload after success can
+create additional requests. QR generation/scanning, accounts/authentication,
+CAPTCHA, rate limiting, identity/IP/device capture, duplicate protection,
+moderation, admin request management, ML/routing integration, and notifications
+are outside this feature. See [resident request verification](docs/resident-request-verification.md)
+for repeatable synthetic migration, API, SQL, failure, and mobile checks.
+
+## Import table CSV exports
+
+This is the required way to get collection data for development: load table
+exports shared by a teammate instead of running a slow VASA synchronization.
+Put the CSV files in `backend/data/` (contents git-ignored except `.gitkeep`, and
+excluded from the Docker build) and run:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.table_import
+# native, from backend/ with DATABASE_URL exported or set in the root .env
+uv run python -m app.interfaces.table_import --dir /path/to/exports
+```
+
+- **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
+  files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
+- **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
+  (as DBeaver writes it), quoted text. Export after running the same migrations.
+- **Replacement:** only tables that have a file are emptied and reloaded (IDs are kept);
+  other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
+  also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
+  A table referenced by a table without a file (e.g. only `sites`) is rejected.
+- **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
+  **The current contents of the imported tables are discarded.**
+- **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
+  missing or the import fails.
+
+**For AI agents:** before any task that needs collection data, check that
+`backend/data/` contains `sites_<digits>.csv`, `bins_<digits>.csv` and
+`bin_hist_<digits>.csv`. If any is missing, stop and ask the developer to add the
+exports. Do not run `bin_sync` to obtain the data instead.
+
+See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
 ## Truck management
 
-Open `/` and choose `Administratorius` to enter `/admin/trucks`. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
+Open `/` and choose `Administratorius` to enter `/admin/trucks`. The supplied Vilnius logo is centered near the top, above the VipTop leaf branding and role selection. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar shows a compact Vilnius logo on the right and VipTop on the left; both branding links lead back to `/`. It links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
 
 The screen supports name search, availability, waste carrier and inclusive volume filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available, with blank volume and carrier selection. Maximum capacity is waste volume in m³; fractions are supported. Delete requires confirmation and retains the truck row without changing collection history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
 
@@ -377,6 +448,11 @@ uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
 # A narrower refresh uses separate coverage; adjust bounds to the intended area.
 uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0 --bbox 25.2961 54.70245 25.2964 54.7026
 ```
+
+A trial exits 2 and never removes missing bins. Matching incomplete runs resume.
+After full success (exit 0), the next invocation starts a fresh refresh. Failures
+exit 1 and retain already committed progress. In Docker, prefix the commands with
+`docker compose exec backend`.
 
 ## Migration and verification
 

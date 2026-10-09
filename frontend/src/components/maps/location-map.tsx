@@ -3,6 +3,7 @@ import { Map, Marker, NavigationControl, setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 // Bundle the ESM worker as a separate same-origin asset for development/builds.
 setWorkerUrl(workerUrl)
@@ -12,6 +13,7 @@ type LocationMapProps = {
   longitude: number | null
   zoom?: number
   interactive?: boolean
+  canvasClassName?: string
 }
 
 export function LocationMap({
@@ -19,6 +21,7 @@ export function LocationMap({
   longitude,
   zoom = 15.5,
   interactive = false,
+  canvasClassName,
 }: LocationMapProps) {
   const style = import.meta.env.VITE_MAP_STYLE_URL?.trim()
   if (latitude === null || longitude === null) {
@@ -40,19 +43,20 @@ export function LocationMap({
   if (!validStyle || !style) {
     return <MapUnavailable message="Žemėlapio konfigūracija nepasiekiama. Kreipkitės į administratorių." />
   }
-  return <MapCanvas latitude={latitude} longitude={longitude} zoom={zoom} interactive={interactive} style={style} />
+  return <MapCanvas latitude={latitude} longitude={longitude} zoom={zoom} interactive={interactive} style={style} canvasClassName={canvasClassName} />
 }
 
 function MapUnavailable({ message }: { message: string }) {
   return <p role="alert" className="rounded-lg border bg-muted/40 p-5 text-sm text-destructive">{message}</p>
 }
 
-function MapCanvas({ latitude, longitude, zoom, interactive, style }: {
+function MapCanvas({ latitude, longitude, zoom, interactive, style, canvasClassName }: {
   latitude: number
   longitude: number
   zoom: number
   interactive: boolean
   style: string
+  canvasClassName?: string
 }) {
   const container = useRef<HTMLDivElement>(null)
   const initialView = useRef({ latitude, longitude, zoom })
@@ -128,7 +132,7 @@ function MapCanvas({ latitude, longitude, zoom, interactive, style }: {
 
   return (
     <div className="relative overflow-hidden rounded-lg border bg-muted/40">
-      <div ref={container} className="h-72 w-full sm:h-96" />
+      <div ref={container} className={cn('h-72 w-full sm:h-96', canvasClassName)} />
       {!current && (
         <p role="status" className="absolute left-3 top-3 rounded-md bg-card px-3 py-2 text-sm shadow-sm">
           Kraunamas žemėlapis…
