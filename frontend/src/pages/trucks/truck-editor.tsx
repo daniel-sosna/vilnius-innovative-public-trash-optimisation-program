@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,13 +10,24 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast-context'
 import {
   ApiError,
-  isSiteCapacity,
+  getLandfills,
+  isVolumeInput,
+  parseVolume,
   operationError,
   truckRequest,
+  wasteCarriers,
+  type Landfill,
   type Truck,
 } from './api'
 
@@ -36,23 +47,57 @@ export function TruckEditor({
   restoreFocus,
 }: Props) {
   const [name, setName] = useState(truck?.name ?? '')
-  const [capacity, setCapacity] = useState(
-    truck ? String(truck.max_bins_per_trip) : '',
+  const [volume, setVolume] = useState(
+    truck ? String(truck.max_volume_m3).replace('.', ',') : '',
+  )
+  const unlistedCarrier = truck && !wasteCarriers.includes(truck.waste_carrier)
+  const [carrier, setCarrier] = useState(
+    truck && !unlistedCarrier ? truck.waste_carrier : '',
   )
   const [available, setAvailable] = useState(truck?.available ?? true)
+  const [landfill, setLandfill] = useState(
+    truck?.landfill_id ? String(truck.landfill_id) : '',
+  )
+  const [catalogRetry, setCatalogRetry] = useState(0)
+  const [catalog, setCatalog] = useState<{
+    key: number
+    data: Landfill[] | null
+    error: boolean
+  } | null>(null)
+  const currentCatalog = catalog?.key === catalogRetry ? catalog : null
+  const landfills = currentCatalog?.data
   const [fields, setFields] = useState<Record<string, string>>({})
   const notify = useToast()
   const [missing, setMissing] = useState(false)
   const [pending, setPending] = useState(false)
   const submitting = useRef(false)
 
+  useEffect(() => {
+    const controller = new AbortController()
+    getLandfills(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted)
+          setCatalog({ key: catalogRetry, data, error: false })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setCatalog({ key: catalogRetry, data: null, error: true })
+      })
+    return () => controller.abort()
+  }, [catalogRetry])
+
   async function save(event: FormEvent) {
     event.preventDefault()
     if (submitting.current) return
     const validation: Record<string, string> = {}
     if (!name.trim()) validation.name = 'Įveskite pavadinimą.'
-    if (!isSiteCapacity(capacity))
-      validation.max_bins_per_trip = 'Įveskite sveikąjį skaičių nuo 1 iki 99.'
+    const parsedVolume = parseVolume(volume)
+    if (parsedVolume === null)
+      validation.max_volume_m3 = 'Įveskite skaičių, didesnį už nulį.'
+    if (!wasteCarriers.includes(carrier))
+      validation.waste_carrier = 'Pasirinkite atliekų vežėją.'
+    if (!landfills?.some((choice) => String(choice.id) === landfill))
+      validation.landfill_id = 'Pasirinkite sąvartyną.'
     setFields(validation)
     if (Object.keys(validation).length) return
     const initiatingControl = document.activeElement
@@ -63,7 +108,9 @@ export function TruckEditor({
         method: truck ? 'PATCH' : 'POST',
         body: JSON.stringify({
           name: name.trim(),
-          max_bins_per_trip: Number(capacity),
+          max_volume_m3: parsedVolume,
+          waste_carrier: carrier,
+          landfill_id: Number(landfill),
           available,
         }),
       })
@@ -140,32 +187,114 @@ export function TruckEditor({
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="truck-capacity" className="leading-relaxed">
-              Maksimalus aikštelių skaičius per reisą
+            <Label htmlFor="truck-volume" className="leading-relaxed">
+              Maksimali talpa
             </Label>
-            <Input
-              id="truck-capacity"
-              type="number"
-              min={1}
-              max={99}
-              step={1}
-              inputMode="numeric"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              disabled={pending}
-              aria-invalid={!!fields.max_bins_per_trip}
-              aria-describedby={`capacity-help${fields.max_bins_per_trip ? ' capacity-error' : ''}`}
-            />
-            <p id="capacity-help" className="text-sm text-muted-foreground">
-              Viena aikštelė gali turėti kelis konteinerius.
-            </p>
-            {fields.max_bins_per_trip && (
+            <div className="relative">
+              <Input
+                id="truck-volume"
+                inputMode="decimal"
+                className="pr-12"
+                value={volume}
+                onChange={(e) => {
+                  if (isVolumeInput(e.target.value)) setVolume(e.target.value)
+                }}
+                disabled={pending}
+                aria-invalid={!!fields.max_volume_m3}
+                aria-describedby={`volume-unit${fields.max_volume_m3 ? ' volume-error' : ''}`}
+              />
+              <span
+                id="volume-unit"
+                className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
+              >
+                m³
+              </span>
+            </div>
+            {fields.max_volume_m3 && (
               <p
-                id="capacity-error"
+                id="volume-error"
                 className="text-sm text-destructive"
                 role="alert"
               >
-                {fields.max_bins_per_trip}
+                {fields.max_volume_m3}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="truck-carrier">Atliekų vežėjas</Label>
+            <Select value={carrier} onValueChange={setCarrier} disabled={pending}>
+              <SelectTrigger
+                id="truck-carrier"
+                className="w-full"
+                aria-invalid={!!fields.waste_carrier}
+                aria-describedby={[
+                  unlistedCarrier ? 'stored-carrier' : '',
+                  fields.waste_carrier ? 'carrier-error' : '',
+                ].filter(Boolean).join(' ') || undefined}
+              >
+                <SelectValue placeholder="Pasirinkite atliekų vežėją" />
+              </SelectTrigger>
+              <SelectContent>
+                {wasteCarriers.map((value) => (
+                  <SelectItem key={value} value={value}>{value}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {unlistedCarrier && (
+              <p id="stored-carrier" className="break-words text-sm text-muted-foreground">
+                Dabartinis atliekų vežėjas: {truck.waste_carrier}
+              </p>
+            )}
+            {fields.waste_carrier && (
+              <p id="carrier-error" className="text-sm text-destructive" role="alert">
+                {fields.waste_carrier}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2" aria-busy={!currentCatalog}>
+            <Label htmlFor="truck-landfill">Sąvartynas</Label>
+            <Select
+              value={landfill}
+              onValueChange={setLandfill}
+              disabled={pending || !landfills?.length}
+            >
+              <SelectTrigger
+                id="truck-landfill"
+                className="w-full min-w-0 whitespace-normal data-[size=default]:h-auto data-[size=default]:min-h-9 *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:min-w-0"
+                aria-invalid={!!fields.landfill_id}
+                aria-describedby={fields.landfill_id ? 'landfill-error' : 'landfill-status'}
+              >
+                <SelectValue placeholder="Pasirinkite sąvartyną" className="break-words text-left" />
+              </SelectTrigger>
+              <SelectContent position="popper" className="w-[var(--radix-select-trigger-width)]">
+                {landfills?.map((choice) => (
+                  <SelectItem
+                    key={choice.id}
+                    value={String(choice.id)}
+                    className="whitespace-normal *:[span]:last:min-w-0"
+                  >
+                    <span className="min-w-0 break-words">{choice.name}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div id="landfill-status">
+              {!currentCatalog ? (
+                <p role="status" className="text-sm text-muted-foreground">Kraunami sąvartynai…</p>
+              ) : currentCatalog.error ? (
+                <div role="alert" className="space-y-2">
+                  <p className="text-sm text-destructive">Nepavyko įkelti sąvartynų.</p>
+                  <Button type="button" variant="outline" onClick={() => setCatalogRetry((value) => value + 1)}>
+                    Bandyti dar kartą
+                  </Button>
+                </div>
+              ) : !landfills?.length ? (
+                <p role="status" className="text-sm text-muted-foreground">Šiuo metu nėra sąvartynų.</p>
+              ) : null}
+            </div>
+            {fields.landfill_id && (
+              <p id="landfill-error" role="alert" className="text-sm text-destructive">
+                {fields.landfill_id}
               </p>
             )}
           </div>
@@ -199,7 +328,7 @@ export function TruckEditor({
             >
               Atšaukti
             </Button>
-            <Button type="submit" disabled={pending || missing}>
+            <Button type="submit" disabled={pending || missing || !landfills?.length}>
               {pending ? 'Saugoma…' : 'Išsaugoti'}
             </Button>
           </DialogFooter>

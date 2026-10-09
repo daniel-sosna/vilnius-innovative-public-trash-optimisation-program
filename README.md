@@ -74,8 +74,20 @@ unrelated settings are ignored; the importer does not rewrite operator files.
 
 The backend entrypoint runs `alembic upgrade head` before Uvicorn. **Revision
 0004 deliberately drops old bins, routes, route stops and service events.**
-Trucks survive unchanged. Preserve a backup before upgrading if the old records
-are needed. Migration failure prevents startup. Startup, restart, reload,
+Trucks survive revision 0004 unchanged. **Revision 0005 requires an empty legacy
+truck table**, including retired rows, then replaces site-count capacity with
+positive finite `max_volume_m3 NUMERIC` and required unrestricted
+`waste_carrier TEXT`. If trucks unexpectedly exist, migration fails with their
+IDs without converting counts, inventing carriers or deleting records. Its
+downgrade to 0004 also requires an empty truck table. **Revision 0006 creates
+and seeds `landfills` and adds nullable `trucks.landfill_id`**. It preserves
+existing active/retired trucks as unassigned. Downgrade to 0005 refuses any
+assigned truck, including retired rows, rather than dropping assignments.
+**Revision 0007 makes all landfill fields except `id` and `name` nullable**.
+It preserves catalog values and assignments; downgrade to 0006 refuses rows
+with newly optional details still NULL instead of fabricating missing values.
+Preserve a backup before
+upgrading if old collection records are needed. Migration failure prevents startup. Startup, restart, reload,
 migrations and idle runtime perform no VASA requests or cleanup.
 
 After schema preparation, load the collection data (`sites`, `bins`, `bin_hist`)
@@ -186,28 +198,38 @@ See [table import verification](docs/table-import-verification.md) for repeatabl
 
 Open `/` and choose `Administratorius` to enter `/admin/trucks`. The supplied Vilnius logo is centered near the top, above the VipTop leaf branding and role selection. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar shows a compact Vilnius logo on the right and VipTop on the left; both branding links lead back to `/`. It links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
 
-The screen supports name search, availability and inclusive site-capacity filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available. Capacity counts collection sites, not individual containers. Delete requires confirmation and retains the truck row without changing collection history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
+The screen supports name search, availability, waste carrier and inclusive volume filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available, with blank volume and carrier selection. Maximum capacity is waste volume in m³; fractions are supported. Delete requires confirmation and retains the truck row without changing collection history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
 
 Create/edit success appears as `Šiukšliavežė išsaugota.` in a toast entering from the top right; failed save requests show an error toast while preserving entered values. Field validation stays beside inputs. Toasts support accessible announcements, labeled dismissal, reduced motion and automatic dismissal, and remain visible above open dialogs. Read refresh failures retain their own retry controls; retrying does not repeat a committed save or its toast.
 
 | API | Behaviour |
 |---|---|
-| `GET /trucks` | Nondeleted page; optional `name`, `available`, `min_max_bins_per_trip`, `max_max_bins_per_trip`, `page` |
-| `GET /trucks/stats` | Whole nondeleted fleet: `total`, `available_count`, `average_max_bins_per_trip` |
+| `GET /trucks` | Nondeleted page; optional `name`, `available`, `min_max_volume_m3`, `max_max_volume_m3`, `waste_carrier`, `page` |
+| `GET /trucks/stats` | Whole nondeleted fleet: `total`, `available_count`, `average_max_volume_m3` |
 | `GET /trucks/{id}` | Nondeleted detail, or `404` |
-| `POST /trucks` | Required `name`, `max_bins_per_trip`, `available`; `201` saved truck |
-| `PATCH /trucks/{id}` | Partial updates to those three fields; `200` saved truck; missing/deleted ID is `404` |
-| `DELETE /trucks/{id}` | Atomic soft deletion; bodyless `204`; missing/already deleted ID is `404` |
+| `POST /trucks` | Required `name`, `max_volume_m3`, `waste_carrier`, `landfill_id`, `available`; `201` saved truck |
+| `PATCH /trucks/{id}` | Partial updates to those five fields; `200` saved truck; missing/deleted ID is `404` |
+| `DELETE /trucks/{id}` | Atomic soft deletion retaining landfill; bodyless `204`; missing/already deleted ID is `404` |
+| `GET /landfills` | Complete read-only catalog array, ordered by generated ID, with all mapped source fields |
 
-List responses use `{ "items": [...], "total": 21, "page": 1, "page_size": 10 }`. Pages are one-based and default to 1; invalid/nonpositive pages return `422`, while a valid page beyond the results returns empty items with the matching total. Count and items apply the same filters before pagination, ordered by ID. Invalid UI page jumps show a Lithuanian error without fetching; changing/clearing filters resets both the page and page input. Names use trimmed, case-insensitive literal substring matching; filters combine with AND. Blank search has no effect. Capacity bounds must be integers 1–99 with minimum no greater than maximum.
+List responses use `{ "items": [...], "total": 21, "page": 1, "page_size": 10 }`. Pages are one-based and default to 1; invalid/nonpositive pages return `422`, while a valid page beyond the results returns empty items with the matching total. Count and items apply the same filters before pagination, ordered by ID. Invalid UI page jumps show a Lithuanian error without fetching; changing/clearing filters resets both the page and page input. Names use trimmed, case-insensitive literal substring matching; filters combine with AND. Blank search has no effect. Volume bounds must be finite numbers greater than zero, with minimum no greater than maximum. Fractions and values above 99 are accepted. Carrier matching is literal equality after trimming; blank carrier has no effect.
 
-The overview above the filters covers all nondeleted trucks independently of table filters/pages: total, average maximum site capacity (one decimal in Lithuanian formatting), and available percentage with a proportional green circular arc. `GET /trucks/stats` returns `{ "total": 21, "available_count": 11, "average_max_bins_per_trip": 11.0 }` for the synthetic 1–21-capacity example. The average is null for an empty fleet, displayed as — alongside 0 total and 0% availability. Statistics have independent loading/error/retry states; a failed refresh does not undo or repeat a committed mutation.
+The overview above the filters covers all nondeleted trucks independently of table filters/pages: total, average maximum waste volume (one decimal in Lithuanian formatting with m³), and available percentage with a proportional green circular arc. `GET /trucks/stats` returns `{ "total": 21, "available_count": 11, "average_max_volume_m3": 11.0 }` for the synthetic 1–21 m³ example. The average is null for an empty fleet, displayed as — alongside 0 total and 0% availability. Statistics have independent loading/error/retry states; a failed refresh does not undo or repeat a committed mutation.
 
-The screen uses a wider aligned admin layout, neutral gray surfaces and leaf branding. The available/total count beneath `Prieinamos šiukšliavežės` (for example, `24 iš 27`) matches the size and weight of the other overview values; the circular percentage remains beside it or wraps at narrow widths. The capacity column is `Max Aikštelių per reisą`. Truck-specific frontend files live under `frontend/src/pages/trucks/`; shared layout/branding/UI primitives, toast provider and `TablePagination` live under `components/`. Backend HTTP router/schemas live under `app/interfaces/trucks/`; the CLI lives under `app/interfaces/bin_sync/` and keeps the existing `python -m app.interfaces.bin_sync` invocation.
+The screen uses a wider aligned admin layout, neutral gray surfaces and leaf branding. The available/total count beneath `Prieinamos šiukšliavežės` (for example, `24 iš 27`) matches the size and weight of the other overview values; the circular percentage remains beside it or wraps at narrow widths. The volume column is `Maksimali talpa` and displays `18 m³` or `18,5 m³`. The adjacent carrier column is `Atliekų vežėjas`. Truck-specific frontend files live under `frontend/src/pages/trucks/`; shared layout/branding/UI primitives, toast provider and `TablePagination` live under `components/`. Backend HTTP router/schemas live under `app/interfaces/trucks/`; the CLI lives under `app/interfaces/bin_sync/` and keeps the existing `python -m app.interfaces.bin_sync` invocation.
 
-Truck responses expose `id`, `name`, `max_bins_per_trip`, `available`, `deleted`. Mutation inputs trim nonempty names, require integer capacity 1–99 and boolean availability, reject explicit nulls and unknown fields, and permit duplicate names. `id`/`deleted` cannot be set by clients. Omitted PATCH fields remain unchanged; an empty patch returns the eligible unchanged truck. Validation errors return `422`; persistence failures return generic `500` responses without partial changes.
+Truck responses expose exactly `id`, `name`, `max_volume_m3`, `waste_carrier`, `landfill_id`, `available`. Mutation inputs trim nonempty names and carrier strings, require positive finite numeric volume and boolean availability, reject explicit nulls, numeric strings/booleans and unknown fields, and permit duplicate names. The removed `max_bins_per_trip` mutation field is rejected. `id`/`deleted` cannot be set by clients. Omitted PATCH fields remain unchanged; an empty patch returns the eligible unchanged truck, including an unassigned one. Create requires a strict positive integer landfill ID that exists; supplied PATCH landfill IDs reject null, strings, booleans, fractions and unknown IDs with field-addressable `422`. A nonempty edit of an existing unassigned truck requires landfill selection; an assigned truck preserves an omitted assignment. Reads return null for transitional unassigned trucks. Validation errors return `422`; persistence failures return generic `500` responses without partial changes.
 
-The browser calls same-origin `/api/trucks`; Vite strips `/api` and proxies to FastAPI. Compose configures server-only `VIPTOP_API_PROXY_TARGET=http://backend:8000`. For native frontend development, the default is `http://127.0.0.1:8000`; override it for a different backend port:
+Create/edit uses `Pavadinimas`, `Maksimali talpa` with a visible `m³` unit,
+`Atliekų vežėjas`, `Sąvartynas` and `Prieinamas`. Volume input/filter text accepts decimal
+commas or points and sends JSON numbers. Carrier selection offers only
+`Kauno švara`, `Biomotorai`, `Ecoservice` and `Ekonovus`; the carrier filter adds
+`Visi vežėjai`. The database/API can store and return other nonempty carrier
+names. The list displays them faithfully; opening their editor shows the
+original name and requires an explicit listed carrier choice before saving,
+without silently replacing it. Opening/cancelling never changes a record. The landfill select loads all three exact source names from `GET /landfills`; it starts blank for create/unassigned trucks, preloads assigned edits and sends a numeric ID. Loading/error/empty catalog states prevent saving with Lithuanian feedback and retry, preserving entered values. No landfill is selected automatically.
+
+The browser calls same-origin `/api/trucks` and `/api/landfills`; Vite strips `/api` and proxies to FastAPI. Compose configures server-only `VIPTOP_API_PROXY_TARGET=http://backend:8000`. For native frontend development, the default is `http://127.0.0.1:8000`; override it for a different backend port:
 
 ```bash
 cd frontend
@@ -290,15 +312,40 @@ whitespace-collapsed and case-folded. `site_key` is unique (`address:<normalized
 or isolated `unknown:<external_id>`). Display addresses remain readable.
 Distance and client addresses do not determine membership. Site coordinates
 are arithmetic averages of all current members, including out-of-bounds bins
-retained from earlier imports; they are not surveyed entrances. Truck capacity
-still counts sites per trip.
+retained from earlier imports; they are not surveyed entrances. Truck capacity is
+maximum waste volume in m³; collection-site counts no longer describe truck capacity.
 
 | Table | Fields |
 |---|---|
 | `sites` | `id`, `site_key`, `address`, `latitude`, `longitude` |
 | `bins` | `id`, `site_id`, `external_id`, `inventory_number`, `waste_type`, `capacity_m3`, `latitude`, `longitude`, `district`, `region`, `sub_district`, `city`, `street`, `house_number`, `postal_code`, `territory_type`, `object_group`, `waste_carrier`, `client_count` |
 | `bin_hist` | `id`, `bin_id`, `date`, `was_serviced`, `non_serviced_reason`, `fill_level` |
-| `trucks` | `id`, `name`, `max_bins_per_trip`, `available`, `deleted` |
+| `trucks` | `id`, `name`, `max_volume_m3`, `waste_carrier`, `landfill_id`, `available`, `deleted` |
+| `landfills` | `id`, `source_id`, `dataset_name`, `dataset_description`, `latitude`, `longitude`, `name`, `operator`, `address`, `facility_role`, `waste_streams`, `status`, `coordinate_quality`, `coordinate_source`, `facility_source`, `municipal_arrangement_source`, `current_status_source`, `verified_at` |
+
+Truck volume is required positive finite NUMERIC and permits fractions without
+the old 99 limit. Truck carrier is required TEXT without an enum, allowed-value
+check or catalog relationship; future company names can be stored. Truck IDs
+retain their generated integer identities. `landfill_id` is a nullable INTEGER
+foreign key with restricted deletion of referenced landfills; NULL is retained
+for trucks predating assignment support.
+
+Landfills are seeded once from `vilnius_waste_facilities.geojson` in migration
+`0006`: three generated INTEGER IDs 1–3 in file order; the next is 4. Original
+feature IDs are `source_id`, GeoJSON longitude/latitude are separate DOUBLE
+PRECISION columns, and collection name/description are repeated as dataset
+metadata. All properties are retained: text, ordered `waste_streams TEXT[]`,
+`verified_at DATE`, and NULL for absent source URLs. All `type` fields are
+omitted. The migration embeds the data and requires neither Downloads nor
+network access. Supplied facility status, coordinate quality and verification
+dates are provenance from the file, not independently verified route facts.
+At revision `0007`, only generated `id` and dropdown `name` are required.
+Source IDs, dataset metadata, coordinates and all other facility details may
+be NULL; the lookup returns these as JSON null. Nonnull source IDs remain unique
+and provided coordinates still obey geographic range checks. The original seed
+values and required Truck selection are preserved.
+See [Truck verification](docs/truck-management-verification.md) for the exact
+source hash, mapping and guarded upgrade/rollback procedure.
 
 Collection IDs are generated BIGINT identities. The unique `bins.external_id`
 retains VASA identity. Required Bin fields are site, external ID, waste type and
