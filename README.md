@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # trucks/ HTTP API and bin_sync/ CLI
+│       ├── interfaces/     # trucks/ HTTP API, bin_sync/ and table_import/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -78,20 +78,16 @@ Trucks survive unchanged. Preserve a backup before upgrading if the old records
 are needed. Migration failure prevents startup. Startup, restart, reload,
 migrations and idle runtime perform no VASA requests or cleanup.
 
-After schema preparation, run a limited trial:
+After schema preparation, load the collection data (`sites`, `bins`, `bin_hist`)
+from CSV exports as described in [Import table CSV exports](#import-table-csv-exports):
 
 ```bash
-docker compose exec backend uv run python -m app.interfaces.bin_sync --max-sites 10
+docker compose exec backend uv run python -m app.interfaces.table_import
 ```
 
-A trial exits 2 and never removes missing bins. To complete coverage:
-
-```bash
-docker compose exec backend uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
-```
-
-Matching incomplete runs resume. After full success (exit 0), the next invocation
-starts a fresh refresh. Failures exit 1 and retain already committed progress.
+**Do not use `bin_sync` for development.** Parsing the VASA API is very slow (a
+full pass takes hours) and depends on the external source. It is only for
+refreshing the shared data snapshot; see [Bin synchronization](#bin-synchronization).
 
 To run the backend outside Docker, install [uv](https://docs.astral.sh/uv/), provide an accessible PostgreSQL database, and run from `backend/`:
 
@@ -102,11 +98,11 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-After the native server is running, open another terminal in `backend/` and import once using the same accessible connection:
+After the native server is running, open another terminal in `backend/` and import the CSV exports once using the same accessible connection:
 
 ```bash
 export DATABASE_URL=postgresql+psycopg://viptop:viptop@localhost:5432/viptop
-uv run python -m app.interfaces.bin_sync
+uv run python -m app.interfaces.table_import
 ```
 
 These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
@@ -152,6 +148,39 @@ CAPTCHA, rate limiting, identity/IP/device capture, duplicate protection,
 moderation, admin request management, ML/routing integration, and notifications
 are outside this feature. See [resident request verification](docs/resident-request-verification.md)
 for repeatable synthetic migration, API, SQL, failure, and mobile checks.
+
+## Import table CSV exports
+
+This is the required way to get collection data for development: load table
+exports shared by a teammate instead of running a slow VASA synchronization.
+Put the CSV files in `backend/data/` (contents git-ignored except `.gitkeep`, and
+excluded from the Docker build) and run:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.table_import
+# native, from backend/ with DATABASE_URL exported or set in the root .env
+uv run python -m app.interfaces.table_import --dir /path/to/exports
+```
+
+- **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
+  files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
+- **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
+  (as DBeaver writes it), quoted text. Export after running the same migrations.
+- **Replacement:** only tables that have a file are emptied and reloaded (IDs are kept);
+  other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
+  also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
+  A table referenced by a table without a file (e.g. only `sites`) is rejected.
+- **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
+  **The current contents of the imported tables are discarded.**
+- **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
+  missing or the import fails.
+
+**For AI agents:** before any task that needs collection data, check that
+`backend/data/` contains `sites_<digits>.csv`, `bins_<digits>.csv` and
+`bin_hist_<digits>.csv`. If any is missing, stop and ask the developer to add the
+exports. Do not run `bin_sync` to obtain the data instead.
+
+See [table import verification](docs/table-import-verification.md) for repeatable checks.
 
 ## Truck management
 
@@ -372,6 +401,11 @@ uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
 # A narrower refresh uses separate coverage; adjust bounds to the intended area.
 uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0 --bbox 25.2961 54.70245 25.2964 54.7026
 ```
+
+A trial exits 2 and never removes missing bins. Matching incomplete runs resume.
+After full success (exit 0), the next invocation starts a fresh refresh. Failures
+exit 1 and retain already committed progress. In Docker, prefix the commands with
+`docker compose exec backend`.
 
 ## Migration and verification
 
