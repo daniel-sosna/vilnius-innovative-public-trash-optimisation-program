@@ -54,6 +54,8 @@ export function TablePagination({
     onPageChange(target)
   }
 
+  if (lastPage === null || lastPage <= 1) return null
+
   return (
     <nav
       aria-label="Sąrašo puslapiai"
