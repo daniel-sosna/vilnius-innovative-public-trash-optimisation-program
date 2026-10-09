@@ -1,6 +1,8 @@
 from pathlib import Path
+from string import Formatter
+from urllib.parse import urlsplit
 
-from pydantic import Field, HttpUrl, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -15,8 +17,46 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(repr=False)
-    bin_sync_source_url: HttpUrl
+    vasa_tile_url_template: str = (
+        "https://atliekuaiksteles.vasa.lt/api/cluster/{z}/{x}/{y}"
+    )
+    vasa_bin_url_template: str = (
+        "https://atliekuaiksteles.vasa.lt/vasa-api/api/v1/dumpsters/{external_id}"
+    )
+    vasa_history_url_template: str = "https://atliekuaiksteles.vasa.lt/vasa-api/api/v1/dumpsters-service-history/{external_id}"
     bin_sync_http_timeout_seconds: float = Field(gt=0, allow_inf_nan=False)
+
+    @field_validator(
+        "vasa_tile_url_template", "vasa_bin_url_template", "vasa_history_url_template"
+    )
+    @classmethod
+    def require_https_template(cls, value: str, info) -> str:
+        required = (
+            {"z", "x", "y"}
+            if info.field_name == "vasa_tile_url_template"
+            else {"external_id"}
+        )
+        try:
+            parts = list(Formatter().parse(value))
+            fields = {field for _, field, _, _ in parts if field is not None}
+            if fields != required or any(
+                spec or conversion for _, _, spec, conversion in parts
+            ):
+                raise ValueError
+            url = urlsplit(value.format(**{key: 1 for key in required}))
+            if (
+                url.scheme != "https"
+                or not url.hostname
+                or url.username
+                or url.password
+                or url.fragment
+            ):
+                raise ValueError
+        except (ValueError, KeyError, IndexError):
+            raise ValueError(
+                "VASA URL must use HTTPS and the documented placeholders, without credentials or fragments"
+            ) from None
+        return value
 
     @field_validator("database_url")
     @classmethod

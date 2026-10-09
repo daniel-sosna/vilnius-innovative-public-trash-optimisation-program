@@ -1,9 +1,10 @@
-from datetime import date, datetime
+from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
-    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -11,30 +12,130 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    Numeric,
+    SmallInteger,
     Text,
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention={"pk": "pk_%(table_name)s"})
 
 
+class Site(Base):
+    __tablename__ = "sites"
+    __table_args__ = (
+        UniqueConstraint("site_key", name="uq_sites_site_key"),
+        CheckConstraint("latitude BETWEEN -90 AND 90", name="ck_sites_latitude_range"),
+        CheckConstraint(
+            "longitude BETWEEN -180 AND 180", name="ck_sites_longitude_range"
+        ),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    site_key: Mapped[str] = mapped_column(Text)
+    address: Mapped[str] = mapped_column(Text)
+    latitude: Mapped[float] = mapped_column(Double)
+    longitude: Mapped[float] = mapped_column(Double)
+    bins: Mapped[list["Bin"]] = relationship(
+        back_populates="site", passive_deletes="all"
+    )
+
+
 class Bin(Base):
     __tablename__ = "bins"
     __table_args__ = (
-        CheckConstraint("lat BETWEEN -90 AND 90", name="ck_bins_lat_range"),
-        CheckConstraint("lon BETWEEN -180 AND 180", name="ck_bins_lon_range"),
+        UniqueConstraint("external_id", name="uq_bins_external_id"),
+        CheckConstraint("latitude BETWEEN -90 AND 90", name="ck_bins_latitude_range"),
+        CheckConstraint(
+            "longitude BETWEEN -180 AND 180", name="ck_bins_longitude_range"
+        ),
+        CheckConstraint("client_count >= 0", name="ck_bins_client_count"),
+        Index("ix_bins_site_id", "site_id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    site_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("sites.id", name="fk_bins_site_id", ondelete="RESTRICT")
+    )
+    external_id: Mapped[int] = mapped_column(BigInteger)
+    inventory_number: Mapped[str | None] = mapped_column(Text)
+    waste_type: Mapped[str] = mapped_column(Text)
+    capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
+    latitude: Mapped[float] = mapped_column(Double)
+    longitude: Mapped[float] = mapped_column(Double)
+    district: Mapped[str | None] = mapped_column(Text)
+    region: Mapped[str | None] = mapped_column(Text)
+    sub_district: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None] = mapped_column(Text)
+    street: Mapped[str | None] = mapped_column(Text)
+    house_number: Mapped[str | None] = mapped_column(Text)
+    postal_code: Mapped[str | None] = mapped_column(Text)
+    territory_type: Mapped[str | None] = mapped_column(Text)
+    object_group: Mapped[str | None] = mapped_column(Text)
+    waste_carrier: Mapped[str | None] = mapped_column(Text)
+    client_count: Mapped[int | None] = mapped_column(Integer)
+    site: Mapped[Site] = relationship(back_populates="bins")
+    history: Mapped[list["BinHist"]] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
-    lat: Mapped[float] = mapped_column(Double)
-    lon: Mapped[float] = mapped_column(Double)
-    address: Mapped[str | None] = mapped_column(Text)
-    type: Mapped[str | None] = mapped_column(Text)
-    greening: Mapped[str | None] = mapped_column(Text)
+
+class BinHist(Base):
+    __tablename__ = "bin_hist"
+    __table_args__ = (
+        UniqueConstraint("bin_id", "date", "was_serviced", name="uq_bin_hist_event"),
+        CheckConstraint("fill_level BETWEEN 0 AND 3", name="ck_bin_hist_fill_level"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("bins.id", name="fk_bin_hist_bin_id", ondelete="CASCADE")
+    )
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=False))
+    was_serviced: Mapped[bool] = mapped_column(Boolean)
+    non_serviced_reason: Mapped[str | None] = mapped_column(Text)
+    fill_level: Mapped[int | None] = mapped_column(SmallInteger)
+    bin: Mapped[Bin] = relationship(back_populates="history")
+
+
+class VasaImportRun(Base):
+    __tablename__ = "vasa_import_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "phase IN ('tiles', 'history', 'finalize', 'complete')",
+            name="ck_vasa_import_runs_phase",
+        ),
+        Index("ix_vasa_import_runs_scope", "scope_key", "id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    scope_key: Mapped[str] = mapped_column(Text)
+    coverage: Mapped[dict] = mapped_column(JSONB)
+    phase: Mapped[str] = mapped_column(Text)
+    diagnostics: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+
+
+class VasaImportProgress(Base):
+    __tablename__ = "vasa_import_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "kind", "work_key", name="uq_vasa_import_progress_work"
+        ),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "vasa_import_runs.id",
+            name="fk_vasa_import_progress_run_id",
+            ondelete="CASCADE",
+        ),
+    )
+    kind: Mapped[str] = mapped_column(Text)
+    work_key: Mapped[str] = mapped_column(Text)
+    complete: Mapped[bool] = mapped_column(Boolean)
+    details: Mapped[dict] = mapped_column(JSONB)
 
 
 class Truck(Base):
@@ -57,63 +158,3 @@ class Truck(Base):
     max_bins_per_trip: Mapped[int] = mapped_column(Integer)
     available: Mapped[bool] = mapped_column(Boolean)
     deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-
-
-class Route(Base):
-    __tablename__ = "routes"
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('PLANNED', 'IN_PROGRESS', 'COMPLETED')",
-            name="ck_routes_status",
-        ),
-        Index("ix_routes_truck_id", "truck_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
-    service_date: Mapped[date] = mapped_column(Date)
-    truck_id: Mapped[int] = mapped_column(
-        ForeignKey("trucks.id", name="fk_routes_truck_id", ondelete="RESTRICT")
-    )
-    status: Mapped[str] = mapped_column(Text, server_default=text("'PLANNED'"))
-
-
-class RouteStop(Base):
-    __tablename__ = "route_stops"
-    __table_args__ = (
-        CheckConstraint("stop_order > 0", name="ck_route_stops_positive_order"),
-        UniqueConstraint("route_id", "stop_order", name="uq_route_stops_route_order"),
-        Index("ix_route_stops_bin_id", "bin_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
-    route_id: Mapped[int] = mapped_column(
-        ForeignKey("routes.id", name="fk_route_stops_route_id", ondelete="RESTRICT")
-    )
-    bin_id: Mapped[int] = mapped_column(
-        ForeignKey("bins.id", name="fk_route_stops_bin_id", ondelete="RESTRICT")
-    )
-    stop_order: Mapped[int] = mapped_column(Integer)
-
-
-class ServiceEvent(Base):
-    __tablename__ = "service_events"
-    __table_args__ = (
-        CheckConstraint("duration >= 0", name="ck_service_events_duration"),
-        CheckConstraint(
-            "fill_level IN ('EMPTY', 'LESS_THAN_HALF', 'MORE_THAN_HALF', 'FULL')",
-            name="ck_service_events_fill_level",
-        ),
-        Index("ix_service_events_bin_history", "bin_id", "service_ts", "id"),
-        Index("ix_service_events_route_id", "route_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
-    bin_id: Mapped[int] = mapped_column(
-        ForeignKey("bins.id", name="fk_service_events_bin_id", ondelete="RESTRICT")
-    )
-    service_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    fill_level: Mapped[str] = mapped_column(Text)
-    duration: Mapped[int] = mapped_column(Integer)
-    route_id: Mapped[int] = mapped_column(
-        ForeignKey("routes.id", name="fk_service_events_route_id", ondelete="RESTRICT")
-    )

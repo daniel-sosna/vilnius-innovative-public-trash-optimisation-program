@@ -12,37 +12,48 @@ docker run -d --name viptop-truck-ui-db -p 127.0.0.1:55432:5432 \
   -e POSTGRES_DB=viptop_truck_verify postgres:17-alpine
 ```
 
-From `backend/`, use these disposable settings. The unreachable GIS URL makes accidental source access visible; migrations and truck requests must not contact it.
+From `backend/`, use these disposable settings. The unreachable VASA URLs makes accidental source access visible; migrations and truck requests must not contact it.
 
 ```bash
 export DATABASE_URL=postgresql+psycopg://viptop:viptop@127.0.0.1:55432/viptop_truck_verify
-export BIN_SYNC_SOURCE_URL=http://127.0.0.1:1/query
+export VASA_TILE_URL_TEMPLATE='https://127.0.0.1:1/{z}/{x}/{y}'
+export VASA_BIN_URL_TEMPLATE='https://127.0.0.1:1/{external_id}'
+export VASA_HISTORY_URL_TEMPLATE='https://127.0.0.1:1/{external_id}'
 export BIN_SYNC_HTTP_TIMEOUT_SECONDS=1
 uv sync --locked
-uv run alembic upgrade 0002
+uv run alembic upgrade head
 ```
 
-At the repository root, create a fleet spanning two pages and one historical reference chain:
+At the repository root, create a fleet spanning two pages and one collection-history chain:
 
 ```bash
 docker exec -i viptop-truck-ui-db psql -v ON_ERROR_STOP=1 -U viptop -d viptop_truck_verify <<'SQL'
 INSERT INTO trucks (name, max_bins_per_trip, available)
 SELECT 'Šiukšliavežė ' || lpad(i::text, 2, '0'), i, i % 2 = 1
 FROM generate_series(1,21) i;
-INSERT INTO bins (id,lat,lon,address)
-VALUES (634,54.6872,25.2797,'Synthetic truck verification site');
-INSERT INTO routes (service_date,truck_id) VALUES ('2026-10-08',1);
-INSERT INTO route_stops (route_id,bin_id,stop_order) VALUES (1,634,1);
-INSERT INTO service_events (bin_id,service_ts,fill_level,duration,route_id)
-VALUES (634,'2026-10-08T06:00:00Z','FULL',90,1);
+INSERT INTO sites(site_key,address,latitude,longitude)
+VALUES ('address:synthetic truck site','Synthetic truck site',54.6872,25.2797)
+RETURNING id AS site_id \gset
+INSERT INTO bins(site_id,external_id,waste_type,latitude,longitude)
+VALUES (:site_id,634,'Mixed municipal waste',54.6872,25.2797)
+RETURNING id AS bin_id \gset
+INSERT INTO bin_hist(bin_id,date,was_serviced,fill_level)
+VALUES (:bin_id,'2026-10-08 06:00:00',true,3);
 SQL
 ```
 
-From `backend/`, run `uv run alembic upgrade head` twice and `uv run alembic check`. Expect revision `0003`, then no further upgrade or schema drift. Inspect `\d trucks` and `\d routes` using psql: identities/restrictive references remain, deleted defaults to false, capacity is 1–99, names cannot be blank and deleted trucks cannot be available. All 21 original trucks remain nondeleted, with original values; the route/stop/event chain is unchanged. Repeat on an empty disposable database to verify fresh preparation.
+From `backend/`, run `uv run alembic upgrade head` twice and
+`uv run alembic check`. Expect revision `0004` with no further upgrade or schema
+drift. Inspect `\d trucks`, `\d sites`, `\d bins` and `\d bin_hist`: truck
+constraints and collection references remain valid. All 21 trucks and the
+synthetic collection chain remain unchanged on repeated upgrade. Fresh and
+populated replacement verification is in the data-foundation procedure.
 
-For incompatibility verification, create a separate database, point `DATABASE_URL` to it, upgrade only to `0002` and insert capacity 100 and a whitespace-only name. `upgrade head` must exit nonzero identifying both truck IDs and reasons. Inspect `alembic_version` (still `0002`), the four original truck columns, and unchanged values. Correction is an operator decision, not part of migration.
-
-For rollback, use initialized valid disposable storage with no retired trucks: downgrade to `0002` and upgrade again, checking values/references. On a separate disposable database at `0003`, insert a truck with deleted true and available false; downgrade must fail, retain revision `0003`, and retain the row/flags. Do not revive trucks just to permit rollback.
+Revision `0004` intentionally discards old collection data and cannot downgrade;
+restore a backup or recreate disposable storage. Historical `0003` truck guards
+can still be exercised in a separate database pinned to `0002`/`0003`, without
+upgrading to `0004`: invalid names/capacities block `upgrade 0003`, and retired
+trucks block `downgrade 0002`. Never revive trucks just to permit rollback.
 
 ## API verification
 
@@ -52,7 +63,7 @@ Return to the main disposable connection in `backend/` and start the normal entr
 sh start.sh uv run uvicorn app.main:app --host 127.0.0.1 --port 58000
 ```
 
-Schema preparation precedes serving. OpenAPI should document six truck endpoints, including the statistics route. Router/schemas are grouped under `app/interfaces/trucks/`; bin-sync CLI is under `app/interfaces/bin_sync/`. Its retained invocation is `uv run python -m app.interfaces.bin_sync`; verify against the controlled synthetic GIS procedure in `docs/data-foundation-verification.md`, with exit 0 for successful import and exit 1 for an unreachable source. Only this explicit command performs GIS I/O. The configured unreachable GIS URL must not prevent startup or truck CRUD.
+Schema preparation precedes serving. OpenAPI should document six truck endpoints, including the statistics route. Router/schemas are grouped under `app/interfaces/trucks/`; bin-sync CLI is under `app/interfaces/bin_sync/`. Its retained invocation is `uv run python -m app.interfaces.bin_sync`; verify against the controlled VASA procedure in `docs/data-foundation-verification.md`, with exit 0 for full success, 2 for a limited trial and 1 for an unreachable source. Only this explicit command performs VASA I/O. The configured unreachable VASA URLs must not prevent startup or truck CRUD.
 
 ```bash
 curl -sS 'http://127.0.0.1:58000/trucks?page=1'
@@ -82,7 +93,7 @@ Create returns `201`, generated ID, trimmed name, deleted false; invalid capacit
 
 For the temporary ID, PATCH only availability and verify name/capacity remain unchanged; PATCH `{}` returns the unchanged representation. Supplied null/unknown fields reject. DELETE returns bodyless `204`; subsequent detail, edit and repeat delete return `404`. SQL must show retained deleted true/available false. Competing valid PATCH/DELETE requests may finish in either order but must never leave a retired truck available or editable.
 
-In disposable storage only, use a temporary failing insert/update trigger to simulate a database error; the endpoint must return a generic `500` and retain original values. Remove the trigger before continuing. Verify responses do not contain SQL, connection details or exception traces. Restart the backend and confirm committed values survive, shutdown completes normally and there were no GIS requests.
+In disposable storage only, use a temporary failing insert/update trigger to simulate a database error; the endpoint must return a generic `500` and retain original values. Remove the trigger before continuing. Verify responses do not contain SQL, connection details or exception traces. Restart the backend and confirm committed values survive, shutdown completes normally and there were no VASA requests.
 
 For repeatable PATCH/DELETE calls, replace `TRUCK_ID` with the temporary truck's generated ID:
 
@@ -163,44 +174,40 @@ Before retiring referenced truck 1 in the UI, capture the fixture records from t
 
 ```bash
 docker exec viptop-truck-ui-db psql -X -A -t -U viptop -d viptop_truck_verify \
-  -c 'SELECT row_to_json(r) FROM routes r ORDER BY id; SELECT row_to_json(s) FROM route_stops s ORDER BY id; SELECT row_to_json(e) FROM service_events e ORDER BY id; SELECT row_to_json(b) FROM bins b ORDER BY id' \
+  -c 'SELECT row_to_json(s) FROM sites s ORDER BY id; SELECT row_to_json(b) FROM bins b ORDER BY id; SELECT row_to_json(h) FROM bin_hist h ORDER BY id' \
   > /tmp/viptop-truck-history-before.txt
 ```
 
-Delete `Šiukšliavežė 01` through confirmation. Run the same command with output `/tmp/viptop-truck-history-after.txt`, then `diff -u /tmp/viptop-truck-history-before.txt /tmp/viptop-truck-history-after.txt`: expect no differences. Inspect the retained truck and historical attribution:
+Delete `Šiukšliavežė 01` through confirmation. Run the same command with output `/tmp/viptop-truck-history-after.txt`, then `diff -u /tmp/viptop-truck-history-before.txt /tmp/viptop-truck-history-after.txt`: expect no differences. Inspect the retained truck and independent collection history:
 
 ```sql
 SELECT id, name, max_bins_per_trip, available, deleted FROM trucks WHERE id=1;
-SELECT e.id, e.bin_id, e.service_ts, e.fill_level, e.duration,
-       r.id AS route_id, r.service_date, r.status,
-       t.id AS truck_id, t.name, t.deleted
-FROM service_events e
-JOIN routes r ON r.id=e.route_id
-JOIN trucks t ON t.id=r.truck_id
-ORDER BY e.id;
+SELECT h.id,h.bin_id,h.date,h.was_serviced,h.fill_level
+FROM bin_hist h JOIN bins b ON b.id=h.bin_id
+ORDER BY h.date,h.id;
 ```
 
-Truck 1 keeps its ID/name/capacity and now has available false/deleted true. Every reference/value in the captured collection records remains unchanged; the joins still resolve the retained truck. GET `/trucks` excludes it, GET `/trucks/1` and PATCH `/trucks/1` return `404`. Future history screens must use this join rather than the management detail endpoint.
+Truck 1 keeps its ID/name/capacity and now has available false/deleted true. Every reference/value in the captured collection records remains unchanged; collection history requires no truck join. GET `/trucks` excludes it, GET `/trucks/1` and PATCH `/trucks/1` return `404`. History is independent of the truck management detail endpoint.
 
 ## Packaged startup, persistence and cleanup
 
-On a separate disposable Compose project, use a temporary env file with the example connection settings and the unreachable GIS URL above. Keep operational `.env` and storage untouched. If standard ports are occupied, use an override file changing all three published ports. To verify packaged files, reset the frontend/backend bind mounts to `[]` in that override; environment settings supply the database connection. Compose automatically sets `VIPTOP_API_PROXY_TARGET=http://backend:8000`.
+On a separate disposable Compose project, use a temporary env file with the example connection settings and the unreachable VASA URLs above. Keep operational `.env` and storage untouched. If standard ports are occupied, use an override file changing all three published ports. To verify packaged files, reset the frontend/backend bind mounts to `[]` in that override; environment settings supply the database connection. Compose automatically sets `VIPTOP_API_PROXY_TARGET=http://backend:8000`.
 
 ```bash
 docker compose --env-file /tmp/viptop-truck-ui.env -p viptop-truck-ui-verify config --quiet
 docker compose --env-file /tmp/viptop-truck-ui.env -p viptop-truck-ui-verify up --build -d
 docker compose --env-file /tmp/viptop-truck-ui.env -p viptop-truck-ui-verify logs backend
 docker compose --env-file /tmp/viptop-truck-ui.env -p viptop-truck-ui-verify exec backend \
-  ls alembic/versions/0003_truck_retirement.py
+  ls alembic/versions/0004_vasa_collection.py
 ```
 
-Add `-f docker-compose.yml -f /tmp/viptop-truck-ui-compose.yml` before the action in every command when using an override. Logs must show migration through `0003` before application startup. Load the container frontend, create/edit trucks, and repeat two-page navigation/filters/deletion against a 21-truck synthetic fleet. SQL `generate_series` as above can prepare it, omitting history inserts and using the Compose database's name. IDs continue after any earlier fixture operations; find rows by their synthetic names.
+Add `-f docker-compose.yml -f /tmp/viptop-truck-ui-compose.yml` before the action in every command when using an override. Logs must show migration through `0004` before application startup. Load the container frontend, create/edit trucks, and repeat two-page navigation/filters/deletion against a 21-truck synthetic fleet. SQL `generate_series` as above can prepare it, omitting history inserts and using the Compose database's name. IDs continue after any earlier fixture operations; find rows by their synthetic names.
 
-Record a committed edited row and the retired row's flags. Restart only the backend with `docker compose ... restart backend`, reload the browser, and compare API/SQL values. They must persist; startup/shutdown is normal with no GIS requests. Run `docker compose ... exec backend uv run alembic check` for schema agreement.
+Record a committed edited row and the retired row's flags. Restart only the backend with `docker compose ... restart backend`, reload the browser, and compare API/SQL values. They must persist; startup/shutdown is normal with no VASA requests. Run `docker compose ... exec backend uv run alembic check` for schema agreement.
 
 After recording results, stop native backend/frontend/preview processes, run `docker compose ... down --volumes` for the owned disposable project, and remove `viptop-truck-ui-db`. Remove owned temporary env/override/snapshot files. Do not remove unrelated containers, databases, volumes or images.
 
-## Recorded initial-slice results — 2026-10-08 (twenty-row baseline)
+## Historical recorded initial-slice results — 2026-10-08 (twenty-row baseline)
 
 Verification used disposable PostgreSQL 17 databases and a separate Compose project through rootless Podman, because the local Docker daemon was inaccessible. The packaged frontend/backend had no source bind mounts. All fixture records were synthetic.
 
@@ -212,7 +219,7 @@ Verification used disposable PostgreSQL 17 databases and a separate Compose proj
 - Frontend lint/build, focused backend Ruff checks, Compose configuration validation and packaged Alembic schema comparison passed. Committed edits survived backend restart and browser reload; packaged startup applied `0003` before serving with no GIS import.
 - Native shutdown completed normally. Owned verification containers, volumes, images, server processes and temporary fixtures/settings were removed after verification; operational storage was not used.
 
-## Recorded refinement results — 2026-10-08 (ten-row version)
+## Historical recorded refinement results — 2026-10-08 (ten-row version)
 
 The refined version was verified against fresh disposable PostgreSQL 17 storage and rebuilt frontend/backend images without source bind mounts, using a separate rootless Podman Compose project. All fixtures were synthetic; the earlier twenty-row results above describe the initial implementation only.
 
@@ -228,7 +235,7 @@ The refined version was verified against fresh disposable PostgreSQL 17 storage 
 - Frontend lint/build, focused backend Ruff checks, Compose configuration and Alembic schema comparison passed. No automated test files were added to the project.
 - Native shutdown completed normally. Owned disposable containers, volumes, images, server processes and temporary verification files were removed; operational settings/storage and unrelated containers were left untouched.
 
-## Recorded presentation results — 2026-10-08 (save toasts and mobile navigation)
+## Historical recorded presentation results — 2026-10-08 (save toasts and mobile navigation)
 
 Verification used native FastAPI against a separate disposable PostgreSQL 17 container and both Vite development and the rebuilt preview. The initial synthetic fleet had 27 trucks with capacities 1–27 and 24 available, producing `24 iš 27` and 89%. No operational data/settings were used. The in-app browser was unavailable; standalone Chromium checks and visual screenshot inspection covered the running system.
 
