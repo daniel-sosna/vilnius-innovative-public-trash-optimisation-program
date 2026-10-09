@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button'
 import { ToastProvider } from '@/components/ui/toast'
 import { VipTopLogo } from '@/components/viptop-logo'
 
-const links = [{ to: '/admin/trucks', label: 'Šiukšliavežės' }]
+const links = [
+  { to: '/admin/trucks', label: 'Šiukšliavežės' },
+  { to: '/admin/sites', label: 'Šiukšlių surinkimo vietos' },
+]
 
 export function AdminLayout() {
   const location = useLocation()

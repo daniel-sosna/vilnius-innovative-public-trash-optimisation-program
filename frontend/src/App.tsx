@@ -1,6 +1,8 @@
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { TrucksPage } from '@/pages/trucks/trucks-page'
+import { SitesPage } from '@/pages/sites/sites-page'
+import { SiteDetailPage } from '@/pages/sites/site-detail-page'
 import { RoleSelection } from '@/pages/role-selection/role-selection-page'
 import { AdminLayout } from '@/components/layout/admin-layout'
 
@@ -11,6 +13,8 @@ export default function App() {
         <Route path="/" element={<RoleSelection />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="trucks" element={<TrucksPage />} />
+          <Route path="sites" element={<SitesPage />} />
+          <Route path="sites/:id" element={<SiteDetailPage />} />
         </Route>
         <Route
           path="*"

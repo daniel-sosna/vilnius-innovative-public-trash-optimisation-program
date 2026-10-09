@@ -44,6 +44,21 @@ test -f .env || cp .env.example .env
 docker compose up --build -d
 ```
 
+To activate collection browsing after import, with the existing database already
+running, rebuild the application images and refresh the frontend dependency
+volume before recreating the application services:
+
+```bash
+docker compose build backend frontend
+docker compose run --rm --no-deps frontend npm ci
+docker compose up -d --no-deps backend frontend
+```
+
+The dependency refresh installs MapLibre into the existing `frontend_node_modules`
+volume. These commands retain PostgreSQL and its imported records. The normal
+backend entrypoint checks the existing Alembic revision; no new migrations were
+added by collection browsing, and startup does not run the importer.
+
 The services are available at:
 
 - Frontend: <http://localhost:5173>
@@ -130,6 +145,72 @@ VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
 ```
 
 `npm run build` builds the frontend, and `VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run preview` serves the build with the same proxy. Deep-link open/refresh is supported in development and preview. A future production static host will need an equivalent API proxy and SPA fallback.
+
+## Collection browsing
+
+In the admin navbar, choose `Šiukšlių surinkimo vietos` or open
+`/admin/sites`. This read-only screen shows address-grouped sites and their bin
+counts, with address search and 15 sites per page. Search is a trimmed,
+case-insensitive literal substring match; changing or clearing it resets page 1.
+The global site count, bin count, waste-type donut and capacity sum stay
+independent of search and pagination. Container totals/category counts sit beside
+the donut, with glass green, paper/plastic blue and mixed municipal waste brown.
+Each section has its own retry control.
+NULL capacity displays `N/A`; known zero displays `0 m³`. The capacity unit is
+the existing **unverified assumption**, without conversion of stored values.
+
+| API | Behaviour |
+|---|---|
+| `GET /sites` | `{items: [{id, address, bin_count}], total, page, page_size}`; optional `address`, `page` and `page_size` |
+| `GET /sites/stats` | `{total_sites, total_bins, total_capacity_m3, bins_by_waste_type: [{waste_type, count}]}` for the entire registry |
+| `GET /sites/{id}` | Site identity/address/coordinates, first-bin location text and all-bin count/capacity/groups/carriers; missing parent returns 404 |
+
+Pages default to 1 and site page size to 15 (allowed 1–100). Invalid parameters
+return 422; valid pages beyond the results return empty items with correct totals.
+Capacity is a JSON number or null. Waste-type keys preserve source text; known
+labels are translated only in the UI. Each request uses its own short read-only
+snapshot, with a five-second statement timeout and one-second lock timeout.
+Separate requests can observe different committed import progress.
+
+Rows open `/admin/sites/{id}`, also accessible directly or after refresh. Details
+show a street map that supports dragging, wheel/touch/keyboard movement and
+zooming, with `Priartinti`/`Atitolinti` buttons, plus compact site statistics. The stored location
+is an arithmetic average of member-bin coordinates, not a surveyed entrance.
+`sub_district`, `street`, `house_number` and `postal_code` all come from the
+lowest internal `Bin.id`; a NULL is never filled from another bin. House numbers
+and postal codes retain text formatting. `bin_count`, `total_capacity_m3`,
+`object_groups` and `waste_carriers` cover every child; distinct non-NULL groups
+and carriers are sorted. Details contain no nested bins/history. Empty sites
+remain available with count 0, null capacity/location text and empty arrays.
+Missing values display `N/A`. Map failures have their own retry and leave site
+statistics usable. Paginated child bins open their service-history dialog.
+
+Docker Compose passes `VITE_MAP_STYLE_URL` to the frontend, defaulting to
+`https://tiles.openfreemap.org/styles/liberty`. Override it in the root `.env` or
+shell before starting/recreating the frontend. Vite reads the variable at startup;
+the map component has no hardcoded fallback.
+
+For native development, configure `frontend/.env.local` and use the real backend
+on port 8000:
+
+```bash
+cd frontend
+test -f .env.local || cp .env.example .env.local
+npm ci
+VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
+```
+
+Packaged builds embed the map URL at build time:
+
+```bash
+VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty npm run build
+VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run preview
+```
+
+A missing/invalid map configuration displays a Lithuanian map error while site
+statistics and bins remain usable. See
+[collection browsing verification](docs/collection-site-browsing-verification.md)
+for the main Compose read-only checks and recorded verification limits.
 
 ## Collection records
 
@@ -273,3 +354,29 @@ and dependencies. Its entrypoint upgrades before serving but never imports.
 Follow [data verification](docs/data-foundation-verification.md) and
 [truck verification](docs/truck-management-verification.md) on disposable data.
 Earlier revision-specific results there are historical evidence.
+
+### Child containers and service history
+
+Site details include a read-only bin list (10 per page). Select a container for
+its inventory number, Lithuanian waste label, capacity and service history. The
+wide dialog shows date, status, reason and fill in one row per attempt, with
+horizontal scrolling on narrow screens. It shows the all-history successful-service percentage
+and newest-first attempts (20 per page),
+raw fill values 0–3, `N/A` for NULL, and stored wall-clock times across timezones.
+Closing returns focus to the selected row; reopening starts history at page 1.
+Bins, history and site details have independent retry.
+
+`GET /sites/{id}/bins` accepts positive `page`/`page_size` (default 10, max 100);
+`GET /bins/{id}/history` defaults to/maximizes at 20. Both return `items`, `total`,
+`page`, `page_size`; history also returns `successful_service_percentage` and
+`unsuccessful_service_percentage` over all stored attempts. Missing parents return
+404, invalid parameters 422; valid out-of-range pages are empty. No-history
+percentages are null.
+
+See [collection browsing verification](docs/collection-site-browsing-verification.md)
+for repeatable GET/read-only SQL comparisons, timezone checks and synthetic versus
+unmet real-storage evidence. Collection browsing now runs from the main checkout
+with `docker-compose.yml`.
+
+All lists (sites, bins, history and trucks) show pagination only when a known
+total exceeds page size. Empty, single-page and pending lists hide the controls.

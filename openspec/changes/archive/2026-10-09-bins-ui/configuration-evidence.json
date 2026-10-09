@@ -1,0 +1,38 @@
+{
+  "project": "viptop-bins-ui-verification",
+  "services": [
+    "bins-ui-backend",
+    "bins-ui-frontend"
+  ],
+  "images": [
+    "viptop-bins-ui-backend:verification",
+    "viptop-bins-ui-frontend:verification"
+  ],
+  "dependency_volumes": [
+    "viptop-bins-ui-verification_bins_ui_backend_venv",
+    "viptop-bins-ui-verification_bins_ui_frontend_node_modules"
+  ],
+  "ports": {
+    "bins-ui-backend": [
+      {
+        "mode": "ingress",
+        "host_ip": "127.0.0.1",
+        "target": 8000,
+        "published": "8001",
+        "protocol": "tcp"
+      }
+    ],
+    "bins-ui-frontend": [
+      {
+        "mode": "ingress",
+        "host_ip": "127.0.0.1",
+        "target": 5173,
+        "published": "5174",
+        "protocol": "tcp"
+      }
+    ]
+  },
+  "database_network": "UNVERIFIED placeholder; external network required",
+  "checks": "PASS: app-only, isolated mounts/images/volumes/ports, no dependencies or migration/import startup",
+  "live_startup": "NOT PERFORMED: Docker access denied"
+}
