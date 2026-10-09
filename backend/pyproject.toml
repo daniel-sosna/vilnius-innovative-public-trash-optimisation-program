@@ -6,8 +6,10 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
     "fastapi",
+    "mapbox-vector-tile>=2.2.0",
     "psycopg[binary]",
     "pydantic-settings",
+    "requests>=2.34.2",
     "sqlalchemy",
     "uvicorn",
 ]

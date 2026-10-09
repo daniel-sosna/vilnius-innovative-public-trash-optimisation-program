@@ -1,5 +1,324 @@
 # Manual data-foundation verification
 
+Use explicitly disposable PostgreSQL storage for all synthetic records,
+controlled inputs, interruptions and rollback exercises. Export its accessible
+`DATABASE_URL` before running commands from `backend/`. Do not rewrite the
+operator's `.env`. Root dotenv is loaded regardless of working directory;
+environment overrides it. VASA HTTPS templates default to `.env.example`;
+`BIN_SYNC_HTTP_TIMEOUT_SECONDS` is positive finite and required.
+
+## Current schema and manual invocation (revision 0004)
+
+```bash
+uv sync --locked
+uv run alembic upgrade head
+uv run alembic upgrade head
+uv run alembic check
+uv run python -m app.interfaces.bin_sync --help
+uv run python -m app.interfaces.bin_sync --max-sites 10
+# Exit 2 means an intentionally incomplete trial, not full success.
+uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
+```
+
+Docker equivalents use `docker compose exec backend` before the uv command.
+The default bbox covers Vilnius. For a small real-source check, the following
+bounds cover one observed container location; current counts can change:
+
+```bash
+uv run python -m app.interfaces.bin_sync --max-sites 10 --max-tiles 1 --bbox 25.2961 54.70245 25.2964 54.7026
+uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0 --bbox 25.2961 54.70245 25.2964 54.7026
+```
+
+A matching incomplete pass resumes; a completed pass causes a new refresh.
+Workers and limits do not change coverage identity. Trials never clean up, even
+if limits exceed the available records. Request/validation/write failures exit
+1, limited successful work exits 2, full completion including cleanup exits 0.
+Neither invocation exports CSV or starts a server.
+
+Inspect with psql on the disposable connection:
+
+```sql
+SELECT table_name,column_name,data_type,is_nullable
+FROM information_schema.columns WHERE table_schema='public'
+AND table_name IN ('sites','bins','bin_hist') ORDER BY table_name,ordinal_position;
+SELECT id,site_key,address,latitude,longitude FROM sites ORDER BY id;
+SELECT id,site_id,external_id,district,region,sub_district,city,street,
+       house_number,postal_code,territory_type,capacity_m3,client_count
+FROM bins ORDER BY id;
+SELECT h.id,b.external_id,h.date,h.was_serviced,h.non_serviced_reason,h.fill_level
+FROM bin_hist h JOIN bins b ON b.id=h.bin_id ORDER BY b.external_id,h.date,h.id;
+SELECT id,scope_key,phase,diagnostics FROM vasa_import_runs ORDER BY id;
+SELECT run_id,kind,work_key,complete,details FROM vasa_import_progress
+ORDER BY run_id,kind,id;
+SELECT s.id,s.latitude,AVG(b.latitude),s.longitude,AVG(b.longitude)
+FROM sites s JOIN bins b ON b.site_id=s.id GROUP BY s.id;
+```
+
+Confirm generated BIGINT IDs and required/unique site/external/event identities.
+Optional bin metadata is TEXT, volume is unchanged NUMERIC (cubic metres are
+unverified), and client_count counts address entries, not residents. Postal
+codes retain source formatting, independently of client addresses. Bins have no
+service snapshot columns. History has naive timestamps and NULL or 0–3 fill;
+NULL means unknown, not empty. Source reasons preserve NULL and empty text.
+Refresh must not overwrite fill observations. The event key can collapse
+separate attempts sharing bin/timestamp/status; opposite statuses coexist.
+Site coordinates are arithmetic means over every member, not entrances.
+
+## Controlled response and resume procedure
+
+This inline manual command injects fixed response pages into the actual importer
+service; it uses no test framework, test files or CSV. Run after migrating an
+explicitly disposable database. It intentionally fails page 3, resumes there,
+refreshes from page 1 and then exercises authoritative empty bounded cleanup.
+
+```bash
+uv run python - <<'PYCODE'
+from app.core.config import Settings
+from app.infrastructure.database import create_database_engine, create_session_factory
+from app.integrations.vasa import TileResponse, VasaError, parse_history
+from app.services.bin_sync import ImportOptions, synchronize_bins
+
+class ControlledSource:
+    present = True
+    fail_page = 3
+    calls = []
+    def tile(self, tile, bbox):
+        properties = dict(id=800001, dumpster_type='Mixed municipal waste',
+            district=None, region=None, sub_district=None, city='Vilniaus m.',
+            street='Synthetic g.', house_number='53A', postal_code='08303',
+            territory_type=None, volume=1.1, client_addresses=[{}, {}])
+        candidates = [dict(properties=properties, latitude=54.70005,
+            longitude=25.30005, tile=list(tile), needs_detail=False)] if self.present else []
+        return TileResponse(candidates, [], len(candidates))
+    def history(self, identity, page):
+        self.calls.append(page)
+        if page == self.fail_page:
+            raise VasaError('controlled history failure')
+        attempts = [] if page == 2 else [dict(service_date=f'2026-09-0{page} 08:00:00',
+            is_serviced=True, non_serviced_reason='')]
+        return parse_history(dict(data=attempts,
+            meta=dict(current_page=page, last_page=3)), page)
+
+settings = Settings()
+engine = create_database_engine(settings)
+sessions = create_session_factory(engine)
+options = ImportOptions(bbox=(25.3000,54.7000,25.3001,54.7001), max_sites=0)
+source = ControlledSource()
+try:
+    first = synchronize_bins(settings, sessions, options, client=source)
+    print('Interrupted:', first, 'pages:', source.calls)
+    source.fail_page, source.calls = None, []
+    resumed = synchronize_bins(settings, sessions, options, client=source)
+    print('Resumed:', resumed, 'pages:', source.calls)
+    source.calls = []
+    refreshed = synchronize_bins(settings, sessions, options, client=source)
+    print('Refreshed:', refreshed, 'pages:', source.calls)
+    source.present = False
+    removed = synchronize_bins(settings, sessions, options, client=source)
+    print('Empty bounded refresh:', removed)
+finally:
+    engine.dispose()
+PYCODE
+```
+
+Expected: first exits semantically 1 with pages `[1,2,3]` and page 1 rows durable;
+resume reports the same run ID, exit 0 and pages `[3]`; refresh uses a new run ID
+and pages `[1,2,3]` while retaining IDs; empty full refresh removes the synthetic
+bin/history/site within the tiny bounds. Outside bins/history must survive.
+The inline verification process itself prints summaries; exit codes in these
+summaries are the import results. The module CLI returns those codes directly.
+
+For required-detail verification, omit a geographical key from a tile and
+provide a matching `detail(identity)` response on the controlled source. A NULL
+key alone must not fetch details. Inspect atomic detail progress, source values,
+matching resume reuse and renewed requests on the next completed-pass refresh.
+Fail that request: data committed earlier remains, the pass stays incomplete,
+and cleanup never runs. Validate the supplied ID 135353 separately with the real
+source; its client count is 2 and its own postal code is `8303`.
+
+To observe a real interruption, stop the module command after history page 2 is
+committed (inspect progress from another connection), then invoke it with the
+same coverage. To simulate rollback on disposable data, temporarily attach a
+PostgreSQL trigger raising an exception during one history-page checkpoint
+write. Capture the page's events and complete checkpoint before/after: both
+must roll back together, while earlier pages remain. Remove the trigger before
+resuming. Apply the same exercise to tile/detail checkpoint writes and the
+completed run marker during finalization. A cleanup failure must retain bins,
+history and phase `finalize`; rerunning retries finalization without fetching
+already committed work.
+
+Manually vary the controlled response: empty continuing page; malformed
+essential event with valid neighbors; duplicate timestamp/status with different
+reasons; opposite statuses at one timestamp; offset-bearing timestamps; changed
+last_page/per_page/total; failure after retries. Confirm incomplete-page markers
+and useful bin/page diagnostics. HTTP continuation links are never requested;
+short/empty pages advance using metadata. Detectable pagination changes restart
+that bin at page 1; repeated changes are limited to five restarts per invocation. A rerun resets
+that allowance so a recovered source can finish. Traversal is best effort and
+cannot guarantee a frozen provider snapshot.
+
+For cleanup, add an in-bounds missing only-child bin and a shared site with one
+out-of-bounds member. Snapshot their history and coordinates, then finish a full
+narrower refresh. Only unseen bins inside inclusive bounds are deleted; affected
+empty sites disappear and surviving sites average all members, including those
+outside bounds. Trials, aggregate-only coverage and any unfinished work must
+leave missing records intact. Filters exclude private holdings, other waste,
+non-Vilnius city and out-of-bounds geometry; newly excluded in-bounds bins are
+removed only after complete refresh.
+
+## Lifecycle and packaged verification
+
+Capture requests on a configured local HTTPS target (or count accepted socket
+connections) while migrating, serving an empty/initialized database, doing
+truck CRUD, restarting, reloading, idling and stopping. Expected VASA connections:
+zero. An unreachable source must not affect readiness or truck operations.
+Run a separate slow importer, serve API requests and stop the backend: the
+importer owns its engine/advisory lock and backend shutdown does not wait.
+Acquire the import advisory lock from another connection and launch the command:
+expect exit 1 with a second-import diagnostic before source requests.
+
+Build a backend image and run it without bind mounts/dotenv with required
+settings supplied in environment. Inspect `alembic/versions/0004_vasa_collection.py`,
+import requests/mapbox_vector_tile and run the retained module command. Migrate
+before serving, verify no source requests on start/stop, and execute a trial
+explicitly. Check finite request and database failure behavior. Remove only owned
+verification databases/containers after recording results; retain unrelated
+operational data and build cache. No automatic imports, CSV or test files exist.
+
+## VASA replacement preflight — 8 October 2026
+
+The `update-data` implementation preflight used read-only transactions against
+the existing database through its published localhost port. The configured `db`
+hostname is container-only; the operator's `.env` was not changed. Revision was
+`0003`; public tables were `alembic_version`, `bins`, `route_stops`, `routes`,
+`service_events`, and `trucks`. A catalog query across all schemas found only
+the expected references into these collection/fleet tables: route stops to bins
+and routes, routes to trucks, and service events to bins and routes. No unexpected
+foreign keys were found. No migration or operational write was executed.
+
+Initial urllib requests returned HTTP 403. Read-only requests using
+`User-Agent: Mozilla/5.0` returned HTTP 200 for the detail and history of bin
+135353 and tile `17/74746/41645`. The tile's `vasa_containers` layer has extent
+512 and 28 point features with integer bin IDs. Default Y-up decoding and the
+reference conversion place the first point at latitude 54.70253171824891,
+longitude 25.29623508453369. Some tile records contain all eight requested
+geographical keys, while others omit postal_code, confirming the need for the
+detail fallback. The detail response matches the supplied example, including
+postal_code `8303`, volume 1.1, and two client addresses. Volume units remain
+unverified and must not be converted.
+
+History page 1 has five attempts, naive timestamps such as
+`2026-10-07 05:03:14`, boolean statuses, empty reasons on successful attempts,
+and a text reason on the unsuccessful attempt. Metadata reports current_page 1,
+last_page 1, per_page 10, total 5. API links use HTTP and a different path;
+requests must use the configured HTTPS endpoint with page numbers instead.
+
+A read-only request for tile `17/0/0` returned HTTP 200 with a valid
+24-byte MVT and an empty `vasa_containers` layer. A nonexistent history ID
+returned HTTP 200 with a valid empty data array and last_page 1, so empty
+history alone cannot establish that a bin is missing. Unexpected HTTP 404
+responses remain failures; their interpretation as empty tiles is unverified.
+
+`uv sync --locked` and runtime imports of `requests` and `mapbox_vector_tile`
+passed after adding dependencies through uv. Source files were not imported
+from the Desktop reference.
+
+
+## VASA schema verification — 8 October 2026
+
+Owned disposable databases `viptop_vasa_verify` and `viptop_vasa_fresh` were used;
+no operational collection records were changed. A populated `0003` fixture had
+one truck and a bin/route/stop/event chain. Upgrade to `0004` discarded the old
+collection chain, created the replacement tables, and preserved every truck
+column exactly. Repeated upgrade made no changes; `alembic check` detected no
+schema drift. A fresh base-to-head upgrade and comparison also passed.
+Downgrade through `0004` raised the documented backup/recreate error.
+
+Manual transactions verified Site/Bin/BinHist bidirectional relationships,
+generated IDs, unique event identity, rejected nonfinite coordinates, negative
+client counts, unsupported fill levels, nonexistent history parents and direct
+deletion of referenced sites. ORM Bin deletion cascaded its history, after which
+its empty Site could be deleted. Two controlled complete imports reused bin and
+history IDs, retained postal_code `8303` and client_count 2, and began a new pass
+on the second invocation.
+
+## VASA implementation verification — 8–9 October 2026
+
+Verification used Python 3.12, PostgreSQL 17 and owned disposable databases.
+No operational migration/import was executed and the operator's `.env` stayed
+unchanged. Checks were inline manual commands; no test files were added.
+
+- Root dotenv, environment precedence/environment-only settings, template
+  placeholders/HTTPS validation, positive finite timeouts, and credential-safe
+  errors passed. Compose expanded default templates correctly. Locked uv sync
+  and dependency imports passed.
+- Fresh and populated replacement upgrades, repeated upgrade, schema comparison,
+  unsupported downgrade, exact fleet preservation, generated IDs, relationships,
+  unique/check constraints, site restriction and history cascade passed.
+- Actual MVT decoding confirmed extent 512/Y-up coordinates. The representative
+  tile had 28 points and 10 candidates after source filters. Supplied detail
+  meanings, eight geographical fields, 8303 versus 08303, alphanumeric house
+  numbers, normalized/distant grouping, same-coordinate separation, unknown
+  isolation, address-list counts and unchanged volume passed.
+- Controlled 10-site trials reused selection and persisted partial coverage;
+  promotion admitted the two omitted sites. Separate bounds used separate passes.
+  Duplicate/conflicting tiles used the deterministic smallest-tile winner, kept
+  one physical bin and averaged current members once. Required details were
+  cached only within a pass, refetched on new refresh, and retried after failure.
+- Forced tile/detail/page write failures rolled back their data and successful
+  checkpoints together while retaining earlier commits. Page 3 failure after
+  pages 1/2 resumed at page 3; a short/empty continuing page advanced. Invalid
+  essential attempts left pages incomplete while valid neighbors persisted.
+  Duplicate keys kept IDs; opposite statuses coexisted; reasons and subsequently
+  recorded fill 2 survived refresh. Changed pagination restarted at page 1.
+- Cleanup verified inclusive boundary points, only-child removal, shared sites,
+  out-of-bounds members/history, all-member means, and entirely empty complete
+  coverage. Failed finalization retained deletion/completion atomically; resume
+  finalized without source requests. Aggregate-only tiles, mixed aggregate/physical
+  tiles and non-point physical geometry did not establish coverage. Malformed
+  optional volume became NULL.
+- Retry delays/exhaustion, bounded active requests and second-import lock
+  rejection passed. A real five-second PostgreSQL lock timeout rolled back
+  response data/progress; releasing the lock and rerunning completed the pass.
+  Persistent diagnostics did not block repaired work. Repeated pagination
+  changes failed after five restarts; a new invocation with stable metadata
+  received a fresh allowance and completed.
+- Native live trial over the small documented bbox stored 3 bins at one site
+  and 62 historical attempts, fetched 9 responses and exited 2 with zero
+  failures. Matching full continuation reused all progress, fetched 0 responses
+  and exited 0. Counts are observations, not application invariants.
+- All six truck operations and OpenAPI passed. Retirement retained the truck
+  with deleted true/available false and collection snapshots stayed identical.
+  Native migration/startup, restart, actual reload, idle, unavailable-source
+  settings and shutdown accepted zero VASA connections; shutdown took about
+  0.165 seconds. A separately launched controlled slow importer remained active
+  through backend shutdown and then finished independently.
+- The exact documented controlled command and current README/data SQL ran
+  successfully. Current truck fixture SQL and history-preservation queries ran
+  against packaged disposable storage. Legacy revision-specific procedures and
+  results below are explicitly historical.
+- Rootless Podman's Docker-compatible API built the backend and ran an isolated
+  Compose stack without bind mounts/dotenv. Frontend/backend returned HTTP 200,
+  revision 0004 preceded serving, initial bins stayed empty, and packaged
+  `alembic check` found no drift. Image dependency/configuration imports,
+  documented controlled recovery, module CLI 10-site trial/full continuation,
+  and five-attempt unreachable-source failure (exit 1) passed. The final rebuilt
+  standalone image also reran the documented recovery procedure against owned
+  disposable storage with no mounts or dotenv. Invalid argument syntax returned
+  1, leaving exit 2 exclusively for deliberate trials.
+- The final image passed a mixed-aggregate/physical tile and valid-empty-tile
+  parser check. Focused Python lint, strict OpenSpec validation, and whitespace
+  checks passed. Current runtime code has no references to removed collection
+  models or the old GIS client. Owned verification containers, network, volumes,
+  native databases and temporary source/configuration files were removed; build
+  images/cache were retained. The existing operational schema remained at 0003.
+
+## Historical legacy procedures and results (revisions 0001–0003)
+
+Everything below is preserved historical evidence and revision-specific guidance.
+It describes the former GIS/site-as-bin schema and must not be run against 0004.
+Current VASA commands and fields are above.
+
 Use an explicitly disposable PostgreSQL database, such as `viptop_verify`, for these synthetic records and controlled GIS inputs. Export its accessible `DATABASE_URL`; keep the required `BIN_SYNC_SOURCE_URL` and `BIN_SYNC_HTTP_TIMEOUT_SECONDS` in the repository-root `.env` or environment. Native commands read that shared file independently of their working directory; environment variables override it, and `POSTGRES_*` keys are ignored. Preserve existing operator files. Do not run failure exercises against operational data. The synchronization command is the repeatable application entry point; its GIS client and mapping live in `app/integrations/vilnius_gis.py`. These procedures do not add a test framework or seed production history.
 
 ## Schema and raw records

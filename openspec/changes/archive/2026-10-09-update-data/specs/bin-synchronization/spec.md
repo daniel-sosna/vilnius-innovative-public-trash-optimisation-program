@@ -1,12 +1,6 @@
-# bin-synchronization Specification
+# Spec Delta
 
-## Purpose
-
-Maintain VipTop's collection-site registry from the Vilnius public GIS source while preserving operational history and allowing the backend to operate with its last stored data when synchronization fails.
-
-Source: [Vilnius installed collection sites, layer 29](https://opencity.idvilnius.lt/gis/rest/services/Miesto_tvark/Miesto_tvarkymas_public/MapServer/29).
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Skip unusable external features
 Discovery SHALL ignore recognized aggregate features and records excluded by the import filters. Unusable eligible physical-bin identities or geometry SHALL be logged, SHALL NOT overwrite existing bins, and SHALL prevent a pass from claiming complete coverage or performing cleanup. Valid records SHALL still be committed incrementally.
@@ -104,20 +98,7 @@ Database access SHALL retain the existing configuration conventions. VASA tile/d
 - **WHEN** request timeout is zero, negative, or nonfinite
 - **THEN** configuration is rejected before import
 
-### Requirement: Load the shared dotenv file for native execution
-Native backend entry points SHALL load the repository-root `.env` independently of the working directory and use the same settings contract for migration and explicit import. Unrelated keys in the shared file SHALL NOT make backend settings invalid. Configuration diagnostics SHALL NOT disclose the database connection's credentials.
-
-#### Scenario: Invoke native commands from the backend directory
-- **WHEN** valid settings are in the repository-root `.env` and native migration or import is invoked from `backend/`
-- **THEN** the command obtains those settings without requiring the synchronization variables to be exported manually
-
-#### Scenario: Read a shared file with PostgreSQL container settings
-- **WHEN** the shared `.env` includes `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` alongside backend settings
-- **THEN** those unrelated keys do not cause an extra-field validation failure
-
-#### Scenario: Override a container connection for native use
-- **WHEN** `.env` contains a connection using hostname `db` and the native process environment supplies a valid localhost connection
-- **THEN** native commands use the environment connection while obtaining other settings from `.env`
+## ADDED Requirements
 
 ### Requirement: Extract bin geographical metadata
 Import SHALL extract `district`, `region`, `sub_district`, `city`, `street`, `house_number`, `postal_code`, and `territory_type` into the matching nullable Bin columns. When requested attributes are absent from tile properties, import SHALL fetch the bin detail endpoint using its VASA external ID. Missing or null values in a successful authoritative response SHALL remain NULL.
@@ -333,3 +314,45 @@ The manual command SHALL retain the existing module invocation and report pass i
 #### Scenario: Refresh only when requested again
 - **WHEN** the previous matching pass completed fully and the command is invoked again
 - **THEN** a new pass fetches source data again and refreshes records rather than skipping old completed checkpoints
+
+## REMOVED Requirements
+
+### Requirement: Retain absent sites and preserve operational records
+**Reason**: The user requires successful bounded refreshes to remove missing physical bins and their history; obsolete route records no longer exist.
+**Migration**: Use the new bounded cleanup contract; preserve truck records and all previously committed data on incomplete passes.
+
+### Requirement: Preserve data on empty or wholly unusable collections
+**Reason**: Verified complete empty coverage is authoritative for removal, while unusable data means incomplete coverage.
+**Migration**: Distinguish verified empty responses from failures; allow bounded cleanup only for a fully successful unlimited pass.
+
+### Requirement: Map source type codes to labels
+**Reason**: VASA dumpster types replace GIS site type codes.
+**Migration**: Remove `TIPAS` mappings and retain the three allowed VASA waste-type labels.
+
+### Requirement: Map source greening codes to labels
+**Reason**: Greening is not part of the replacement schema or VASA field contract.
+**Migration**: Remove `ZELDINIMAS` mappings and the obsolete bins greening field.
+
+### Requirement: Keep optional metadata failures nonfatal
+**Reason**: GIS code-validation behavior is superseded by VASA source parsing.
+**Migration**: Map unavailable optional VASA values to NULL with relevant diagnostics; prevent invalid essential data from falsely establishing full coverage.
+
+### Requirement: Retrieve the public site registry completely
+**Reason**: GIS layer pagination is replaced by VASA vector-tile discovery and paginated physical-bin history.
+**Migration**: Fetch all required tiles and histories for a full pass; reject incomplete physical-bin coverage.
+
+### Requirement: Map site identity and coordinates
+**Reason**: GIS polygons and KAIKS_NR no longer define bin identity or location.
+**Migration**: Use VASA external IDs and decoded tile point geometry, with sites keyed by registered address.
+
+### Requirement: Reject ambiguous source identities
+**Reason**: Repeated bin observations across neighboring tiles are expected rather than duplicate GIS identity errors.
+**Migration**: Deduplicate by VASA external ID and resolve source disagreements deterministically with diagnostics.
+
+### Requirement: Publish updates atomically and isolate failures
+**Reason**: Whole-import rollback conflicts with the required incremental persistence and crash recovery.
+**Migration**: Commit each response with its checkpoint atomically while retaining earlier commits on later failures.
+
+### Requirement: Provide repeatable synchronization and diagnostics
+**Reason**: The old complete-GIS workflow diagnostics do not distinguish resumable trials and successful VASA passes.
+**Migration**: Retain the module invocation and document full-success, failure, and trial exit codes and pass diagnostics.

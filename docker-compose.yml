@@ -17,7 +17,9 @@ services:
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://viptop:viptop@db:5432/viptop}
-      BIN_SYNC_SOURCE_URL: ${BIN_SYNC_SOURCE_URL}
+      VASA_TILE_URL_TEMPLATE: ${VASA_TILE_URL_TEMPLATE}
+      VASA_BIN_URL_TEMPLATE: ${VASA_BIN_URL_TEMPLATE}
+      VASA_HISTORY_URL_TEMPLATE: ${VASA_HISTORY_URL_TEMPLATE}
       BIN_SYNC_HTTP_TIMEOUT_SECONDS: ${BIN_SYNC_HTTP_TIMEOUT_SECONDS}
     ports:
       - "8000:8000"

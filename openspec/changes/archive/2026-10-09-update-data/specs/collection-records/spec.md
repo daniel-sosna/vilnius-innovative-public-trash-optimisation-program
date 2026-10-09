@@ -1,10 +1,6 @@
-# collection-records Specification
+# Spec Delta
 
-## Purpose
-
-Provide persistent collection-site, truck, route, stop, and service-observation records that future collection workflows and analytical consumers can use without duplicating operational facts.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Collection site records
 The system SHALL persist Site records with `id`, `site_key`, `address`, `latitude`, and `longitude`, all required. A site SHALL group bins by normalized registered address only. Its coordinates SHALL be the arithmetic mean of all currently assigned bins, with latitude in [-90, 90] and longitude in [-180, 180]. They SHALL be described as derived averages, not surveyed physical collection points.
@@ -21,33 +17,6 @@ The system SHALL persist Site records with `id`, `site_key`, `address`, `latitud
 - **WHEN** a bin has no registered address
 - **THEN** its site has a readable fallback address and a deterministic key based on that bin's external ID
 - **AND** it does not share a site with other unknown-address bins
-
-### Requirement: Truck records
-The system SHALL persist Truck records with only `id`, `name`, `max_bins_per_trip`, `available` and `deleted`, all required. Name SHALL be nonempty after trimming. Capacity SHALL be an integer 1–99 counting collection sites per trip. Availability SHALL be a boolean that future route generation can consume. Deletion SHALL be a boolean defaulting to false. A deleted truck SHALL always be unavailable.
-
-#### Scenario: Persist truck capacity and availability
-- **WHEN** a truck named "Truck 3" is stored with capacity 35 and availability true
-- **THEN** the stored truck exposes a capacity of 35 sites per trip and availability true
-
-#### Scenario: Reject unusable truck capacity
-- **WHEN** a truck write supplies zero, a negative value, or a missing value for capacity
-- **THEN** the write is rejected
-
-#### Scenario: Enforce the upper capacity bound
-- **WHEN** a truck write supplies capacity greater than 99
-- **THEN** the write is rejected without changing the truck's existing values
-
-#### Scenario: Reject an empty truck name
-- **WHEN** a truck write supplies an empty or whitespace-only name
-- **THEN** the write is rejected
-
-#### Scenario: Default a new truck's deletion flag
-- **WHEN** a valid new truck is stored without explicitly supplying its deletion flag
-- **THEN** its stored deletion flag is false
-
-#### Scenario: Reject inconsistent retired-truck availability
-- **WHEN** a truck write would store deleted true and available true together
-- **THEN** the write is rejected
 
 ### Requirement: Required entity relationships
 Each physical Bin SHALL reference exactly one existing Site through required `site_id`. Each BinHist SHALL reference one existing physical Bin through required `bin_id`. Sites SHALL expose their member bins and bins their historical attempts. No route or truck relationship SHALL be required by bin history.
@@ -87,22 +56,7 @@ Standard backend startup SHALL prepare the versioned schema before serving reque
 - **WHEN** required schema preparation fails
 - **THEN** startup reports failure and does not serve requests
 
-### Requirement: Preserve collection data during truck schema upgrade
-Upgrading storage for truck retirement SHALL set existing trucks' deletion flags to false and preserve their IDs, names, capacities and availability, along with all collection history and references. If an existing truck violates the new capacity or name constraints, the upgrade SHALL fail with an actionable diagnostic without silently correcting records or publishing a partial upgrade.
-
-#### Scenario: Upgrade existing valid trucks
-- **WHEN** initialized collection storage contains valid trucks and historical routes and is upgraded
-- **THEN** each existing truck has deleted false and its prior values remain intact
-- **AND** all Bins, Routes, RouteStops and ServiceEvents retain their values and references
-
-#### Scenario: Detect incompatible existing records
-- **WHEN** an existing truck has capacity above 99 or a blank name at upgrade time
-- **THEN** preparation fails identifying the incompatible truck IDs and reason
-- **AND** operational values and the previous schema remain unchanged until the operator resolves the incompatibility
-
-#### Scenario: Repeat the upgrade
-- **WHEN** schema preparation runs again on already upgraded storage
-- **THEN** existing deletion flags and collection records remain unchanged
+## ADDED Requirements
 
 ### Requirement: Unique address identity
 Site `site_key` SHALL be unique and non-null. Known-address keys SHALL use `address:` followed by the registered address trimmed, whitespace-collapsed, and case-folded. Missing-address keys SHALL use `unknown:` followed by VASA external ID. Display addresses SHALL remain readable. Neither distance nor client addresses SHALL determine grouping.
@@ -248,3 +202,37 @@ Storage SHALL reject deleting a Site that still has bins. Removing a Bin during 
 #### Scenario: Soft delete a truck
 - **WHEN** a truck is retired through the management API
 - **THEN** its row remains deleted and unavailable and all sites, bins, and history remain unchanged
+
+## REMOVED Requirements
+
+### Requirement: Daily route records
+**Reason**: Route storage is deliberately removed from this data replacement.
+**Migration**: Drop `routes` after its dependents; do not transfer existing route records.
+
+### Requirement: Ordered route stop records
+**Reason**: No route execution or optimisation is included in this change.
+**Migration**: Drop `route_stops` and remove dependent runtime code.
+
+### Requirement: Raw service observation records
+**Reason**: Route-linked complete site emptying is replaced by physical-bin service attempts.
+**Migration**: Drop `service_events` without transferring data; retrieve attempts manually from VASA into `bin_hist`.
+
+### Requirement: Categorical fill observations
+**Reason**: The new history contract uses nullable numeric observations instead of mandatory text categories.
+**Migration**: Discard old event categories; leave newly imported fill levels NULL.
+
+### Requirement: Derive service truck attribution through the route
+**Reason**: VASA history does not supply route or truck attribution and route storage is removed.
+**Migration**: Remove route-based joins and dependent current documentation.
+
+### Requirement: Optional site metadata text
+**Reason**: GIS `type` and `greening` are not fields of the new site/container model.
+**Migration**: Drop old bins and discontinue the GIS metadata mappings.
+
+### Requirement: Independent generated record identities
+**Reason**: Route and event identities are replaced by independent Site, physical Bin, and BinHist identities.
+**Migration**: Retain Truck identities; generate new BIGINT collection identities and retain VASA external IDs separately.
+
+### Requirement: Protect referenced collection records
+**Reason**: Old route-reference restrictions are obsolete and bounded refresh deliberately removes a missing bin and its history.
+**Migration**: Restrict Site deletion while bins remain; remove BinHist with its Bin and preserve fleet retirement behavior.

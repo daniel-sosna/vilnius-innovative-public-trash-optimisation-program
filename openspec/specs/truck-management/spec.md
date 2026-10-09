@@ -140,17 +140,6 @@ Create and edit SHALL trim names and reject empty or whitespace-only names. Supp
 - **WHEN** an edit is submitted after that truck has been soft deleted
 - **THEN** the response is `404` and the truck remains deleted and unavailable
 
-### Requirement: Soft-delete API
-`DELETE /trucks/{id}` SHALL set `deleted=true` and `available=false` together for a nondeleted truck, return `204` without a body, and retain the row and all historical references. A missing or already deleted ID SHALL return `404`. Management operations SHALL NOT physically delete trucks or restore them.
-
-#### Scenario: Retire a truck with historical routes
-- **WHEN** a truck referenced by a stored Route is deleted through the API
-- **THEN** its row remains with deleted true and available false, and Routes, RouteStops and ServiceEvents retain their values and references
-
-#### Scenario: Repeat a deletion
-- **WHEN** deletion is requested again for an already deleted truck
-- **THEN** the response is `404` and the retained record remains unchanged
-
 ### Requirement: Atomic persistence and failures
 Successful mutations SHALL represent committed database changes that survive page reloads and backend restarts. Persistence failure SHALL produce a non-success response without a partial mutation. Unexpected errors SHALL NOT expose database credentials, SQL statements or internal exception details to the UI.
 
@@ -362,3 +351,14 @@ Below 640 pixels, admin navbar links SHALL be collapsed into a hamburger menu, c
 #### Scenario: Show desktop navigation
 - **WHEN** the viewport is at least 640 pixels wide
 - **THEN** the navbar links are visible directly and the hamburger toggle is hidden
+
+### Requirement: Fleet retirement API
+`DELETE /trucks/{id}` SHALL set `deleted=true` and `available=false` together for a nondeleted truck, return `204` without a body, and retain the row. A missing or already deleted ID SHALL return `404`. Management operations SHALL NOT physically delete trucks or restore them. Retirement SHALL NOT modify sites, physical bins, or bin history.
+
+#### Scenario: Retire a truck independently of collection data
+- **WHEN** a nondeleted truck is deleted through the API while sites, bins, and history exist
+- **THEN** its row remains with deleted true and available false and all collection data retains its values and references
+
+#### Scenario: Repeat a deletion
+- **WHEN** deletion is requested again for an already deleted truck
+- **THEN** the response is `404` and the retained record remains unchanged

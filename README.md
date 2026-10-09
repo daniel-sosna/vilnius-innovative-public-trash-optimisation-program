@@ -1,6 +1,6 @@
 # VipTop Waste Collection Optimisation
 
-VipTop MVP for exploring more efficient public waste-container collection in Vilnius. Administrators can manage the truck fleet through the Lithuanian UI and persistent API. The backend also stores collection records and imports collection sites from public GIS data on explicit command invocation. Prediction, route generation, and driver interfaces are future changes.
+VipTop MVP for exploring more efficient public waste-container collection in Vilnius. Administrators can manage the truck fleet through the Lithuanian UI and persistent API. The backend also stores collection records and imports address-grouped sites, physical bins and service history from VASA on explicit command invocation. Prediction, route generation, and driver interfaces are future changes.
 
 ## Technologies
 
@@ -50,17 +50,33 @@ The services are available at:
 - Backend: <http://localhost:8000>
 - FastAPI docs: <http://localhost:8000/docs>
 
-`BIN_SYNC_SOURCE_URL` and `BIN_SYNC_HTTP_TIMEOUT_SECONDS` are required alongside the connection. For an existing `.env`, add any missing settings and update the source URL to the full all-attributes query in `.env.example`, preserving your connection details. Remove the obsolete synchronization interval line; leftover unrelated keys are ignored. Equivalent exported environment variables also work.
+`DATABASE_URL` and positive finite `BIN_SYNC_HTTP_TIMEOUT_SECONDS` are required.
+VASA tile/detail/history URL templates default to the HTTPS endpoints in
+`.env.example`; override them through dotenv or environment when needed. For an
+existing `.env`, replace `BIN_SYNC_SOURCE_URL` with the three `VASA_*_URL_TEMPLATE`
+settings from the example and retain your connection and timeout. Leftover
+unrelated settings are ignored; the importer does not rewrite operator files.
 
-The backend entrypoint runs `alembic upgrade head` before Uvicorn. Migration failure prevents server startup. Startup, restart, development reload, and idle runtime make no GIS requests. The registry remains empty or holds its last imported values until an operator explicitly imports sites. There is no background synchronization task or import-related shutdown wait.
+The backend entrypoint runs `alembic upgrade head` before Uvicorn. **Revision
+0004 deliberately drops old bins, routes, route stops and service events.**
+Trucks survive unchanged. Preserve a backup before upgrading if the old records
+are needed. Migration failure prevents startup. Startup, restart, reload,
+migrations and idle runtime perform no VASA requests or cleanup.
 
-After the services are running, populate Bins once:
+After schema preparation, run a limited trial:
 
 ```bash
-docker compose exec backend uv run python -m app.interfaces.bin_sync
+docker compose exec backend uv run python -m app.interfaces.bin_sync --max-sites 10
 ```
 
-This command imports the complete registry and exits. Run it again explicitly when a refresh is needed.
+A trial exits 2 and never removes missing bins. To complete coverage:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
+```
+
+Matching incomplete runs resume. After full success (exit 0), the next invocation
+starts a fresh refresh. Failures exit 1 and retain already committed progress.
 
 To run the backend outside Docker, install [uv](https://docs.astral.sh/uv/), provide an accessible PostgreSQL database, and run from `backend/`:
 
@@ -84,7 +100,7 @@ These credentials are the local Compose defaults; use the connection details for
 
 Open `/` and choose `Administratorius` to enter `/admin/trucks`. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
 
-The screen supports name search, availability and inclusive site-capacity filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available. Capacity counts collection sites, not individual containers. Delete requires confirmation and retains the database row/history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
+The screen supports name search, availability and inclusive site-capacity filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available. Capacity counts collection sites, not individual containers. Delete requires confirmation and retains the truck row without changing collection history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
 
 Create/edit success appears as `Šiukšliavežė išsaugota.` in a toast entering from the top right; failed save requests show an error toast while preserving entered values. Field validation stays beside inputs. Toasts support accessible announcements, labeled dismissal, reduced motion and automatic dismissal, and remain visible above open dialogs. Read refresh failures retain their own retry controls; retrying does not repeat a committed save or its toast.
 
@@ -117,95 +133,143 @@ VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
 
 ## Collection records
 
-One Bin represents a whole collection site, not an individual physical container. Truck capacity counts sites per trip. Only the following domain fields are stored:
+A Site groups physical Bins by registered street plus house number, trimmed,
+whitespace-collapsed and case-folded. `site_key` is unique (`address:<normalized>`
+or isolated `unknown:<external_id>`). Display addresses remain readable.
+Distance and client addresses do not determine membership. Site coordinates
+are arithmetic averages of all current members, including out-of-bounds bins
+retained from earlier imports; they are not surveyed entrances. Truck capacity
+still counts sites per trip.
 
 | Table | Fields |
 |---|---|
-| `bins` | `id`, `lat`, `lon`, `address`, `type`, `greening` |
+| `sites` | `id`, `site_key`, `address`, `latitude`, `longitude` |
+| `bins` | `id`, `site_id`, `external_id`, `inventory_number`, `waste_type`, `capacity_m3`, `latitude`, `longitude`, `district`, `region`, `sub_district`, `city`, `street`, `house_number`, `postal_code`, `territory_type`, `object_group`, `waste_carrier`, `client_count` |
+| `bin_hist` | `id`, `bin_id`, `date`, `was_serviced`, `non_serviced_reason`, `fill_level` |
 | `trucks` | `id`, `name`, `max_bins_per_trip`, `available`, `deleted` |
-| `routes` | `id`, `service_date`, `truck_id`, `status` |
-| `route_stops` | `id`, `route_id`, `bin_id`, `stop_order` |
-| `service_events` | `id`, `bin_id`, `service_ts`, `fill_level`, `duration`, `route_id` |
 
-`bins.id` is the external integer `KAIKS_NR`, with no generator. The other IDs are independently generated PostgreSQL identities. All values and foreign keys are required except `bins.address`, `bins.type`, and `bins.greening`, which can be `NULL`. Type and greening are unrestricted text: the database accepts labels outside the known GIS mappings. Referenced bins, trucks, and routes cannot be deleted. `alembic_version` is migration bookkeeping.
+Collection IDs are generated BIGINT identities. The unique `bins.external_id`
+retains VASA identity. Required Bin fields are site, external ID, waste type and
+coordinates; all other attributes are nullable. Site fields are required.
+Geographical/descriptive attributes are TEXT, including house numbers and postal
+codes. Preserve source formatting: a bin's `8303` is not replaced with a client's
+`08303`. `client_count` counts address-list entries, not residents: valid empty
+lists give 0 and missing/malformed lists give NULL. `capacity_m3` is NUMERIC and
+stores raw volume unchanged; cubic metres remain an **unverified assumption**.
 
-Routes are assigned work for a particular Europe/Vilnius service date. Status defaults to `PLANNED` and accepts `PLANNED`, `IN_PROGRESS`, or `COMPLETED`. A truck can have multiple routes on one date. Truck names must be nonblank and `max_bins_per_trip` counts collection sites, with integer capacity 1–99. `available` is explicitly supplied and will later control routing participation. `deleted` defaults to false; retiring a truck sets deleted true and available false, retaining the row and its historical references. Future route generation must require both nondeleted and available trucks; historical route queries join retained trucks regardless of retirement. Stops use positive, one-based positions unique within their route. The database does not require contiguous positions or prevent a repeated bin at another position.
+Bins have no service snapshot fields. History stores actual attempts from the
+history endpoint, including failures, naive wall-clock timestamps without UTC
+assignment, and source reasons (including empty strings). `fill_level` is NULL
+or SMALLINT 0–3; newly imported attempts have NULL, and later observations survive
+refresh. History is unique by `(bin_id, date, was_serviced)`: distinct attempts
+sharing all three values can collapse, while different statuses at one timestamp
+coexist. Events missing from a refresh remain while their bin exists. No truck,
+route, duration, synthetic fill, prediction or historical location is inferred.
 
-A ServiceEvent records complete emptying of the modeled site. Its timezone-aware `service_ts` is the completion instant and starts the next fill cycle. `fill_level` is observed immediately before emptying and accepts `EMPTY`, `LESS_THAN_HALF`, `MORE_THAN_HALF`, or `FULL`. `duration` is a nonnegative integer in seconds. Database sessions use UTC. Actual servicing can cross midnight relative to the planned service date.
-
-The truck is derived through the event's route. Raw history supports deriving intervals and ML features later, but none are persisted. The first event has no known previous reset; timestamp ties do not imply a positive interval. GIS import does not create service history, trucks, routes, or stops. Synthetic verification data must be kept in disposable storage, separate from observed operational records.
-
-The foundation does not enforce planned-stop membership for an actual service or prevent truck reassignment on a route. Those policies, site-level fill-reporting conventions, and partial collections belong to later execution changes. Historical events see the bin's current address/coordinates; historical location snapshots are not stored.
-
-Open a database console with the default Compose credentials:
-
-```bash
-docker compose exec db psql -U viptop -d viptop
-```
-
-Useful inspection queries:
+Deleting a referenced Site is restricted. Removing a Bin cascades to its history;
+empty affected Sites are removed. Truck retirement retains the row, sets deleted
+true/available false, and leaves all collection data unchanged.
 
 ```sql
-SELECT count(*) AS stored_sites FROM bins;
-SELECT id, lat, lon, address, type, greening FROM bins ORDER BY id LIMIT 10;
-SELECT type, greening, count(*) FROM bins GROUP BY type, greening;
-
--- Ordered stops for a route; replace the route ID as appropriate.
-SELECT stop_order, bin_id FROM route_stops
-WHERE route_id = 15 ORDER BY stop_order;
-
--- Raw chronological history and truck attribution.
-SELECT e.id, e.bin_id, e.service_ts, e.fill_level, e.duration,
-       e.route_id, r.truck_id, t.name
-FROM service_events AS e
-JOIN routes AS r ON r.id = e.route_id
-JOIN trucks AS t ON t.id = r.truck_id
-WHERE e.bin_id = 634 ORDER BY e.service_ts, e.id;
+SELECT count(*) AS stored_sites FROM sites;
+SELECT id,site_key,address,latitude,longitude FROM sites ORDER BY id LIMIT 10;
+SELECT id,external_id,site_id,postal_code,client_count FROM bins ORDER BY id LIMIT 10;
+SELECT h.id,h.date,h.was_serviced,h.non_serviced_reason,h.fill_level
+FROM bin_hist h JOIN bins b ON b.id=h.bin_id
+WHERE b.external_id=135353 ORDER BY h.date,h.id;
+SELECT id,phase,diagnostics FROM vasa_import_runs ORDER BY id;
+SELECT run_id,kind,complete,count(*) FROM vasa_import_progress
+GROUP BY run_id,kind,complete ORDER BY run_id,kind,complete;
 ```
 
 ## Bin synchronization
 
-The source is [Vilnius GIS collection sites, layer 29](https://opencity.idvilnius.lt/gis/rest/services/Miesto_tvark/Miesto_tvarkymas_public/MapServer/29). Every run fetches all GeoJSON pages in output reference 4326. Polygon uses `coordinates[0][0]`; MultiPolygon uses `coordinates[0][0][0]`. Both supply `[longitude, latitude]`. The first vertex is a representative location, not a promised road entrance.
+The manual module command uses VASA `/api/cluster/{z}/{x}/{y}` MVT tiles and the
+configured bin-detail and paginated history endpoints. It imports only Mixed
+municipal waste, Paper/plastic waste, and Glass waste; excludes normalized
+Individualios valdos; retains only missing or Vilnius city names; and filters
+individual point coordinates to the configured bounding box. Tiles use their
+own extent and the decoder's Y-up orientation. Missing geographical property
+keys trigger a detail request; explicit NULL alone does not. Detail attributes
+are authoritative, coordinates stay from the tile, and filters are reapplied.
 
-The configured query is retained, including `outFields=*`, the example's 50-record page size, and spatial relation. The client starts at offset zero and uses stable `OBJECTID ASC` ordering. It advances by the requested page size while either continuation flag indicates more data, even after short or empty pages. Supported page sizes are integers from 1 to 1,000; unsupported sizes fail without publishing changes. Bare query URLs retain a 1,000-record default for controlled inputs.
+| Option | Default / meaning |
+|---|---|
+| `--bbox WEST SOUTH EAST NORTH` | `24.98 54.55 25.52 54.85`; inclusive point bounds |
+| `--zoom` | 17; aggregate-only tiles cannot establish physical coverage |
+| `--workers` | 4; positive maximum concurrent requests |
+| `--max-sites` | 10; 0 means unlimited |
+| `--max-tiles` | 0 means unlimited |
 
-Valid sites are inserted or updated by `KAIKS_NR` in one transaction. Only `lat`, `lon`, `address`, `type`, and `greening` change on an existing Bin. `TIPAS` uses the exact ten-code type mapping documented in the [manual verification procedure](docs/data-foundation-verification.md); `ZELDINIMAS` maps 1 to `Taip`, 2 to `Ne`, and 3 to `Taip, agentūrai ES pritarus`. Missing/null metadata becomes `NULL` silently. Unknown or unusable non-null codes become `NULL` with a warning identifying the site, field, and raw value; the valid site is still imported. Boolean, float, and text codes are not coerced. GIS is authoritative, so later imports can clear metadata or overwrite manually entered free text.
+Any nonzero limit is an incomplete trial, even when fewer results exist. Selected
+addresses may have unseen member bins. Limits and worker count can change while
+resuming the same scope. Bounds, zoom, URLs, filter and mapping versions define
+compatible coverage. An unlimited continuation revisits partial tiles and admits
+omitted records. The importer has no CSV output or distance grouping option.
 
-Missing, blank, or nontext source addresses become `NULL`, replacing any previous address. Invalid IDs/geometries are skipped with warnings; duplicate usable IDs fail the whole run. Absent or skipped sites retain every stored value. Failures, empty collections, and wholly unusable collections never clear the registry. No fallback sites or history are fabricated.
+Each tile, required detail response, and history page commits its data and
+checkpoint together. A single database writer recalculates affected site means;
+network work uses bounded futures. Histories persist page by page rather than
+accumulating a bin's complete history. Short/empty pages advance when metadata
+indicates continuation. API links are never followed; the next page is fetched
+on the configured HTTPS endpoint. Unexpected 404s and malformed essential values
+leave work incomplete. Transient requests have five attempts with exponential
+backoff capped at 20 seconds; pagination is limited to 10,000 pages. Detectable
+pagination changes restart that bin's retrieval, retaining stored events. VASA
+has no verified frozen snapshot token, so resumed traversal is best effort.
 
-Run a single import after schema initialization:
+Only full successful tile/detail/history coverage allows cleanup. In one final
+transaction it removes unseen bins whose **stored individual coordinates** lie
+inside the refresh bbox, cascades their history, removes newly empty affected
+sites, recalculates surviving means over every remaining member, and marks the
+pass complete. Out-of-bounds bins/history survive. A verified empty full pass
+can remove all in-bounds bins. Failed cleanup rolls back deletion and completion
+together; rerunning retries finalization. Trials/errors never clean up.
 
-```bash
-docker compose exec backend uv run python -m app.interfaces.bin_sync
-```
-
-Outside Docker, run `uv run python -m app.interfaces.bin_sync` from `backend/` with the accessible `DATABASE_URL` exported and sync settings in the root `.env`. The command runs the reusable import workflow once without starting a server or scheduling another run. It returns zero for a completed run, including warned/skipped/no-data cases, and nonzero for failure. Summaries report retrieved, skipped, and committed upserted counts. Upserted includes rows already holding identical values; address and optional metadata warnings do not count as skipped features.
+A nonblocking PostgreSQL advisory lock rejects a second simultaneous importer.
+The lock and importer engine belong to the command and are released on exit;
+separately running import work does not delay backend shutdown.
 
 | Environment setting | Configuration |
 |---|---|
-| `DATABASE_URL` | Compose PostgreSQL connection using `postgresql+psycopg` |
-| `BIN_SYNC_SOURCE_URL` | Required; full layer 29 query in `.env.example`, selecting all attributes and 50 records per page |
-| `BIN_SYNC_HTTP_TIMEOUT_SECONDS` | Required; example `30` (positive finite seconds for socket I/O inactivity) |
+| `DATABASE_URL` | Required `postgresql+psycopg` connection |
+| `VASA_TILE_URL_TEMPLATE` | HTTPS template with `{z}`, `{x}`, `{y}`; example default |
+| `VASA_BIN_URL_TEMPLATE` | HTTPS template with `{external_id}`; example default |
+| `VASA_HISTORY_URL_TEMPLATE` | HTTPS template with `{external_id}`; example default |
+| `BIN_SYNC_HTTP_TIMEOUT_SECONDS` | Required positive finite socket timeout; example 30 |
 
-Database connection timeout is 10 seconds; each synchronization transaction uses a 30-second statement timeout and a 5-second lock timeout. HTTP timeout applies to socket operations, not an overall deadline for a whole multi-page import. These limits apply to the explicit importer, which owns and disposes its database engine on success or failure. Application readiness and shutdown do not wait for GIS work in a separately launched import process.
+Database connections time out after 10 seconds; importer transactions use a
+30-second statement timeout and 5-second lock timeout. HTTP timeout is socket
+inactivity per attempt, not a whole-import deadline. Native commands run from
+`backend/` with an accessible exported connection, e.g.:
 
-Importing is operator-controlled. A source change alone does not refresh stored values, and application restarts preserve them. Avoid simultaneous manual imports; commands are not coordinated with one another. External ID stability is assumed. Retained sites absent from the current source cannot be distinguished from currently listed sites until a later activation requirement is introduced.
+```bash
+uv run python -m app.interfaces.bin_sync --max-sites 10
+uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0
+# A narrower refresh uses separate coverage; adjust bounds to the intended area.
+uv run python -m app.interfaces.bin_sync --max-sites 0 --max-tiles 0 --bbox 25.2961 54.70245 25.2964 54.7026
+```
 
 ## Migration and verification
 
-From `backend/`, with `DATABASE_URL` exported:
+From `backend/`, with the accessible `DATABASE_URL` exported:
 
 ```bash
+uv sync --locked
 uv run alembic upgrade head
 uv run alembic check
 ```
 
-Repeated upgrades preserve records. Revision `0002` adds only nullable `type` and `greening` columns; existing rows start with null metadata and all original records survive. Apply migrations before running the updated importer. Rebuild the backend with `docker compose up --build` to package the revision; its entrypoint upgrades automatically. Native operators run the explicit command above with all required settings available from dotenv/environment, including the source URL and HTTP timeout. Alembic uses the shared Settings class, but migrations perform no GIS I/O.
+Revision `0004` replaces the legacy collection tables in dependency order,
+creates sites, physical bins, history and internal `vasa_import_runs` /
+`vasa_import_progress`, and retains trucks. Historical revisions `0001`–`0003`
+are unchanged. Upgrade performs no source I/O. Repeated upgrades preserve new
+records. Downgrade through `0004` is unsupported: the migration reports that a
+pre-upgrade backup must be restored or disposable storage recreated. Discarded
+records cannot be reconstructed by downgrade.
 
-Later schema changes need reviewed Alembic revisions. Ordinary code rollback can retain additive columns. An explicit `uv run alembic downgrade 0001` drops only the two metadata columns and loses their values; original records and references remain. Downgrade to `base` destroys all five tables and their records. Exercise downgrades only on disposable verification storage or after preserving required data. Import failure never triggers a downgrade.
-
-Revision `0003` adds truck retirement and enforces nonblank names, capacity 1–99 and deleted/unavailable consistency. Existing valid truck values and all historical references are preserved. Incompatible existing names/capacities cause migration failure with truck IDs and reasons; no values are silently corrected. Downgrade to `0002` refuses while retired trucks exist so an old application cannot accidentally display them. Keep the newer application/schema when retirement data exists.
-
-Follow [the manual data-foundation verification procedure](docs/data-foundation-verification.md) for synthetic SQL records, controlled GIS responses, rollback checks, and lifecycle/container verification.
-
-Follow [the truck-management verification procedure](docs/truck-management-verification.md) for truck migration, API and browser verification on disposable storage.
+Rebuild the backend with `docker compose up --build` to package the new revision
+and dependencies. Its entrypoint upgrades before serving but never imports.
+Follow [data verification](docs/data-foundation-verification.md) and
+[truck verification](docs/truck-management-verification.md) on disposable data.
+Earlier revision-specific results there are historical evidence.
