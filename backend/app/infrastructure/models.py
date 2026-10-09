@@ -81,6 +81,25 @@ class Bin(Base):
     history: Mapped[list["BinHist"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
+    resident_requests: Mapped[list["ResidentRequest"]] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class ResidentRequest(Base):
+    __tablename__ = "resident_requests"
+    __table_args__ = (Index("ix_resident_requests_bin_id", "bin_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_resident_requests_bin_id", ondelete="CASCADE"),
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=text("(statement_timestamp() AT TIME ZONE 'Europe/Vilnius')"),
+    )
+    bin: Mapped[Bin] = relationship(back_populates="resident_requests")
 
 
 class BinHist(Base):
