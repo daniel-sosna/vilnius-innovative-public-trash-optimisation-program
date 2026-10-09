@@ -1,8 +1,12 @@
 import logging
 from collections.abc import Iterator
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -16,7 +20,28 @@ from app.interfaces.trucks.schemas import (
 from app.services import trucks
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/trucks", tags=["Trucks"])
+
+
+class TruckRoute(APIRoute):
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def validated_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError as error:
+                # Nonfinite input cannot itself be encoded in a JSON error body.
+                # Return field locations/messages without echoing invalid values.
+                detail = [
+                    {key: issue[key] for key in ("loc", "msg", "type")}
+                    for issue in error.errors()
+                ]
+                return JSONResponse(status_code=422, content={"detail": detail})
+
+        return validated_handler
+
+
+router = APIRouter(prefix="/trucks", tags=["Trucks"], route_class=TruckRoute)
 
 
 def database_session(request: Request) -> Iterator[Session]:
@@ -26,6 +51,18 @@ def database_session(request: Request) -> Iterator[Session]:
         except trucks.TruckNotFound:
             session.rollback()
             raise HTTPException(status_code=404, detail="Truck not found") from None
+        except trucks.InvalidLandfill:
+            session.rollback()
+            raise HTTPException(
+                status_code=422,
+                detail=[
+                    {
+                        "loc": ["body", "landfill_id"],
+                        "msg": "Select an existing landfill",
+                        "type": "value_error",
+                    }
+                ],
+            ) from None
         except SQLAlchemyError as error:
             session.rollback()
             logger.error(
@@ -47,19 +84,24 @@ def list_trucks(
     page: Annotated[int, Query(ge=1)] = 1,
     name: str | None = None,
     available: bool | None = None,
-    min_max_bins_per_trip: Annotated[int | None, Query(ge=1, le=99)] = None,
-    max_max_bins_per_trip: Annotated[int | None, Query(ge=1, le=99)] = None,
+    min_max_volume_m3: Annotated[
+        Decimal | None, Query(gt=0, allow_inf_nan=False)
+    ] = None,
+    max_max_volume_m3: Annotated[
+        Decimal | None, Query(gt=0, allow_inf_nan=False)
+    ] = None,
+    waste_carrier: str | None = None,
 ) -> dict:
     if (
-        min_max_bins_per_trip is not None
-        and max_max_bins_per_trip is not None
-        and min_max_bins_per_trip > max_max_bins_per_trip
+        min_max_volume_m3 is not None
+        and max_max_volume_m3 is not None
+        and min_max_volume_m3 > max_max_volume_m3
     ):
         raise HTTPException(
             status_code=422,
             detail=[
                 {
-                    "loc": ["query", "min_max_bins_per_trip"],
+                    "loc": ["query", "min_max_volume_m3"],
                     "msg": "Minimum cannot exceed maximum",
                     "type": "value_error",
                 }
@@ -70,8 +112,9 @@ def list_trucks(
         page=page,
         name=name,
         available=available,
-        minimum=min_max_bins_per_trip,
-        maximum=max_max_bins_per_trip,
+        minimum=min_max_volume_m3,
+        maximum=max_max_volume_m3,
+        waste_carrier=waste_carrier,
     )
 
 

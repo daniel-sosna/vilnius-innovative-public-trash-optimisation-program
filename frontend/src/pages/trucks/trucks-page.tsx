@@ -15,13 +15,14 @@ import { TruckOverview } from './truck-overview'
 import { useToast } from '@/components/ui/toast-context'
 import { TruckEditor } from './truck-editor'
 import { TruckDeleteDialog } from './truck-delete-dialog'
-import { isSiteCapacity, truckRequest, type Truck, type TruckPage } from './api'
+import { formatVolume, isVolumeInput, parseVolume, truckRequest, wasteCarriers, type Truck, type TruckPage } from './api'
 
 type Query = {
   name: string
   availability: string
   minimum: string
   maximum: string
+  carrier: string
   page: number
   revision: number
 }
@@ -30,6 +31,7 @@ const initialQuery: Query = {
   availability: 'all',
   minimum: '',
   maximum: '',
+  carrier: 'all',
   page: 1,
   revision: 0,
 }
@@ -46,13 +48,13 @@ export function TrucksPage() {
   const addButton = useRef<HTMLButtonElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const key = JSON.stringify(query)
+  const minimum = parseVolume(query.minimum)
+  const maximum = parseVolume(query.maximum)
   const filterError =
-    (query.minimum && !isSiteCapacity(query.minimum)) ||
-    (query.maximum && !isSiteCapacity(query.maximum))
-      ? 'Įveskite sveikuosius skaičius nuo 1 iki 99.'
-      : query.minimum &&
-          query.maximum &&
-          Number(query.minimum) > Number(query.maximum)
+    (query.minimum && minimum === null) ||
+    (query.maximum && maximum === null)
+      ? 'Įveskite skaičių, didesnį už nulį.'
+      : minimum !== null && maximum !== null && minimum > maximum
         ? 'Mažiausia reikšmė negali viršyti didžiausios.'
         : ''
   const current = result?.key === key ? result : null
@@ -62,7 +64,8 @@ export function TrucksPage() {
     !!query.name.trim() ||
     query.availability !== 'all' ||
     !!query.minimum ||
-    !!query.maximum
+    !!query.maximum ||
+    query.carrier !== 'all'
 
   useEffect(() => {
     if (filterError) return
@@ -73,9 +76,10 @@ export function TrucksPage() {
       if (query.availability !== 'all')
         params.set('available', query.availability)
       if (query.minimum)
-        params.set('min_max_bins_per_trip', String(Number(query.minimum)))
+        params.set('min_max_volume_m3', String(minimum))
       if (query.maximum)
-        params.set('max_max_bins_per_trip', String(Number(query.maximum)))
+        params.set('max_max_volume_m3', String(maximum))
+      if (query.carrier !== 'all') params.set('waste_carrier', query.carrier)
       truckRequest<TruckPage>(`?${params}`, { signal: controller.signal })
         .then((page) => {
           if (controller.signal.aborted) return
@@ -99,10 +103,10 @@ export function TrucksPage() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [query, key, filterError])
+  }, [query, key, filterError, minimum, maximum])
 
   function changeFilter(
-    field: 'name' | 'availability' | 'minimum' | 'maximum',
+    field: 'name' | 'availability' | 'minimum' | 'maximum' | 'carrier',
     value: string,
   ) {
     setNotice('')
@@ -148,7 +152,7 @@ export function TrucksPage() {
         </p>
       </div>
       <TruckOverview revision={statsRevision} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.5fr_1fr_1fr]">
         <div className="space-y-2">
           <Label htmlFor="truck-search">Paieška pagal pavadinimą</Label>
           <Input
@@ -176,29 +180,46 @@ export function TrucksPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="capacity-min">Aikštelių skaičius nuo</Label>
+          <Label htmlFor="carrier-filter">Atliekų vežėjas</Label>
+          <Select
+            value={query.carrier}
+            onValueChange={(value) => changeFilter('carrier', value)}
+          >
+            <SelectTrigger id="carrier-filter" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Visi vežėjai</SelectItem>
+              {wasteCarriers.map((value) => (
+                <SelectItem key={value} value={value}>{value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="volume-min">Talpa nuo (m³)</Label>
           <Input
-            id="capacity-min"
-            type="number"
-            min={1}
-            max={99}
-            step={1}
+            id="volume-min"
+            inputMode="decimal"
             value={query.minimum}
-            onChange={(e) => changeFilter('minimum', e.target.value)}
+            onChange={(e) => {
+              if (isVolumeInput(e.target.value))
+                changeFilter('minimum', e.target.value)
+            }}
             aria-invalid={!!filterError}
             aria-describedby={filterError ? 'filter-error' : undefined}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="capacity-max">Aikštelių skaičius iki</Label>
+          <Label htmlFor="volume-max">Talpa iki (m³)</Label>
           <Input
-            id="capacity-max"
-            type="number"
-            min={1}
-            max={99}
-            step={1}
+            id="volume-max"
+            inputMode="decimal"
             value={query.maximum}
-            onChange={(e) => changeFilter('maximum', e.target.value)}
+            onChange={(e) => {
+              if (isVolumeInput(e.target.value))
+                changeFilter('maximum', e.target.value)
+            }}
             aria-invalid={!!filterError}
             aria-describedby={filterError ? 'filter-error' : undefined}
           />
@@ -277,7 +298,10 @@ export function TrucksPage() {
                   Pavadinimas
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
-                  Max Aikštelių per reisą
+                  Maksimali talpa
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Atliekų vežėjas
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
                   Prieinamumas
@@ -294,7 +318,7 @@ export function TrucksPage() {
                   className="grid cursor-pointer grid-cols-[1fr_auto] gap-x-3 gap-y-2 border-b px-4 py-4 last:border-b-0 hover:bg-muted/60 sm:table-row"
                   onClick={() => openEditor(truck)}
                 >
-                  <td className="col-span-2 min-w-0 sm:max-w-xs sm:px-4 sm:py-3">
+                  <td className="col-span-2 row-start-1 min-w-0 sm:max-w-xs sm:px-4 sm:py-3">
                     <Button
                       variant="link"
                       className="h-auto max-w-full justify-start whitespace-normal break-words p-0 text-left text-sm font-medium text-foreground"
@@ -303,14 +327,18 @@ export function TrucksPage() {
                         openEditor(truck)
                       }}
                     >
-                      {truck.name}
+                      <span className="min-w-0 break-words">{truck.name}</span>
                     </Button>
                   </td>
-                  <td className="text-muted-foreground sm:px-4 sm:py-3 sm:text-foreground">
-                    <span className="sm:hidden">Max Aikštelių per reisą: </span>
-                    {truck.max_bins_per_trip}
+                  <td className="col-start-1 row-start-2 min-w-0 break-words text-muted-foreground sm:px-4 sm:py-3 sm:text-foreground">
+                    <span className="sm:hidden">Maksimali talpa: </span>
+                    {formatVolume(truck.max_volume_m3)}
                   </td>
-                  <td className="sm:px-4 sm:py-3">
+                  <td className="col-span-2 row-start-3 min-w-0 break-words text-muted-foreground sm:max-w-xs sm:px-4 sm:py-3 sm:text-foreground">
+                    <span className="sm:hidden">Atliekų vežėjas: </span>
+                    {truck.waste_carrier}
+                  </td>
+                  <td className="col-start-2 row-start-2 sm:px-4 sm:py-3">
                     <span className="inline-flex items-center gap-2">
                       <span
                         aria-hidden="true"
@@ -327,7 +355,7 @@ export function TrucksPage() {
                       </span>
                     </span>
                   </td>
-                  <td className="col-span-2 sm:px-4 sm:py-3 sm:text-right">
+                  <td className="col-span-2 row-start-4 sm:px-4 sm:py-3 sm:text-right">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -353,6 +381,7 @@ export function TrucksPage() {
           query.availability,
           query.minimum,
           query.maximum,
+          query.carrier,
           query.revision,
         ])}
         page={query.page}

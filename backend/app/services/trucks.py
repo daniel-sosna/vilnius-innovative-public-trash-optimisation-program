@@ -1,15 +1,18 @@
+from decimal import Decimal
+
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.infrastructure.models import Truck
+from app.infrastructure.models import Landfill, Truck
 
 PAGE_SIZE = 10
 TRUCK_FIELDS = (
     Truck.id,
     Truck.name,
-    Truck.max_bins_per_trip,
+    Truck.max_volume_m3,
+    Truck.waste_carrier,
+    Truck.landfill_id,
     Truck.available,
-    Truck.deleted,
 )
 
 
@@ -17,18 +20,33 @@ class TruckNotFound(Exception):
     pass
 
 
+class InvalidLandfill(Exception):
+    pass
+
+
+def validate_landfill(session: Session, landfill_id: int) -> None:
+    # Hold a key-share lock until commit, so a valid choice cannot vanish on save.
+    existing = session.scalar(
+        select(Landfill.id)
+        .where(Landfill.id == landfill_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    if existing is None:
+        raise InvalidLandfill
+
+
 def get_stats(session: Session) -> dict:
     total, available_count, average = session.execute(
         select(
             func.count(Truck.id),
             func.count(Truck.id).filter(Truck.available.is_(True)),
-            func.avg(Truck.max_bins_per_trip),
+            func.avg(Truck.max_volume_m3),
         ).where(Truck.deleted.is_(False))
     ).one()
     return {
         "total": total,
         "available_count": available_count,
-        "average_max_bins_per_trip": float(average) if average is not None else None,
+        "average_max_volume_m3": float(average) if average is not None else None,
     }
 
 
@@ -38,8 +56,9 @@ def list_trucks(
     page: int,
     name: str | None,
     available: bool | None,
-    minimum: int | None,
-    maximum: int | None,
+    minimum: Decimal | None,
+    maximum: Decimal | None,
+    waste_carrier: str | None,
 ) -> dict:
     conditions = [Truck.deleted.is_(False)]
     if name and (search := name.strip()):
@@ -48,9 +67,11 @@ def list_trucks(
     if available is not None:
         conditions.append(Truck.available.is_(available))
     if minimum is not None:
-        conditions.append(Truck.max_bins_per_trip >= minimum)
+        conditions.append(Truck.max_volume_m3 >= minimum)
     if maximum is not None:
-        conditions.append(Truck.max_bins_per_trip <= maximum)
+        conditions.append(Truck.max_volume_m3 <= maximum)
+    if waste_carrier and (carrier := waste_carrier.strip()):
+        conditions.append(Truck.waste_carrier == carrier)
 
     total = (
         session.scalar(select(func.count()).select_from(Truck).where(*conditions)) or 0
@@ -92,6 +113,7 @@ def get_truck(session: Session, truck_id: int) -> dict:
 
 
 def create_truck(session: Session, values: dict) -> dict:
+    validate_landfill(session, values["landfill_id"])
     truck = Truck(**values, deleted=False)
     session.add(truck)
     session.flush()
@@ -103,6 +125,17 @@ def create_truck(session: Session, values: dict) -> dict:
 def patch_truck(session: Session, truck_id: int, values: dict) -> dict:
     if not values:
         return get_truck(session, truck_id)
+    existing = session.execute(
+        select(Truck.landfill_id)
+        .where(Truck.id == truck_id, Truck.deleted.is_(False))
+        .with_for_update()
+    ).one_or_none()
+    if existing is None:
+        raise TruckNotFound
+    if "landfill_id" in values:
+        validate_landfill(session, values["landfill_id"])
+    elif existing.landfill_id is None:
+        raise InvalidLandfill
     row = (
         session.execute(
             update(Truck)
