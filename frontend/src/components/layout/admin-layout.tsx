@@ -4,6 +4,7 @@ import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ToastProvider } from '@/components/ui/toast'
 import { VipTopLogo } from '@/components/viptop-logo'
+import { VilniusLogo } from '@/components/vilnius-logo'
 
 const links = [
   { to: '/admin/trucks', label: 'Šiukšliavežės' },
@@ -62,7 +63,7 @@ export function AdminLayout() {
             <nav
               id={navigationId}
               aria-label="Administratoriaus navigacija"
-              className={`${open ? 'flex' : 'hidden'} w-full flex-col gap-4 border-t pt-4 sm:flex sm:w-auto sm:flex-row sm:border-0 sm:pt-0`}
+              className={`${open ? 'flex' : 'hidden'} order-last w-full flex-col gap-4 border-t pt-4 sm:order-none sm:flex sm:w-auto sm:flex-row sm:border-0 sm:pt-0`}
             >
               {links.map(({ to, label }) => (
                 <NavLink
@@ -81,6 +82,13 @@ export function AdminLayout() {
                 </NavLink>
               ))}
             </nav>
+            <Link
+              to="/"
+              className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring sm:ml-auto"
+              aria-label="Vilnius – pradžia"
+            >
+              <VilniusLogo className="size-10" />
+            </Link>
           </div>
         </header>
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">

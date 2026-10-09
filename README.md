@@ -107,6 +107,48 @@ uv run python -m app.interfaces.table_import
 
 These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
 
+## Resident emptying requests
+
+Open `/resident-request/{bin_id}` using the bin's internal `Bin.id`, for example
+`/resident-request/1`. This is a public Lithuanian page designed for phones,
+independent of admin navigation. The supplied Vilnius logo is centered above
+the title in every pre-success state and disappears with the form after success.
+A fixed map beneath the title marks the bin’s
+physical coordinates and prevents movement or zoom. The first field is `Adresas`
+from the linked collection site, followed by inventory number and waste type;
+unknown values display `N/A`. Map loading/failure does not block submission.
+When history exists, a pale translucent light-blue information card is centred
+in the space between the fields and button. It shows `Paskutinis aptarnavimas atliktas`
+and only the latest bin history calendar date; no history means no card.
+Stored Vilnius dates are displayed without timezone conversion.
+Pressing `Siųsti` stores a request and replaces all page content with a centred
+large green circle, white checkmark, `Jau vykstame pas Jus`, and the supplied
+responsive GIF beneath the text. The action is disabled while pending and
+removed after success. Failed submission
+shows `Kažkas nepavyko. Bandykite dar kartą.` and allows retry. A missing bin shows
+`Konteineris nerastas`; loading failures have a read-only retry.
+
+| API | Behaviour |
+| --- | --- |
+| `GET /bins/{bin_id}` | Only `id`, `address`, `inventory_number`, `waste_type`, `latitude`, `longitude`, and nullable `latest_service` (`date`, `was_serviced`); missing bin 404, invalid ID 422 |
+| `POST /bins/{bin_id}/resident-requests` | No body required; 201 `{"success":true}` after committing one request; missing bin 404, invalid ID 422 |
+
+Frontend calls use the existing `/api` proxy. Positive IDs beyond BIGINT range
+return 404. `resident_requests` contains only generated `id`, required `bin_id`,
+and required `timestamp`. The database generates Europe/Vilnius local wall time
+and stores it as `TIMESTAMP WITHOUT TIME ZONE`, independent of the UTC connection
+setting. Parent-bin deletion cascades to resident requests, including importer
+cleanup. Additive migration `0005` preserves existing collection records and
+checkpoints. Startup applies migrations without running import.
+
+Reports are raw resident signals; no verified fill, service event, prediction,
+or route is generated. Separate submissions and a reload after success can
+create additional requests. QR generation/scanning, accounts/authentication,
+CAPTCHA, rate limiting, identity/IP/device capture, duplicate protection,
+moderation, admin request management, ML/routing integration, and notifications
+are outside this feature. See [resident request verification](docs/resident-request-verification.md)
+for repeatable synthetic migration, API, SQL, failure, and mobile checks.
+
 ## Import table CSV exports
 
 This is the required way to get collection data for development: load table
@@ -142,7 +184,7 @@ See [table import verification](docs/table-import-verification.md) for repeatabl
 
 ## Truck management
 
-Open `/` and choose `Administratorius` to enter `/admin/trucks`. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
+Open `/` and choose `Administratorius` to enter `/admin/trucks`. The supplied Vilnius logo is centered near the top, above the VipTop leaf branding and role selection. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar shows a compact Vilnius logo on the right and VipTop on the left; both branding links lead back to `/`. It links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
 
 The screen supports name search, availability and inclusive site-capacity filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available. Capacity counts collection sites, not individual containers. Delete requires confirmation and retains the truck row without changing collection history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
 
