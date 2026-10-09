@@ -1,3 +1,21 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-app = FastAPI()
+from app.core.config import Settings
+from app.infrastructure.database import create_database_engine, create_session_factory
+from app.interfaces.trucks.router import router as trucks_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    engine = create_database_engine(Settings())
+    app.state.sessions = create_session_factory(engine)
+    try:
+        yield
+    finally:
+        engine.dispose()
+
+
+app = FastAPI(title="VipTop", lifespan=lifespan)
+app.include_router(trucks_router)

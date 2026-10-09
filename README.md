@@ -1,6 +1,6 @@
 # VipTop Waste Collection Optimisation
 
-VipTop MVP for exploring more efficient public waste-container collection in Vilnius. The backend stores collection records and imports collection sites from public GIS data on explicit command invocation. Prediction, route generation, and driver interfaces are future changes.
+VipTop MVP for exploring more efficient public waste-container collection in Vilnius. Administrators can manage the truck fleet through the Lithuanian UI and persistent API. The backend also stores collection records and imports collection sites from public GIS data on explicit command invocation. Prediction, route generation, and driver interfaces are future changes.
 
 ## Technologies
 
@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # API-facing layer
+│       ├── interfaces/     # trucks/ HTTP API and bin_sync/ CLI
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -80,6 +80,41 @@ uv run python -m app.interfaces.bin_sync
 
 These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
 
+## Truck management
+
+Open `/` and choose `Administratorius` to enter `/admin/trucks`. `Vairuotojas` is a disabled placeholder. Admin access requires no authentication. The shared navbar links to `Šiukšliavežės`; below 640 pixels, links collapse into a hamburger menu. Its labeled toggle supports keyboard opening, selection closes the menu, and Escape closes it and returns focus to the toggle.
+
+The screen supports name search, availability and inclusive site-capacity filters, with at most 10 trucks per page, previous/next controls and a page-number input submitted with Enter or `Eiti`. Filter changes reset to page 1. The always-visible, right-aligned action row above the table contains equally sized `Pridėti šiukšliavežę` then the filled `Išvalyti filtrus` button. The add button opens the same form used for editing a row; new forms default to available. Capacity counts collection sites, not individual containers. Delete requires confirmation and retains the database row/history. Successful CRUD refreshes the whole-fleet overview and current filtered page, recovering to the last valid page if needed, without a full page reload.
+
+Create/edit success appears as `Šiukšliavežė išsaugota.` in a toast entering from the top right; failed save requests show an error toast while preserving entered values. Field validation stays beside inputs. Toasts support accessible announcements, labeled dismissal, reduced motion and automatic dismissal, and remain visible above open dialogs. Read refresh failures retain their own retry controls; retrying does not repeat a committed save or its toast.
+
+| API | Behaviour |
+|---|---|
+| `GET /trucks` | Nondeleted page; optional `name`, `available`, `min_max_bins_per_trip`, `max_max_bins_per_trip`, `page` |
+| `GET /trucks/stats` | Whole nondeleted fleet: `total`, `available_count`, `average_max_bins_per_trip` |
+| `GET /trucks/{id}` | Nondeleted detail, or `404` |
+| `POST /trucks` | Required `name`, `max_bins_per_trip`, `available`; `201` saved truck |
+| `PATCH /trucks/{id}` | Partial updates to those three fields; `200` saved truck; missing/deleted ID is `404` |
+| `DELETE /trucks/{id}` | Atomic soft deletion; bodyless `204`; missing/already deleted ID is `404` |
+
+List responses use `{ "items": [...], "total": 21, "page": 1, "page_size": 10 }`. Pages are one-based and default to 1; invalid/nonpositive pages return `422`, while a valid page beyond the results returns empty items with the matching total. Count and items apply the same filters before pagination, ordered by ID. Invalid UI page jumps show a Lithuanian error without fetching; changing/clearing filters resets both the page and page input. Names use trimmed, case-insensitive literal substring matching; filters combine with AND. Blank search has no effect. Capacity bounds must be integers 1–99 with minimum no greater than maximum.
+
+The overview above the filters covers all nondeleted trucks independently of table filters/pages: total, average maximum site capacity (one decimal in Lithuanian formatting), and available percentage with a proportional green circular arc. `GET /trucks/stats` returns `{ "total": 21, "available_count": 11, "average_max_bins_per_trip": 11.0 }` for the synthetic 1–21-capacity example. The average is null for an empty fleet, displayed as — alongside 0 total and 0% availability. Statistics have independent loading/error/retry states; a failed refresh does not undo or repeat a committed mutation.
+
+The screen uses a wider aligned admin layout, neutral gray surfaces and leaf branding. The available/total count beneath `Prieinamos šiukšliavežės` (for example, `24 iš 27`) matches the size and weight of the other overview values; the circular percentage remains beside it or wraps at narrow widths. The capacity column is `Max Aikštelių per reisą`. Truck-specific frontend files live under `frontend/src/pages/trucks/`; shared layout/branding/UI primitives, toast provider and `TablePagination` live under `components/`. Backend HTTP router/schemas live under `app/interfaces/trucks/`; the CLI lives under `app/interfaces/bin_sync/` and keeps the existing `python -m app.interfaces.bin_sync` invocation.
+
+Truck responses expose `id`, `name`, `max_bins_per_trip`, `available`, `deleted`. Mutation inputs trim nonempty names, require integer capacity 1–99 and boolean availability, reject explicit nulls and unknown fields, and permit duplicate names. `id`/`deleted` cannot be set by clients. Omitted PATCH fields remain unchanged; an empty patch returns the eligible unchanged truck. Validation errors return `422`; persistence failures return generic `500` responses without partial changes.
+
+The browser calls same-origin `/api/trucks`; Vite strips `/api` and proxies to FastAPI. Compose configures server-only `VIPTOP_API_PROXY_TARGET=http://backend:8000`. For native frontend development, the default is `http://127.0.0.1:8000`; override it for a different backend port:
+
+```bash
+cd frontend
+npm ci
+VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
+```
+
+`npm run build` builds the frontend, and `VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run preview` serves the build with the same proxy. Deep-link open/refresh is supported in development and preview. A future production static host will need an equivalent API proxy and SPA fallback.
+
 ## Collection records
 
 One Bin represents a whole collection site, not an individual physical container. Truck capacity counts sites per trip. Only the following domain fields are stored:
@@ -87,14 +122,14 @@ One Bin represents a whole collection site, not an individual physical container
 | Table | Fields |
 |---|---|
 | `bins` | `id`, `lat`, `lon`, `address`, `type`, `greening` |
-| `trucks` | `id`, `name`, `max_bins_per_trip`, `available` |
+| `trucks` | `id`, `name`, `max_bins_per_trip`, `available`, `deleted` |
 | `routes` | `id`, `service_date`, `truck_id`, `status` |
 | `route_stops` | `id`, `route_id`, `bin_id`, `stop_order` |
 | `service_events` | `id`, `bin_id`, `service_ts`, `fill_level`, `duration`, `route_id` |
 
 `bins.id` is the external integer `KAIKS_NR`, with no generator. The other IDs are independently generated PostgreSQL identities. All values and foreign keys are required except `bins.address`, `bins.type`, and `bins.greening`, which can be `NULL`. Type and greening are unrestricted text: the database accepts labels outside the known GIS mappings. Referenced bins, trucks, and routes cannot be deleted. `alembic_version` is migration bookkeeping.
 
-Routes are assigned work for a particular Europe/Vilnius service date. Status defaults to `PLANNED` and accepts `PLANNED`, `IN_PROGRESS`, or `COMPLETED`. A truck can have multiple routes on one date. `available` is explicitly supplied and will later control routing participation; `max_bins_per_trip` must be positive. Stops use positive, one-based positions unique within their route. The database does not require contiguous positions or prevent a repeated bin at another position.
+Routes are assigned work for a particular Europe/Vilnius service date. Status defaults to `PLANNED` and accepts `PLANNED`, `IN_PROGRESS`, or `COMPLETED`. A truck can have multiple routes on one date. Truck names must be nonblank and `max_bins_per_trip` counts collection sites, with integer capacity 1–99. `available` is explicitly supplied and will later control routing participation. `deleted` defaults to false; retiring a truck sets deleted true and available false, retaining the row and its historical references. Future route generation must require both nondeleted and available trucks; historical route queries join retained trucks regardless of retirement. Stops use positive, one-based positions unique within their route. The database does not require contiguous positions or prevent a repeated bin at another position.
 
 A ServiceEvent records complete emptying of the modeled site. Its timezone-aware `service_ts` is the completion instant and starts the next fill cycle. `fill_level` is observed immediately before emptying and accepts `EMPTY`, `LESS_THAN_HALF`, `MORE_THAN_HALF`, or `FULL`. `duration` is a nonnegative integer in seconds. Database sessions use UTC. Actual servicing can cross midnight relative to the planned service date.
 
@@ -169,4 +204,8 @@ Repeated upgrades preserve records. Revision `0002` adds only nullable `type` an
 
 Later schema changes need reviewed Alembic revisions. Ordinary code rollback can retain additive columns. An explicit `uv run alembic downgrade 0001` drops only the two metadata columns and loses their values; original records and references remain. Downgrade to `base` destroys all five tables and their records. Exercise downgrades only on disposable verification storage or after preserving required data. Import failure never triggers a downgrade.
 
+Revision `0003` adds truck retirement and enforces nonblank names, capacity 1–99 and deleted/unavailable consistency. Existing valid truck values and all historical references are preserved. Incompatible existing names/capacities cause migration failure with truck IDs and reasons; no values are silently corrected. Downgrade to `0002` refuses while retired trucks exist so an old application cannot accidentally display them. Keep the newer application/schema when retirement data exists.
+
 Follow [the manual data-foundation verification procedure](docs/data-foundation-verification.md) for synthetic SQL records, controlled GIS responses, rollback checks, and lifecycle/container verification.
+
+Follow [the truck-management verification procedure](docs/truck-management-verification.md) for truck migration, API and browser verification on disposable storage.

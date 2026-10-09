@@ -40,13 +40,23 @@ class Bin(Base):
 class Truck(Base):
     __tablename__ = "trucks"
     __table_args__ = (
-        CheckConstraint("max_bins_per_trip > 0", name="ck_trucks_positive_capacity"),
+        CheckConstraint(
+            "max_bins_per_trip BETWEEN 1 AND 99", name="ck_trucks_capacity_range"
+        ),
+        CheckConstraint(
+            r"btrim(name, U&'\0009\000a\000b\000c\000d\001c\001d\001e\001f\0020\0085\00a0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200a\2028\2029\202f\205f\3000') <> ''",
+            name="ck_trucks_nonblank_name",
+        ),
+        CheckConstraint(
+            "NOT deleted OR NOT available", name="ck_trucks_deleted_unavailable"
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
     name: Mapped[str] = mapped_column(Text)
     max_bins_per_trip: Mapped[int] = mapped_column(Integer)
     available: Mapped[bool] = mapped_column(Boolean)
+    deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
 
 
 class Route(Base):
