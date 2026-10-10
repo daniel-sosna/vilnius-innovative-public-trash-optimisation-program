@@ -10,12 +10,13 @@ export type LayerLegendEntry = {
 
 export type LayerRenderer = {
   setVisible(visible: boolean): void
+  setData?(data: LayerData): void
   dispose(): void
 }
 
 export type LayerContext = {
   map: Map
-  showDetails(layerId: string, coordinates: [number, number], content: HTMLElement): void
+  showDetails(layerId: string, coordinates: [number, number], content: HTMLElement, onClose?: () => void): void
   closeDetails(layerId: string): void
 }
 

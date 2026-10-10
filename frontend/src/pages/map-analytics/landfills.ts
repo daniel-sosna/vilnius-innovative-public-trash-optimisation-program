@@ -40,7 +40,7 @@ export function landfillDetails(feature: Feature<Point, LandfillProperties>): HT
   return content
 }
 
-const landfillColor = '#166534'
+const landfillColor = '#000000'
 
 export const landfillsLayer = createPointLayer({
   id: 'landfills',

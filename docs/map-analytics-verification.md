@@ -1,8 +1,15 @@
 # Map analytics verification
 
-Final status (2026-10-10): manual verification accepted by the developer; all
-17 tasks closed with their authorization. Earlier pending statuses below are
-historical. See the final acceptance record at the end of this document.
+Landfill change status (2026-10-10): manual verification accepted by the developer;
+all 17 `layer-map` tasks closed with their authorization. Earlier pending statuses
+below are historical. The separate `layer-map-bins` implementation and verification
+record follows at the end; prior acceptance does not cover that change.
+
+Bin change status (2026-10-10): the developer reports that all functionality has
+been checked and verified and explicitly authorizes completing every remaining
+task, syncing the specs and archiving `layer-map-bins`. All 21 tasks are closed
+on that acceptance and the recorded technical checks. Earlier pending bin
+statuses below are historical.
 
 Run these reads against the existing landfill catalog. Do not import, reseed,
 migrate or change landfill records for this verification. The expected three records come
@@ -69,7 +76,8 @@ Set `VITE_MAP_STYLE_URL` at frontend startup/build time and point
 frontend is `http://127.0.0.1:18009` and its backend is port 18008.
 
 1. Navigate from trucks using `Žemėlapio analitika`. Confirm the link is active,
-   the screen belongs to the shared admin layout and only `Sąvartynai` is offered.
+   the screen belongs to the shared admin layout and both `Sąvartynai` and
+   `Konteineriai` are offered. Follow the bin walkthrough below for that layer.
    Open `/admin/map-analytics` directly, refresh, and use Back/Forward.
 2. The large Vilnius-centered map fills the content width. One card underneath
    shows `Sluoksniai`, name-only checkboxes, then `Legenda` and color labels. Pan,
@@ -100,7 +108,7 @@ frontend is `http://127.0.0.1:18009` and its backend is port 18008.
 
 These are recorded locations, not surveyed entrances or an assessment of current
 intake capacity. Coordinate quality stays in the API but is not displayed in the
-compact popup. The `Legenda` section in the card under the map displays a green
+compact popup. The `Legenda` section in the card under the map displays a black
 `Sąvartynai` swatch matching the pins and clusters. It lists all registered color
 meanings even while their layer is unchecked.
 
@@ -152,9 +160,10 @@ glyph provider (the default provider supports `Noto Sans Regular`). Use safe
 DOM/text content rather than inserting source strings as HTML.
 
 Point `appearance.color` can be a constant or a native MapLibre property-based
-color expression. For a future categorized dataset, supply one labeled legend
+color expression. For a categorized dataset, supply one labeled legend
 entry per category and a uniform `appearance.clusterColor` for grouped points
-(with its own legend entry if it differs). This adds no bin/waste dataset now.
+(with its own legend entry if it differs). Bins supply these category and group
+entries through the shared category module.
 
 A future non-point definition implements `MapLayerDefinition` directly: set its
 render `kind` and geometry-independent legend entries, load a GeoJSON
@@ -162,13 +171,24 @@ FeatureCollection of its geometry, and implement
 `attach(context, data)` returning `setVisible(boolean)` and `dispose()`. Attach
 runs after style readiness; the renderer owns sources, style layers and events,
 changes visibility without moving the camera, and removes everything on dispose.
-`context.showDetails(id, coordinates, content)` and `closeDetails(id)` provide
+`context.showDetails(id, coordinates, content, onClose?)` and `closeDetails(id)` provide
 shared popup ownership if needed. This boundary never calls a polygon a marker
 or applies point clustering to it. Recovery attaches a new renderer against
 retained cache; disposal must tolerate in-flight interaction completion.
 No non-point renderer is delivered in this change.
 
-## Temporary simultaneous-point verification
+Renderers may optionally implement `setData(data)`; the map updates an attached
+renderer only when its rendered collection reference changes. Point-source
+updates preserve attachment and camera, refresh original-feature lookup and
+gate interactions until the latest source update and tiles are ready. Optional
+`clustering` and `overlapGroup` point-definition settings are used by bins;
+landfills keep the defaults above. Bin clustering derives its maximum from the
+map and reserves a higher source zoom (22/23 currently), capped at the installed
+MapLibre canonical tile limit of 25. The subsequent collision fix uses that
+native index directly for bins and one unclustered display source; landfills
+continue to use native source clustering. See the collision verification below.
+
+## Temporary simultaneous-point verification (historical `layer-map` walkthrough)
 
 For browser acceptance only, temporarily create a second definition next to
 `landfillsLayer` using `createPointLayer` with ID `landfills-verification`, label
@@ -343,3 +363,326 @@ validation. Standard validation of all 12 main specs passes; repository-wide
 strict validation reports existing long-requirement warnings in the unchanged
 `collection-records` spec. Archived to `openspec/changes/archive/2026-10-10-layer-map/`
 using the spec-driven workflow, with all artifacts and 17/17 tasks complete.
+
+## Bin API verification (`layer-map-bins`)
+
+Check that `backend/data/` contains `sites_<digits>.csv`, `bins_<digits>.csv`
+and `bin_hist_<digits>.csv` before using collection data. Use the existing database;
+do not run `bin_sync`, import, mutate records or migrate for these reads.
+
+From the repository root, run the following against a backend URL. To repeat
+through the frontend proxy, set `MAP_API_URL=http://127.0.0.1:18009/api`.
+
+```bash
+MAP_API_URL=http://127.0.0.1:18008 python - <<'PY'
+import json, math, os, urllib.request
+from collections import Counter
+
+base = os.environ['MAP_API_URL'].rstrip('/')
+with urllib.request.urlopen(base + '/map-analytics/bins', timeout=15) as response:
+    assert response.status == 200
+    data = json.load(response)
+assert set(data) == {'type', 'features'}
+assert data['type'] == 'FeatureCollection' and isinstance(data['features'], list)
+ids, types = [], Counter()
+null_inventory = null_capacity = 0
+for feature in data['features']:
+    assert set(feature) == {'type', 'id', 'geometry', 'properties'}
+    assert feature['type'] == 'Feature' and type(feature['id']) is int
+    ids.append(feature['id'])
+    geometry = feature['geometry']
+    assert set(geometry) == {'type', 'coordinates'} and geometry['type'] == 'Point'
+    coordinates = geometry['coordinates']
+    assert isinstance(coordinates, list) and len(coordinates) == 2
+    assert all(type(value) in (int, float) and math.isfinite(value) for value in coordinates)
+    longitude, latitude = coordinates
+    assert -180 <= longitude <= 180 and -90 <= latitude <= 90
+    properties = feature['properties']
+    assert set(properties) == {'inventory_number', 'waste_type', 'capacity_m3'}
+    inventory, waste, capacity = (properties[key] for key in
+                                ('inventory_number', 'waste_type', 'capacity_m3'))
+    assert inventory is None or isinstance(inventory, str)
+    assert isinstance(waste, str)
+    assert capacity is None or (type(capacity) in (int, float) and math.isfinite(capacity))
+    types[waste] += 1
+    null_inventory += inventory is None
+    null_capacity += capacity is None
+assert ids == sorted(set(ids))
+print(f'PASS: {len(ids)} bins; sorted unique IDs, valid points and exact three properties')
+print('Waste totals:', dict(sorted(types.items())))
+print(f'Null inventory: {null_inventory}; null capacity: {null_capacity}')
+PY
+```
+
+Exit 0 with `PASS` means success. HTTP/network errors, invalid JSON and failed
+assertions exit nonzero. Counts depend on the current snapshot; an empty registry
+is a valid response. As with the landfill command above, a base URL ending in
+`/api` selects the proxy without changing the command's endpoint path.
+
+Compare the returned counts with this read-only PostgreSQL query using your
+existing database connection:
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SELECT waste_type, count(*) AS displayable_bins,
+       count(*) FILTER (WHERE inventory_number IS NULL) AS null_inventory,
+       count(*) FILTER (WHERE capacity_m3 IS NULL) AS null_capacity
+FROM bins
+WHERE longitude BETWEEN -180 AND 180 AND latitude BETWEEN -90 AND 90
+GROUP BY waste_type ORDER BY waste_type;
+ROLLBACK;
+```
+
+The coordinate bounds exclude null, NaN and infinite PostgreSQL values. Inspect
+`bin_features` for the empty-list path and the explicit null/non-finite/range
+coordinate guards, and `BinProperties` for nullable details and numeric capacity.
+These branches require no modifications to stored records.
+
+2026-10-10 observed results: required exports present; direct port 18008 and
+Vite proxy port 18009/API checks passed against this checkout. Both returned
+21,951 features: glass 2,754; mixed municipal 14,958; paper/plastic 4,239.
+A read-only SQL comparison matched every ID, coordinate and detail property,
+in ascending ID order, and the grouped SQL totals matched both HTTP reads.
+No inventory or capacity nulls, unexpected types or unusable coordinates were
+present in this snapshot. Empty/null/unusable-coordinate branches were inspected
+in code, not produced by changing records. An unreachable backend URL returned
+a nonzero verification exit. No data import, storage mutation or migration ran.
+
+Browser acceptance for `layer-map-bins` is pending: the browser connection returned
+no available browsers. No UI behavior in this change is accepted by the earlier
+developer acceptance of `layer-map`.
+
+Initial implementation paused at task 2.2 with 4/18 tasks complete (1.1–1.3 and 2.1).
+The read-only endpoint, abortable frontend loader and shared category module are
+implemented. A direct evaluation of the category module confirmed the exact
+three source keys, corresponding colors and Lithuanian labels, gray fallback
+and separate neutral group legend entry. At that pause the registry contained only
+landfills; bin rendering, filtering and overlap interactions were unimplemented.
+The unchanged landfill/catalog command passed both directly and through `/api`.
+Frontend build and lint, `git diff --check` and strict validation of this change
+passed. The build retains its existing large-bundle advisory. No automated tests,
+temporary response overrides or development-only layer definitions were added.
+
+## Current bin-layer walkthrough
+
+2026-10-10: resumed implementation after the developer reported that Compose's
+legend still contained only landfills. Both real definitions are now registered.
+The frontend implements bin categories/legend/details, independent visibility,
+page-session filtering, source updates, high-zoom group lists and their interaction
+guards. Landfill markers/clusters/legend are black. The running Compose frontend
+on port 5173 serves the updated registry, bin definition and category module.
+Direct port 8000 and `/api` on 5173 pass both documented API commands. Build/lint
+and strict validation pass. Browser discovery still returns no available browsers;
+the walkthrough below remains unobserved and its acceptance tasks stay open.
+
+Refresh `http://localhost:5173/admin/map-analytics`. Compose mounts frontend and
+backend source from this checkout, so the development servers reload source edits.
+Recreating services is needed only if they still mount a different checkout or
+need changed environment settings. No new dependency install or data import is
+needed for this change.
+
+1. Before enabling anything, check that both main checkboxes are unchecked and
+   Network shows no dataset GETs. The legend must already show black `Sąvartynai`,
+   blue `Popieriaus ir plastiko atliekos`, green `Stiklo atliekos`, brown
+   `Mišrios komunalinės atliekos`, gray `Kitos atliekų rūšys` and neutral
+   `Konteinerių grupė`.
+2. Enable both layers. Expect one first-enable GET per dataset; points and counts
+   use independent `analytics:landfills:*` and `analytics:bins:*` sources/layers.
+   Ordinary cluster clicks below zoom 15 expand; landfill expansion retains
+   its existing behavior. Individual bins use category colors and show only
+   `Inventorinis numeris`, `Atliekų rūšis` and `Talpa (m³)`. Verify landfill
+   heading/operator/address against the existing three-facility walkthrough.
+3. Click the small arrow beside the bin checkbox to open the `Atliekų rūšys`
+   modal. Opening/closing must leave the main checkbox unchanged. All known
+   categories start selected; the inspected data
+   contains no fallback checkbox. Toggle glass/paper/mixed independently and
+   inspect changes to points and count labels. Main toggles, zoom, modal opening and
+   filters must not produce new successful dataset reads or reset the camera.
+4. Select only glass, disable/re-enable bins and verify the selection survives.
+   Deselect all visible categories: no points/counts, main checkbox still checked,
+   and `Nepasirinkta atliekų rūšių.`. Repeat off/on with that empty selection.
+   Refresh or leave/reopen: main layers unchecked and categories reset selected.
+   During map recovery, selected categories and cached data must survive without
+   a dataset refetch. Landfills and camera remain unchanged by bin filters.
+5. For a mixed colocated group, navigate to `[25.060404539108276,
+   54.62532290823588]` at zoom 18 or higher. This snapshot contains inventories
+   `13-P-213606`, `13-S-212661`, `13-L-228682` at that coordinate. Open the
+   count marker, choose each bin and return with `Atgal į sąrašą`; the camera
+   and Network stay unchanged. Filter to glass: one green individual bin remains.
+   Deselect glass as well: none remain. Restore categories after checking.
+6. A larger same-type example has 21 mixed-waste bins near `[25.2806568,
+   54.6968031]` (internal IDs 16401–16421, for verification only). At maximum
+   zoom, inspect its exact count, list all members once, scroll internally and
+   select first/last entries by keyboard. Duplicate/null labels must not merge
+   items; every selection resolves the original feature's details.
+7. Using temporary browser response overrides only, inspect null inventory and
+   capacity (`N/A`), long inventories, duplicate inventories with different
+   capacities and unexpected waste strings. The latter appear gray and add one
+   initially selected fallback checkbox; toggling it filters all unexpected
+   strings. Include source text containing HTML characters to confirm it is
+   displayed as text. Do not alter database records.
+8. Use two temporary bin features at the same coordinate, then move one longitude
+   by 0.00008 degrees. Check zooms 15, 17, 17.5, 18 and maximum zoom: exact
+   duplicates stay grouped; the near pair separates when sufficiently zoomed.
+   Native integer buckets may conservatively group near points at fractional
+   zoom, followed by the exact screen-circle collision pass. High-zoom groups
+   open lists without moving the view. Restore responses.
+9. During group reads, rapidly change filters, toggle off/on, select another
+   marker, pan/zoom, Close/Escape and navigate away. Late responses must never
+   restore old content or move the camera. Delay/fail a cluster-worker leaf read
+   using a temporary debugger override of `ScreenClusters.getLeaves` for bins,
+   check Lithuanian recoverable feedback
+   and retry without an HTTP dataset read. Restore the overridden method afterward.
+10. Delay/fail only one initial dataset read. The other dataset and basemap must
+    remain usable. Off/on while loading shares the pending read; completing
+    while hidden stays hidden; retry fetches only the failed dataset. Override
+    each endpoint with an empty FeatureCollection and check `Duomenų nėra.`,
+    separate from filtering and errors. Check topmost-click ownership where
+    datasets overlap. Restore all responses before accepting results.
+11. At desktop and 320px widths, verify horizontal wrapping dataset checkboxes,
+    the arrow-triggered modal, internally scrolling
+    layer list, reachable legend, wrapped/scrollable popups and keyboard focus.
+    Check Lithuanian zoom/retry/Close controls, navbar and existing trucks/sites/
+    site-detail location maps. The shared card stays below the map with no
+    page-wide horizontal scroll. Remove all overrides and repeat a real-data read.
+
+Initial read-only non-browser evidence (before collision fixes): the installed native clustering engine
+with bin options counted all 21,951 bins at zooms 10, 15, 15.5 and 22. At maximum
+zoom it returned 3,780 groups and 11,955 individual bins. Its largest group
+contained 21 distinct stable-ID leaves, matching the real colocated example above.
+MapLibre's property-expression parser accepted the category color, high-zoom
+radius and exact-count expressions. These checks establish native index/expression
+behavior, not rendered appearance, camera actions, asynchronous browser races,
+keyboard handling or mobile layout. Those remain pending manual acceptance.
+
+Initial integrated implementation checks on 2026-10-10: build, lint, whitespace checks and
+strict change validation pass; both documented API commands pass directly on
+8000 and through the running Compose proxy on 5173. No temporary overrides or
+development-only definitions are present. Task 5.3 is complete, bringing verified
+progress to 5/18. The other 13 open tasks have implementation/walkthrough content
+where applicable, but their required browser observations have not been made.
+
+## Collision-free clusters and modal controls
+
+Developer feedback on 2026-10-10 replaced the inline submenu with an arrow-triggered
+modal, put dataset checkboxes in a horizontal wrapping row, and required larger
+low-zoom bin groups with no intersecting circles. The change artifacts now reflect
+those requested behaviors. The screenshot established that the earlier rendered
+clusters overlapped; it does not establish acceptance of the revised implementation.
+
+Bins now use the already installed MapLibre native clustering package directly
+(declared as a direct dependency at its existing version 6.1.2). One index supplies
+native seeds: radius 80 below zoom 15, radius 20 at high zoom. A spatially bucketed
+collision pass merges touching groups/points, recomputes their weighted centers
+and radii and repeats until every pair is separated by at least a 2-pixel gap,
+including circle strokes. The collision check and styles share their radius
+definitions. Bin circle radii stay in viewport pixels when pitched. Landfills
+keep their native source clustering defaults. No extra runtime package, duplicate
+bin source, per-bin DOM marker or backend query is needed.
+
+The bin display source contains the current buffered-view aggregates; complete
+filtered API records stay in the page cache/native index. Counts therefore refer
+to the bins represented by those displayed aggregates, not necessarily every
+record in the full registry at every viewport. Each represented bin occurs once,
+and group lists retrieve every native seed member by stable ID. Camera changes
+only regroup this cached data. Layout signatures avoid redundant source updates.
+The initial implementation withheld obsolete circles and labels during every
+layout update. The navigation-visibility follow-up below removes this camera-driven
+suppression after developer feedback; source readiness still gates interaction.
+
+Run the repeatable read-only geometry check from `frontend/` with Node 22:
+
+```bash
+node --experimental-strip-types scripts/verify-bin-clusters.mjs http://127.0.0.1:8000
+# The same API read through Compose's frontend proxy:
+node --experimental-strip-types scripts/verify-bin-clusters.mjs http://127.0.0.1:5173/api
+```
+
+The URL is optional and defaults to backend port 8000. Output reports zoom,
+marker count, represented bins, minimum circle gap, layout time and total
+verification time. Exit 0 with `PASS` means all geometry/count/identity checks
+passed. Failed HTTP reads or invariants exit nonzero. It exercises real data at
+zooms 10, 10.5, 12, 12.5, 13, 14.5, 15, 15.5, 18 and 22, plus a rotated view.
+The identical/near pair checks use in-memory copies with duplicate/null inventory
+labels; they never modify storage or override the running application's response.
+This command verifies the algorithm under a Mercator projection, not DOM/WebGL,
+worker timing, actual pitched rendering or accessible modal behavior.
+
+Observed on this checkout, directly and through `/api`: both commands passed
+against 21,951 source bins. The zoom-10 view represented all bins using 23 markers
+with a minimum 10.1-pixel gap. Sampled fractional views had gaps of at least
+2.23 pixels. At maximum zoom the real 21-bin group contained 21 distinct members.
+The identical pair stayed grouped; the near pair separated at zoom 18 and 22.
+First native index construction took about 102 ms, changing the radius policy
+about 92 ms, and subsequent sampled layouts 0–1.7 ms. These timings exclude the
+separately reported membership/geometry verification and browser worker/render
+costs. An unreachable URL exited 1. No data import/mutation or automated test
+suite was added.
+
+For browser acceptance, repeat the current walkthrough above and check the
+screenshot's dense view at integer/fractional zoom, during zoom-out, on resize and
+with bearing/pitch. All bin circles must remain disjoint and merged counts exact;
+bin circles and counts must remain visible throughout camera movement and source
+replacement. Click a merged
+high-zoom group and inspect all members. Confirm the dataset checkboxes sit
+horizontally, the small arrow opens a modal even with bins unchecked without
+loading/enabling the dataset, category changes apply immediately, and Close/Escape
+returns focus to the arrow. Verify focus trapping and scrolling at 320px.
+The running Compose frontend serves the revised modal, point helper and collision
+module. Browser discovery still reports no available browsers; these UI observations
+remain pending, and no corresponding UI checkbox has been marked complete.
+
+Final checks after these fixes: frontend build and lint, `git diff --check` and
+strict OpenSpec validation passed. Both documented API commands passed against
+Compose's backend on 8000 and its frontend proxy on 5173: 21,951 bins and the
+unchanged three-facility catalog. HTTP reads confirmed Compose serves the latest
+collision module, point helper and modal page. Temporary response overrides and
+development-only layer definitions are absent. Task 5.3 is complete again;
+task 6.1 records the verified geometry. Acceptance progress is 6/20, with the
+14 tasks requiring browser observations still open.
+
+## Checkbox alignment and navigation visibility follow-up
+
+The developer's screenshot shows the checkbox centers offset because the
+`Konteineriai` row contains a 28-pixel arrow while the landfill row was only as
+tall as its label. Every dataset control row now has the same 28-pixel minimum
+height and centers its checkbox and label vertically.
+
+The developer also reports bins disappearing during navigation. Both the camera
+scheduler and source publication set opacity to zero while waiting for cluster
+updates. Camera updates and re-enabling now retain circle, stroke and count
+opacity. Only filter/data changes suppress prior membership. Pending camera work
+still blocks stale clicks, and source revision guards remain intact.
+
+Inspection of the installed MapLibre implementation confirms that source updates
+reload existing tiles in a renderable `reloading`/`expired` state, retaining their
+data while replacements load. The collision algorithm itself is unchanged;
+cluster geometry is checked before every publication. Browser discovery still
+returns no browsers, so continuous navigation, tile transitions, checkbox visual
+alignment and keyboard/mobile acceptance require the current walkthrough.
+
+After this follow-up, frontend build/lint, `git diff --check` and strict OpenSpec
+validation passed. The documented bin and landfill checks passed directly on 8000
+and through 5173 `/api`, with 21,951 bins and three unchanged landfill records.
+HTTP module reads confirm Compose serves the equal-height controls and updated
+camera publication behavior. Tasks 5.3 and 6.3 are complete; progress is 7/21.
+The 14 browser acceptance tasks remain open rather than treating code inspection
+or HTTP checks as observed UI behavior.
+
+## Final bin developer acceptance — 2026-10-10
+
+The developer reports that they checked and verified everything works and
+authorizes completing all remaining tasks, syncing main specs and archiving
+`layer-map-bins`. The 14 remaining verification tasks are closed on this
+developer-reported acceptance; all 21 tasks are now complete. The agent's browser
+remains unavailable, and no independent browser run or detailed override outcomes
+are claimed. The recorded build/lint, API and geometry checks remain the separate
+technical evidence. Earlier pending acceptance statuses above are historical.
+
+Synced the accepted delta requirements into `openspec/specs/map-analytics/spec.md`
+and `openspec/specs/map-layers/spec.md`, preserving existing titles, purposes and
+unaffected requirements. Main-spec validation passed for all 12 capabilities,
+strict change validation and `git diff --check` passed, and both delta comparisons
+confirmed nothing remained to sync. Archived the complete spec-driven change at
+`openspec/changes/archive/2026-10-10-layer-map-bins/`, including its metadata and
+21/21 completed tasks.
