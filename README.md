@@ -274,24 +274,8 @@ runs in plain Python, so long ranges take a while: 31 days take about 20 s and o
 (2026-10-10..2027-10-09, about 7.9M rows) about 4 minutes. The five-year maximum would take
 roughly 20 minutes.
 
-| Column | Meaning |
-|---|---|
-| `date` | Each day from `--start` to `--end`, inclusive |
-| `day_of_week` | ISO, 1 = Monday … 7 = Sunday |
-| `week_of_year` | ISO week, 1–53 |
-| `month` | 1–12 |
-| `season` | Meteorological: 1 winter (Dec–Feb), 2 spring, 3 summer, 4 autumn (Sep–Nov) |
-| `bin_id`, `site_id`, `waste_type`, `capacity_m3`, `sub_district`, `object_group` | Copied from `bins`; `capacity_m3` and `object_group` may be NULL |
-| `population_cell_id`, `resident_factor` | **Estimated** from population data, copied from `bin_population`; `population_cell_id` may be NULL, `resident_factor` is 0 for non-residential bins |
-| `collection_status` | **Synthetic.** Outcome of the day's own attempt, see below |
-| `holidays_since_last_collection` | **Synthetic.** Holidays from the day after the latest successful collection through the day before the row's date; counted from the simulation start if there is none |
-| `collections_last_28d` | **Synthetic.** Days with a successful collection from date − 28 to date − 1 |
-| `missed_collections_28d` | **Synthetic.** Days with status `missed` from date − 28 to date − 1 |
-
-`collection_status` values: `none` (no attempt), `collected` (first attempt succeeded),
-`retry_collected` (a retry succeeded), `failed` (attempt failed, a retry follows the next
-day) and `missed` (attempt failed, no retry follows). An occurrence counts as missed only
-once all its attempts failed, on the day that became final.
+Every column (type, nullability, meaning, values, and whether it is copied, estimated or
+synthetic) is described in [`bin_days` columns](docs/bin-days-columns.md).
 
 - **Which bins:** a bin gets a row for every date when it has a `sub_district` and at least
   one stored planned date. Others are skipped and counted in the summary as excluded
