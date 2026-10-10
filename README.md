@@ -806,15 +806,37 @@ The large Vilnius map fills the content width. One card underneath contains
 `Sluoksniai` and name-only checkboxes, then `Legenda` and labeled color swatches.
 Long layer lists scroll internally. Clicking the map does not draw a focus
 outline; keyboard interaction retains visible focus.
-Check `Sąvartynai` to load the existing three-facility catalog, explore clustered
-counts, click clusters to zoom in and click individual points for recorded details.
-The layer starts unchecked; successful data is reused until leaving the page.
-Toggles preserve the view. Dataset retry and map recovery are independent.
-The `Legenda` section lists registered color meanings:
-landfill pins and clusters are green. Definitions can supply multiple categories
-and feature-based point colors; the same legend metadata supports future
-non-point renderers. Facility popups show the name as a heading and only operator
-and address rows.
+Check `Sąvartynai` or `Konteineriai` independently to load their recorded locations.
+Both start unchecked and load only on first enable; successful data is reused
+until leaving the page. Toggles preserve the view. Dataset retry and map recovery
+are independent. Facility popups show the name as a heading and only operator
+and address rows. Bin popups show only inventory number, localized waste type
+and capacity in cubic metres; null details display `N/A`.
+
+The `Legenda` section lists all registered color meanings, even for hidden layers:
+black landfill pins/clusters; blue paper/plastic, green glass, brown mixed municipal
+and gray other-waste bins; neutral `Konteinerių grupė` count markers.
+Dataset checkboxes align on the same row and wrap on narrow screens. Click the
+small arrow beside `Konteineriai` to open the `Atliekų rūšys` modal and filter categories.
+All start selected; the other-waste checkbox appears only when that category is
+present. Category choices survive main-layer toggles for the page session and
+reset on a new session. Filters update points and cluster counts without another
+request or camera movement. Selecting no categories displays
+`Nepasirinkta atliekų rūšių.`, distinct from an empty source dataset.
+
+Ordinary clusters expand on click. At zoom 15 and above, a remaining bin group
+opens a scrollable list; choose a bin for its details and use `Atgal į sąrašą`
+to select another. Native bin seeds use an 80-pixel radius below zoom 15 and
+20 pixels at higher zoom. A screen-space pass repeatedly merges intersecting
+circles, including strokes, into exact-count groups until none overlap. It uses
+the actual camera and fractional zoom; identical-coordinate bins stay grouped
+through maximum zoom. The cached native index supplies complete membership for
+each displayed group. Bin circles/counts stay visible during camera movement
+while MapLibre replaces their cluster layout. Pending source updates gate clicks;
+only filter changes temporarily withhold obsolete category membership.
+Filtering, hiding the layer or navigating
+after opening a group closes it and invalidates pending interactions. Group-list
+retry does not reload the dataset. Landfill clustering retains its existing defaults.
 
 `GET /map-analytics/landfills` (browser: `/api/map-analytics/landfills`) returns a
 GeoJSON FeatureCollection ordered by landfill ID. Points use `[longitude,
@@ -822,6 +844,16 @@ latitude]` and only `name`, `operator`, `address`, `coordinate_quality` properti
 null coordinates omit the feature, while null details remain null (`N/A` in the
 popup). The catalog endpoint `/landfills` retains its existing contract. This
 feature adds no migrations or data imports.
+
+`GET /map-analytics/bins` (browser: `/api/map-analytics/bins`) returns the complete,
+unpaginated stored bin registry as a GeoJSON FeatureCollection in ascending bin
+ID order. Each feature uses the bin ID, Point coordinates `[longitude, latitude]`
+and exactly `inventory_number`, `waste_type`, `capacity_m3` properties. Capacity is
+a JSON number or null; nullable details remain null and source waste-type strings
+remain unchanged. Null, non-finite or out-of-range coordinates omit the feature.
+No displayable bins yields `features: []`. The endpoint uses the existing
+read-only collection session and preserves all collection and landfill APIs.
+The `layer-map-bins` frontend is integrated; browser acceptance remains pending.
 
 Analytics uses the same `VITE_MAP_STYLE_URL` startup/build setting as site maps,
 with no component fallback. The configured style must support the cluster-count
