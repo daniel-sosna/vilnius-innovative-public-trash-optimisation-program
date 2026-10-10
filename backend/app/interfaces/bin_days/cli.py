@@ -34,6 +34,7 @@ INSERT_SQL = text(
     INSERT INTO bin_days (
         bin_id, date, day_of_week, week_of_year, month, season,
         site_id, waste_type, capacity_m3, sub_district, object_group,
+        population_cell_id, resident_factor,
         collection_status, holidays_since_last_collection,
         collections_last_28d, missed_collections_28d
     )
@@ -43,10 +44,12 @@ INSERT_SQL = text(
            EXTRACT(MONTH FROM s.date),
            EXTRACT(MONTH FROM s.date)::int % 12 / 3 + 1,
            b.site_id, b.waste_type, b.capacity_m3, b.sub_district, b.object_group,
+           p.population_cell_id, p.resident_factor,
            s.collection_status, s.holidays_since_last_collection,
            s.collections_last_28d, s.missed_collections_28d
     FROM simulated_bin_days AS s
     JOIN bins AS b ON b.id = s.bin_id
+    JOIN bin_population AS p ON p.bin_id = b.id
     """
 )
 
@@ -70,6 +73,16 @@ SCHEDULE_SQL = text(
     JOIN bins AS b ON b.id = s.bin_id
     WHERE b.sub_district IS NOT NULL
     ORDER BY s.bin_id
+    """
+)
+
+MISSING_POPULATION_SQL = text(
+    """
+    SELECT count(DISTINCT b.id)
+    FROM bin_schedule AS s
+    JOIN bins AS b ON b.id = s.bin_id
+    WHERE b.sub_district IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM bin_population WHERE bin_id = b.id)
     """
 )
 
@@ -137,6 +150,12 @@ def rebuild(engine, start: date, end: date, params: Parameters) -> RebuildResult
     status_counts: Counter = Counter()
     with engine.begin() as connection:
         connection.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
+        missing = connection.execute(MISSING_POPULATION_SQL).scalar_one()
+        if missing:
+            raise RuntimeError(
+                f"{missing} eligible bins have no resident allocation; "
+                "run python -m app.interfaces.bin_population first"
+            )
         schedules = load_schedules(connection)
         connection.execute(CREATE_TEMP_SQL)
         raw = connection.connection.driver_connection
