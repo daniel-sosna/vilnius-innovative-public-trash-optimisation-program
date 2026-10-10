@@ -19,10 +19,10 @@ The workflow skills are provided per agent in `.claude/`, `.agents/` (Codex) and
 
 ## Development data
 
-Never run `bin_sync` to get development data: parsing the VASA API is too slow. Load collection data from CSV exports with `python -m app.interfaces.table_import` (see the README section "Import table CSV exports"). Before any task that needs collection data, check that the configured data directory (`VIPTOP_DATA_DIR`, default `backend/data/`) contains `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv`. If any is missing, stop and ask the developer to add the exports.
+Never run `bin_sync` to get development data: parsing the VASA API is too slow. Load collection data from CSV exports with `python -m app.interfaces.table_import` (see [docs/data/import.md](docs/data/import.md)). Before any task that needs collection data, check that the configured data directory (`VIPTOP_DATA_DIR`, default `backend/data/`) contains `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv`. If any is missing, stop and ask the developer to add the exports. Likewise, before building the bin population, check that `population_density_1ha.geojson` is in that directory; if it is missing, stop and ask the developer to add it.
 
 ## Worktree skills
 
-The skills `worktree-create` (new git worktree for a branch, then set it up) and `worktree-setup` (prepare an existing checkout to run next to others) help run several branches at once. Their single maintained copy is in `.ai/skills/<name>/SKILL.md`; the files under `.claude/skills/`, `.agents/skills/` and `.github/skills/` only point to it, so edit `.ai/skills/` only. See the README section "Running several worktrees at once".
+The skills `worktree-create` (new git worktree for a branch, then set it up) and `worktree-setup` (prepare an existing checkout to run next to others) help run several branches at once. Their single maintained copy is in `.ai/skills/<name>/SKILL.md`; the files under `.claude/skills/`, `.agents/skills/` and `.github/skills/` only point to it, so edit `.ai/skills/` only. See [docs/development.md](docs/development.md#several-worktrees-at-once).
 
-See `README.md` for the project structure and how to run it locally.
+See `README.md` for the Quick Start, project structure and documentation index.

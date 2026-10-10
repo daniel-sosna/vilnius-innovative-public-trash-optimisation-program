@@ -1,9 +1,9 @@
 # `bin_days` columns
 
 Data dictionary for `bin_days`, the bin-day calendar that feeds the synthetic fill-level
-generator. How to build it, its options and its modelling assumptions are in the README
-section [Bin-day calendar](../README.md#bin-day-calendar). The exact behaviour is specified
-in [`openspec/specs/bin-day-calendar/spec.md`](../openspec/specs/bin-day-calendar/spec.md),
+generator. How to build it, its options and its modelling assumptions are in
+[Bin-day calendar](bin-days.md). The exact behaviour is specified
+in [`openspec/specs/bin-day-calendar/spec.md`](../../openspec/specs/bin-day-calendar/spec.md),
 and that spec wins if the two ever disagree.
 
 - **Grain:** one row per eligible bin per date from `--start` to `--end`, inclusive. A bin is
@@ -137,8 +137,7 @@ restrict the values. It also decides whether the bin counts as residential for
 
 ## Estimated population
 
-Copied from `bin_population`, built by `python -m app.interfaces.bin_population` (see the
-README section [Bin population](../README.md#bin-population-residents-per-bin)). The
+Copied from `bin_population`, built by `python -m app.interfaces.bin_population` (see [Bin population](bin-population.md)). The
 calendar rebuild refuses to run while an eligible bin has no allocation.
 
 ### `population_cell_id`

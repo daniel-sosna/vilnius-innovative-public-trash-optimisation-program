@@ -130,7 +130,7 @@ class BinHist(Base):
 class BinDay(Base):
     """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`.
 
-    Every column is documented in docs/bin-days-columns.md; update it when columns change.
+    Every column is documented in docs/data/bin-days-columns.md; update it when columns change.
     """
 
     __tablename__ = "bin_days"
