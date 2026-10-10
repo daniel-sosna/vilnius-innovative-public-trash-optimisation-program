@@ -395,7 +395,9 @@ a database failure returns an error. Requests never access or re-import the
 source file. Once imported, zones remain available even when that file is absent.
 
 On **Žemėlapio analitika**, enable **Aptarnavimo zonos** to display uniform
-translucent polygons, clear boundaries and zone names inside their shapes.
+translucent polygons, bold dark teal boundaries and zone names inside their
+shapes. Zone boundaries remain above district and population colors so the
+service zones are easier to distinguish alongside those layers.
 The layer starts unchecked, loads through the API on first enable and reuses
 successful data during the page session. It works with the existing landfill,
 bin and population layers, adds no legend entry or zone popup, and preserves

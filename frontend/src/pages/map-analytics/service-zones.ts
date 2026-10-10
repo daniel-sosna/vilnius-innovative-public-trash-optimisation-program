@@ -6,7 +6,7 @@ export const serviceZoneStyle = {
   fillColor: '#0f766e',
   fillOpacity: 0.15,
   outlineColor: '#115e59',
-  outlineWidth: 1.5,
+  outlineWidth: 3.5,
   textColor: '#134e4a',
   haloColor: '#ffffff',
   haloWidth: 1.25,
@@ -16,8 +16,8 @@ export const serviceZonesLayer = createPolygonLayer<ServiceZoneProperties>({
   id: 'service-zones',
   label: 'Aptarnavimo zonos',
   meaning: 'Atliekų surinkimo aptarnavimo zonos pagal importuotą teritorijų duomenų rinkinį.',
+  // Keep the light tint below population and bold boundaries above it.
   order: 15,
-  // Keep zone context below population, with boundaries and names above it.
   outlineOrder: 30,
   legend: [],
   load: loadServiceZones,
