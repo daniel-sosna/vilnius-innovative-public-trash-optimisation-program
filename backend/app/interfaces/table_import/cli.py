@@ -63,6 +63,9 @@ def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
         truncated += [name for name in SYNC_STATE_TABLES if name not in files]
     if empties_bin_days(files):
         truncated.append(BIN_DAYS_TABLE)
+    schedules_cleared = "bins" in files and "bin_schedule" not in files
+    if schedules_cleared:
+        truncated.append("bin_schedule")
     counts: dict[str, int] = {}
     with engine.begin() as connection:
         connection.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
@@ -94,6 +97,11 @@ def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
                 sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(table))
             )
             counts[table] = cursor.fetchone()[0]
+    if schedules_cleared:
+        logger.info(
+            "bin_schedule cleared because bins were replaced; "
+            "run bin_schedule_sync to fetch planned dates again"
+        )
     return counts
 
 
