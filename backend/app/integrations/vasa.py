@@ -6,7 +6,7 @@ import math
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 import mapbox_vector_tile
@@ -340,6 +340,20 @@ def parse_history(payload, page):
     )
 
 
+def parse_schedule(payload) -> list[date]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("schedule"), list):
+        raise VasaError("schedule response lacks a schedule list")
+    dates = set()
+    for index, item in enumerate(payload["schedule"]):
+        if not isinstance(item, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", item):
+            raise VasaError(f"schedule entry {index} is not an ISO date")
+        try:
+            dates.add(date.fromisoformat(item))
+        except ValueError:
+            raise VasaError(f"schedule entry {index} is not an ISO date") from None
+    return sorted(dates)
+
+
 class VasaClient:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -408,3 +422,14 @@ class VasaClient:
             return parse_history(response.json(), page)
         except ValueError as error:
             raise VasaError("malformed history JSON") from error
+
+    def schedule(self, identity):
+        response = self._get(
+            self.settings.vasa_schedule_url_template,
+            "application/json",
+            external_id=identity,
+        )
+        try:
+            return parse_schedule(response.json())
+        except ValueError as error:
+            raise VasaError("malformed schedule JSON") from error

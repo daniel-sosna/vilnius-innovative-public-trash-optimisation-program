@@ -14,9 +14,9 @@ uv run alembic check
 uv run alembic current
 ```
 
-On a disposable database at `0005`, retain representative Site/Bin/history,
+On a disposable database at `0012`, retain representative Site/Bin/history,
 resident-request, truck and import-bookkeeping rows. Compare all columns and
-generated IDs before and after upgrade to `0006`; no row should change. These
+generated IDs before and after upgrade to `0013`; no row should change. These
 read-only queries identify the new contract:
 
 ```sql
@@ -36,10 +36,10 @@ Unrelated Site/Bin/truck rows must survive.
 
 ```bash
 # First, only when no NULL external IDs exist in disposable storage:
-uv run alembic downgrade 0005
+uv run alembic downgrade 0012
 uv run alembic upgrade head
 # After creating a manual Bin, this must fail without changing rows or schema:
-uv run alembic downgrade 0005
+uv run alembic downgrade 0012
 ```
 
 The downgrade locks Bins before checking NULL identities. It never deletes
@@ -68,6 +68,22 @@ have no source identity. When a shared imported Site loses its imported Bins,
 a remaining manual Bin still prevents empty-Site removal.
 
 ## Recorded evidence
+
+The revision numbers in the historical evidence below refer to the branch
+before merging main. Resident requests now use `0010`, and manual collection
+management now uses `0013`; follow the current commands above for verification.
+
+After merging main on 2026-10-10, disposable PostgreSQL 16.2 verification
+confirmed a single `0013` head, fresh and repeated upgrades, no Alembic schema
+drift, compatible downgrade/re-upgrade and refusal to downgrade manual Bins.
+Real HTTP requests verified volume-based Trucks with landfill assignment,
+Site creation, Bin addition/listing and resident requests. Synthetic collection
+CSV exports imported successfully twice. Site deletion cascaded through history,
+requests, schedules, population allocation and bin days while retaining Trucks.
+Manual-only storage was excluded from VASA schedule retrieval without source
+requests. Frontend lint/build and OpenSpec validation passed; validation retains
+its requirement-length warnings. The disposable database was removed afterward.
+Docker socket access was denied, so the Compose database reset was not performed.
 
 On 2026-10-10, native disposable PostgreSQL 16.2 at revision `0005` was populated
 with a Site, an imported Bin with nullable metadata, history, a resident request,
@@ -257,7 +273,7 @@ cd frontend
 npm run lint
 npm run build
 cd ../backend
-uv run python -m compileall -q app alembic/versions/0006_manual_collection_management.py
+uv run python -m compileall -q app alembic/versions/0013_manual_collection_management.py
 # Export disposable DATABASE_URL before either Alembic command.
 uv run alembic upgrade head
 uv run alembic check

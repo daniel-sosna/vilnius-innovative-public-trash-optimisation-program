@@ -1,10 +1,12 @@
-from datetime import datetime
+from datetime import date as date_, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -81,6 +83,12 @@ class Bin(Base):
     history: Mapped[list["BinHist"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
+    schedule: Mapped[list["BinSchedule"]] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
+    bin_population: Mapped["BinPopulation | None"] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
     resident_requests: Mapped[list["ResidentRequest"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
@@ -117,6 +125,122 @@ class BinHist(Base):
     non_serviced_reason: Mapped[str | None] = mapped_column(Text)
     fill_level: Mapped[int | None] = mapped_column(SmallInteger)
     bin: Mapped[Bin] = relationship(back_populates="history")
+
+
+class BinDay(Base):
+    """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`.
+
+    Every column is documented in docs/bin-days-columns.md; update it when columns change.
+    """
+
+    __tablename__ = "bin_days"
+    __table_args__ = (
+        CheckConstraint("day_of_week BETWEEN 1 AND 7", name="ck_bin_days_day_of_week"),
+        CheckConstraint(
+            "week_of_year BETWEEN 1 AND 53", name="ck_bin_days_week_of_year"
+        ),
+        CheckConstraint("month BETWEEN 1 AND 12", name="ck_bin_days_month"),
+        CheckConstraint("season BETWEEN 1 AND 4", name="ck_bin_days_season"),
+        CheckConstraint(
+            "collection_status IN ('none', 'collected', 'retry_collected', 'failed', 'missed')",
+            name="ck_bin_days_collection_status",
+        ),
+        CheckConstraint(
+            "holidays_since_last_collection >= 0",
+            name="ck_bin_days_holidays_since_last_collection",
+        ),
+        CheckConstraint(
+            "collections_last_28d BETWEEN 0 AND 28",
+            name="ck_bin_days_collections_last_28d",
+        ),
+        CheckConstraint(
+            "missed_collections_28d BETWEEN 0 AND 28",
+            name="ck_bin_days_missed_collections_28d",
+        ),
+        CheckConstraint("resident_factor >= 0", name="ck_bin_days_resident_factor"),
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_days_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    day_of_week: Mapped[int] = mapped_column(SmallInteger)
+    week_of_year: Mapped[int] = mapped_column(SmallInteger)
+    month: Mapped[int] = mapped_column(SmallInteger)
+    season: Mapped[int] = mapped_column(SmallInteger)
+    site_id: Mapped[int] = mapped_column(BigInteger)
+    waste_type: Mapped[str] = mapped_column(Text)
+    capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
+    sub_district: Mapped[str] = mapped_column(Text)
+    object_group: Mapped[str | None] = mapped_column(Text)
+    # Estimated from population data (not observed), copied from bin_population.
+    population_cell_id: Mapped[int | None] = mapped_column(Integer)
+    resident_factor: Mapped[float] = mapped_column(Double)
+    # Synthetic columns, simulated from the schedule (not observations).
+    collection_status: Mapped[str] = mapped_column(Text)
+    holidays_since_last_collection: Mapped[int] = mapped_column(SmallInteger)
+    collections_last_28d: Mapped[int] = mapped_column(SmallInteger)
+    missed_collections_28d: Mapped[int] = mapped_column(SmallInteger)
+
+
+class PopulationCell(Base):
+    """Population-density polygon, loaded by `python -m app.interfaces.bin_population`."""
+
+    __tablename__ = "population_cells"
+    __table_args__ = (
+        CheckConstraint("residents >= 0", name="ck_population_cells_residents"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    density_per_ha: Mapped[int | None] = mapped_column(Integer)
+    suppressed: Mapped[bool] = mapped_column(Boolean)
+    area_ha: Mapped[float] = mapped_column(Double)
+    # Density x area, with the assumed density for suppressed values already applied.
+    residents: Mapped[float] = mapped_column(Double)
+    min_lon: Mapped[float] = mapped_column(Double)
+    min_lat: Mapped[float] = mapped_column(Double)
+    max_lon: Mapped[float] = mapped_column(Double)
+    max_lat: Mapped[float] = mapped_column(Double)
+    geometry: Mapped[list] = mapped_column(JSONB)
+
+
+class BinPopulation(Base):
+    """Derived per-bin resident allocation (estimated, not observed)."""
+
+    __tablename__ = "bin_population"
+    __table_args__ = (
+        CheckConstraint("resident_factor >= 0", name="ck_bin_population_resident_factor"),
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_population_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    population_cell_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(
+            "population_cells.id",
+            name="fk_bin_population_population_cell_id",
+            ondelete="RESTRICT",
+        ),
+    )
+    resident_factor: Mapped[float] = mapped_column(Double)
+    bin: Mapped[Bin] = relationship(back_populates="bin_population")
+
+
+class BinSchedule(Base):
+    __tablename__ = "bin_schedule"
+    __table_args__ = (
+        UniqueConstraint("bin_id", "date", name="uq_bin_schedule_bin_date"),
+        Index("ix_bin_schedule_date", "date"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_schedule_bin_id", ondelete="CASCADE"),
+    )
+    date: Mapped[date_] = mapped_column(Date)
+    bin: Mapped[Bin] = relationship(back_populates="schedule")
 
 
 class VasaImportRun(Base):
@@ -157,11 +281,47 @@ class VasaImportProgress(Base):
     details: Mapped[dict] = mapped_column(JSONB)
 
 
+class Landfill(Base):
+    __tablename__ = "landfills"
+    __table_args__ = (
+        UniqueConstraint("source_id", name="uq_landfills_source_id"),
+        CheckConstraint(
+            "latitude BETWEEN -90 AND 90", name="ck_landfills_latitude_range"
+        ),
+        CheckConstraint(
+            "longitude BETWEEN -180 AND 180", name="ck_landfills_longitude_range"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer, Identity(always=True, start=1), primary_key=True
+    )
+    source_id: Mapped[str | None] = mapped_column(Text)
+    dataset_name: Mapped[str | None] = mapped_column(Text)
+    dataset_description: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[float | None] = mapped_column(Double)
+    longitude: Mapped[float | None] = mapped_column(Double)
+    name: Mapped[str] = mapped_column(Text)
+    operator: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
+    facility_role: Mapped[str | None] = mapped_column(Text)
+    waste_streams: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    status: Mapped[str | None] = mapped_column(Text)
+    coordinate_quality: Mapped[str | None] = mapped_column(Text)
+    coordinate_source: Mapped[str | None] = mapped_column(Text)
+    facility_source: Mapped[str | None] = mapped_column(Text)
+    municipal_arrangement_source: Mapped[str | None] = mapped_column(Text)
+    current_status_source: Mapped[str | None] = mapped_column(Text)
+    verified_at: Mapped[date_ | None] = mapped_column(Date)
+
+
 class Truck(Base):
     __tablename__ = "trucks"
     __table_args__ = (
         CheckConstraint(
-            "max_bins_per_trip BETWEEN 1 AND 99", name="ck_trucks_capacity_range"
+            "max_volume_m3 > 0 AND max_volume_m3 NOT IN "
+            "('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric)",
+            name="ck_trucks_positive_finite_volume",
         ),
         CheckConstraint(
             r"btrim(name, U&'\0009\000a\000b\000c\000d\001c\001d\001e\001f\0020\0085\00a0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200a\2028\2029\202f\205f\3000') <> ''",
@@ -174,6 +334,11 @@ class Truck(Base):
 
     id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
     name: Mapped[str] = mapped_column(Text)
-    max_bins_per_trip: Mapped[int] = mapped_column(Integer)
+    max_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
+    waste_carrier: Mapped[str] = mapped_column(Text)
+    landfill_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("landfills.id", name="fk_trucks_landfill_id", ondelete="RESTRICT"),
+    )
     available: Mapped[bool] = mapped_column(Boolean)
     deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

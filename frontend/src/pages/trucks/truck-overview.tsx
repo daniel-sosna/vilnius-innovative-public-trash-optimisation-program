@@ -75,16 +75,16 @@ export function TruckOverview({ revision }: { revision: number }) {
             </div>
             <div className="flex flex-col justify-between gap-4 rounded-lg border bg-card p-5">
               <p className="text-sm text-muted-foreground">
-                Vidutinis maksimalus aikštelių skaičius per reisą
+                Vidutinė maksimali talpa
               </p>
               <p className="text-3xl font-semibold tabular-nums">
-                {data.average_max_bins_per_trip === null
+                {data.average_max_volume_m3 === null
                   ? '—'
-                  : averageFormat.format(data.average_max_bins_per_trip)}
+                  : `${averageFormat.format(data.average_max_volume_m3)} m³`}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-5">
-              <div className="flex h-full flex-col justify-between gap-4">
+              <div className="flex min-w-0 flex-col justify-between gap-4 self-stretch">
                 <p className="text-sm text-muted-foreground">
                   Prieinamos šiukšliavežės
                 </p>

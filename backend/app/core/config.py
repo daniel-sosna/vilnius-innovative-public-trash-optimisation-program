@@ -24,10 +24,16 @@ class Settings(BaseSettings):
         "https://atliekuaiksteles.vasa.lt/vasa-api/api/v1/dumpsters/{external_id}"
     )
     vasa_history_url_template: str = "https://atliekuaiksteles.vasa.lt/vasa-api/api/v1/dumpsters-service-history/{external_id}"
+    vasa_schedule_url_template: str = (
+        "https://atliekuaiksteles.vasa.lt/vasa-api/api/v1/dumpsters-schedule/{external_id}"
+    )
     bin_sync_http_timeout_seconds: float = Field(gt=0, allow_inf_nan=False)
 
     @field_validator(
-        "vasa_tile_url_template", "vasa_bin_url_template", "vasa_history_url_template"
+        "vasa_tile_url_template",
+        "vasa_bin_url_template",
+        "vasa_history_url_template",
+        "vasa_schedule_url_template",
     )
     @classmethod
     def require_https_template(cls, value: str, info) -> str:

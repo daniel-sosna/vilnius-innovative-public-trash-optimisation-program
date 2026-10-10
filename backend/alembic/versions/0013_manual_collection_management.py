@@ -3,8 +3,8 @@
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0006"
-down_revision = "0005"
+revision = "0013"
+down_revision = "0012"
 branch_labels = None
 depends_on = None
 
@@ -30,7 +30,7 @@ def downgrade() -> None:
     ):
         raise RuntimeError(
             "Cannot downgrade while manual Bins with NULL external IDs exist. "
-            "Retain migration 0006; do not delete or invent external IDs for these records."
+            "Retain migration 0013; do not delete or invent external IDs for these records."
         )
     replace_site_foreign_key("RESTRICT")
     op.alter_column("bins", "external_id", existing_type=sa.BigInteger(), nullable=False)
