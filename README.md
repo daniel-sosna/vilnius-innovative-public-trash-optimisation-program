@@ -62,6 +62,14 @@ chain keeps main's revisions through `0012`, resident requests at `0010`, and
 manual collection management at `0013`. Startup prepares the schema and seeds
 the landfill catalog, without importing collection data.
 
+The district/service-zone/collection-plan merge also resolves three conflicting
+`0014` revisions into one chain: `0014` creates the collection plan, `0015` creates
+service zones, and `0016` creates district boundaries. If a local database has
+already applied any of the old `0014` migrations, discard its disposable database
+with `docker compose down --volumes`, then run `docker compose up --build -d` and
+restore the CSV exports with `python -m app.interfaces.table_import`. Do not stamp
+an old `0014` database to the new head: its schema may contain a different table.
+
 To activate collection browsing after import, with the existing database already
 running, rebuild the application images and refresh the frontend dependency
 volume before recreating the application services:
@@ -250,6 +258,15 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   source fails the entire import. Boundary-only input succeeds. Both this GeoJSON
   and `district_boundaries_<digits>.csv` together fail before writes and identify
   both paths. A district CSV alone follows the normal newest-file and ID rules.
+
+
+- **Service zones:** `service_zones.geojson` in the same selected directory also
+  replaces `service_zones`, in the same transaction as the CSVs. A zone-only
+  directory is supported. If it is absent, the command warns and keeps stored
+  zones unless a `service_zones_<digits>.csv` explicitly selects that table.
+  A present invalid/unreadable GeoJSON fails the entire import. If both source
+  formats target zones, the command fails before writes; keep only the intended
+  source in the selected directory. It never searches another directory as a fallback.
 - **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
   (as DBeaver writes it), quoted text. Export after running the same migrations.
 - **Replacement:** only tables that have a file are emptied and reloaded (IDs are kept);
@@ -259,6 +276,7 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   Importing `bins` also empties the derived `bin_population` and `bin_days` tables; refill
   them afterwards in this order: [Bin population](#bin-population-residents-per-bin), then
   [Bin-day calendar](#bin-day-calendar). The population polygons (`population_cells`) are kept.
+  It also empties the stored [Collection plan](#collection-plan); rebuild it with its command.
   Importing `bins` without a `bin_schedule_<digits>.csv` also empties `bin_schedule` (the
   output says so), because planned dates belong to the replaced bins; fetch them again with
   the schedule command. With a `bin_schedule_<digits>.csv`, that table is loaded from the file.
@@ -334,6 +352,55 @@ reports district/ring/position counts, payload bytes and timing; success exits 0
 mismatches or read failures exit 1 without printing credentials. See
 [district verification](docs/district-boundaries-verification.md) for import,
 source-independence, API and map checks.
+
+
+## Service zones
+
+Place the supplied zone GeoJSON in the configured data directory as
+`service_zones.geojson`. The supplied local file is named `serv_zones.geojson`;
+copy it under the canonical name and retain the original. By default the directory
+is `backend/data/`; when `VIPTOP_DATA_DIR` is set, use that shared host folder,
+which Compose mounts at `/app/data`. Data files remain Git-ignored and are not
+included in frontend assets or backend images.
+
+Apply migrations, then explicitly import zones:
+
+```bash
+docker compose exec backend uv run alembic upgrade head
+docker compose exec backend uv run python -m app.interfaces.service_zones
+# Native, from backend/, with DATABASE_URL configured for the reachable database:
+uv run alembic upgrade head
+uv run python -m app.interfaces.service_zones
+# Override the default input:
+uv run python -m app.interfaces.service_zones --file /path/to/service_zones.geojson
+```
+
+The dedicated command validates the whole FeatureCollection, then replaces only
+`service_zones` in one transaction. `ZONA` becomes `zone_name`, `ZONOS_NR` becomes
+integer `zone_number`, and Polygon geometry retains every ring. It accepts standard
+longitude/latitude GeoJSON and the supplied CRS84 declaration. Re-importing the
+same source creates no duplicates. A valid empty collection clears the table.
+Missing/invalid input or a database failure leaves stored zones unchanged and
+exits with 1; success reports the source and row count and exits with 0. Startup
+and migrations never import zones automatically.
+
+See [service-zone verification](docs/service-zones-verification.md) for repeatable
+checks, expected source names and numbers, and rollback guidance.
+
+`GET /map-analytics/service-zones` (frontend proxy:
+`/api/map-analytics/service-zones`) returns all stored zones as a GeoJSON
+FeatureCollection, ordered by ID, with Polygon geometry and only `zone_name`
+and integer `zone_number` properties. An empty table returns an empty collection;
+a database failure returns an error. Requests never access or re-import the
+source file. Once imported, zones remain available even when that file is absent.
+
+On **Žemėlapio analitika**, enable **Aptarnavimo zonos** to display uniform
+translucent polygons, clear boundaries and zone names inside their shapes.
+The layer starts unchecked, loads through the API on first enable and reuses
+successful data during the page session. It works with the existing landfill,
+bin and population layers, adds no legend entry or zone popup, and preserves
+the map view and other layers when toggled. Labels adapt to zoom and can be
+hidden at unsuitable scales or by collisions.
 
 ## Bin population (residents per bin)
 
@@ -440,6 +507,49 @@ synthetic) is described in [`bin_days` columns](docs/bin-days-columns.md).
   change existing rows until the next rebuild.
 
 See [bin-day calendar verification](docs/bin-day-calendar-verification.md) for repeatable checks.
+
+## Collection plan
+
+The plan lists, for one date, the sites each waste carrier must serve, so routing can start
+from one consistent input. Tables: `collection_stops` (one row per date, carrier and site,
+with `overall_volume_m3` and `overall_predicted_fill_m3`) and `stop_bins` (the bins of a stop
+with their predicted fill level and a `due` flag).
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.collection_plan [--date YYYY-MM-DD] [--threshold N]
+```
+
+- **`--date`:** plan date, default today (container local date). Only that date's plan is
+  replaced, in one transaction; other dates are kept.
+- **`--threshold`:** integer 0..4, default 2. A bin is due when its predicted fill level is
+  **strictly greater** (default: levels 3 and 4). Invalid values exit 1 before anything changes.
+- **Mock prediction (assumption):** fill levels (0 empty .. 4 full) come from
+  `predict_fill_levels` in `backend/app/ml/fill_prediction.py`: synthetic, uniform per bin,
+  seeded from the date, so a date always gives the same plan. They are not observed data and
+  not a model; the real model replaces only that function (same `{bin_id: level}` contract).
+- **Grouping:** one stop per (date, waste carrier, site) that has at least one due bin; a
+  site with two carriers gives two stops. Bins without a carrier form **unassigned** stops
+  (carrier `NULL`).
+- **Stop contents:** the carrier's truck empties **all** of its bins at the site, so a stop
+  holds every bin of that carrier there (`due` marks the ones above the threshold). Totals
+  cover all those bins: `overall_volume_m3` is the sum of capacities and
+  `overall_predicted_fill_m3` the sum of capacity times the share a fill level stands for
+  (**assumption**, not measured: 0 = 20%, 1 = 50%, 2 = 80%, 3 = 100%, 4 = 150%, above 100%
+  meaning over-full; e.g. 0.6 m3 at level 2 gives 0.48 m3). A missing capacity counts as 0
+  and is reported in the summary. The totals are not recalculated until the next rebuild.
+- **Output and exit codes:** prints the counts and exits 0; exits 1 on invalid arguments,
+  database failure or when no bins are stored.
+- **Reading for routing:** `from app.services.collection_plan import get_plan`;
+  `get_plan(session, date, carriers=None)` returns `{carrier: [stop, ...]}` with the `None`
+  key for unassigned stops. With `carriers` (use `None` in it for unassigned) every requested
+  group is present, empty when it has no stops. A stop is a dict with `stop_id`, `site_id`,
+  `address`, `latitude`, `longitude`, `overall_volume_m3`, `overall_predicted_fill_m3` and
+  `bins` (`bin_id`, `waste_type`, `capacity_m3`, `predicted_fill`, `due`). Stops without a due
+  bin are skipped.
+- **Keeping it in sync:** deleting a bin or site removes it from the plan. A CSV import that
+  replaces `bins` empties the plan, so rebuild it afterwards.
+
+See [collection plan verification](docs/collection-plan-verification.md) for repeatable checks.
 
 ## Truck management
 

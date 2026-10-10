@@ -15,6 +15,7 @@ from app.infrastructure.models import Base
 from app.interfaces.district_boundaries.catalog import (
     SOURCE_FILE_NAME, DistrictRecord, parse_districts, replace_catalog,
 )
+from app.interfaces.service_zones.importer import ZONE_FILE_NAME, parse_zones, replace_zones
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ BIN_DERIVED_TABLES = {
     "bin_days": "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
     "bin_population": "python -m app.interfaces.bin_population",
     "bin_schedule": "python -m app.interfaces.bin_schedule_sync",
+    "collection_stops": "python -m app.interfaces.collection_plan",
+    "stop_bins": "python -m app.interfaces.collection_plan",
 }
 # Tables referencing bins that cannot be refilled; their rows belong to the replaced bins.
 BIN_DEPENDENT_TABLES = ("resident_requests",)
@@ -85,9 +88,17 @@ def emptied_derived_tables(files: dict[str, Path]) -> list[str]:
     ]
 
 
-def load_tables(engine, files: dict[str, Path], districts: list[DistrictRecord] | None = None) -> dict[str, int]:
+def load_tables(
+    engine,
+    files: dict[str, Path],
+    districts: list[DistrictRecord] | None = None,
+    *,
+    zones: list[dict] | None = None,
+) -> dict[str, int]:
     if districts is not None and "district_boundaries" in files:
         raise ValueError("Competing district CSV and GeoJSON replacements")
+    if zones is not None and "service_zones" in files:
+        raise ValueError("Competing service-zone CSV and GeoJSON replacements")
     columns = {table: read_columns(path) for table, path in files.items()}
     truncated = list(files)
     if COLLECTION_TABLES & files.keys():
@@ -113,6 +124,8 @@ def load_tables(engine, files: dict[str, Path], districts: list[DistrictRecord] 
             with cursor.copy(statement) as copy, path.open("rb") as file:
                 while chunk := file.read(COPY_CHUNK_BYTES):
                     copy.write(chunk)
+        if zones is not None:
+            counts["service_zones"] = replace_zones(connection, zones)
         for table in files:
             cursor.execute(
                 sql.SQL(
@@ -138,13 +151,13 @@ def main() -> int:
     engine = None
     try:
         parser = argparse.ArgumentParser(
-            description="Replace database tables with CSV exports (newest wins) and optional district GeoJSON."
+            description="Replace database tables with CSV exports (newest wins) and optional district/service-zone GeoJSON."
         )
         parser.add_argument(
             "--dir",
             type=Path,
             default=data_dir(),
-            help="Directory with CSV exports and district GeoJSON (default: VIPTOP_DATA_DIR, else backend/data)",
+            help="Directory with CSV exports and district/service-zone GeoJSON (default: VIPTOP_DATA_DIR, else backend/data)",
         )
         try:
             args = parser.parse_args()
@@ -156,17 +169,33 @@ def main() -> int:
         files = discover_files(args.dir)
         district_source = discover_district_source(args.dir, files)
         districts = parse_districts(district_source) if district_source is not None else None
-        if not files and districts is None:
+        zone_path = args.dir / ZONE_FILE_NAME
+        zones = None
+        if zone_path.exists() or zone_path.is_symlink():
+            if "service_zones" in files:
+                raise ValueError(
+                    f"Competing service-zone sources: {files['service_zones'].name} and {ZONE_FILE_NAME}; "
+                    "keep only the intended source in the selected directory"
+                )
+            zones = parse_zones(zone_path)
+        else:
+            logger.warning(
+                "%s is missing in %s; zones are preserved unless selected by a CSV export",
+                ZONE_FILE_NAME, args.dir,
+            )
+        if not files and districts is None and zones is None:
             logger.error(
-                "Nothing to import: no <table>_<digits>.csv or district GeoJSON in %s", args.dir
+                "Nothing to import: no <table>_<digits>.csv or district/service-zone GeoJSON in %s", args.dir
             )
             return 1
         engine = create_database_engine(Settings())
-        counts = load_tables(engine, files, districts)
+        counts = load_tables(engine, files, districts, zones=zones)
         for table, path in files.items():
             logger.info("%s <- %s: %d rows", table, path.name, counts[table])
         if district_source is not None:
             logger.info("district_boundaries <- %s: %d districts", district_source, counts["district_boundaries"])
+        if zones is not None:
+            logger.info("service_zones <- %s: %d rows", zone_path.name, counts["service_zones"])
         for table in emptied_derived_tables(files):
             if table in BIN_DERIVED_TABLES:
                 logger.info(

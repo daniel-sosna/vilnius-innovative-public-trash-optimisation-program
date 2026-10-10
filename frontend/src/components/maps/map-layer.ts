@@ -28,6 +28,7 @@ export type MapLayerDefinition = {
   meaning: string
   kind: string
   polygonOrder?: number
+  polygonOutlineOrder?: number
   legend: readonly LayerLegendEntry[]
   load(signal: AbortSignal): Promise<LayerData>
   attach(context: LayerContext, data: LayerData): LayerRenderer

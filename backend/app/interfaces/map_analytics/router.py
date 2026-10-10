@@ -6,8 +6,11 @@ from app.interfaces.map_analytics.schemas import (
     DistrictFeatureCollection,
     LandfillFeatureCollection,
     PopulationFeatureCollection,
+    ServiceZoneFeatureCollection,
 )
-from app.services.map_analytics import bin_features, district_features, landfill_features, population_features
+from app.services.map_analytics import (
+    bin_features, district_features, landfill_features, population_features, service_zone_features,
+)
 
 router = APIRouter(prefix="/map-analytics", tags=["Map analytics"])
 
@@ -15,6 +18,11 @@ router = APIRouter(prefix="/map-analytics", tags=["Map analytics"])
 @router.get("/district-boundaries", response_model=DistrictFeatureCollection)
 def district_boundaries(session: CollectionSession) -> dict:
     return district_features(session)
+
+
+@router.get("/service-zones", response_model=ServiceZoneFeatureCollection)
+def service_zones(session: CollectionSession) -> dict:
+    return service_zone_features(session)
 
 
 @router.get("/bins", response_model=BinFeatureCollection)

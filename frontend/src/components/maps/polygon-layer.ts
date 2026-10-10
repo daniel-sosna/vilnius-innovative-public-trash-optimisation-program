@@ -8,6 +8,7 @@ type PolygonDefinition<P extends GeoJsonProperties> = {
   label: string
   meaning: string
   order: number
+  outlineOrder?: number
   legend: readonly LayerLegendEntry[]
   load(signal: AbortSignal): Promise<FeatureCollection<Polygon, P>>
   fill: FillLayerSpecification['paint']
@@ -25,17 +26,20 @@ export function reconcilePolygonOrder(map: LibreMap, definitions: readonly MapLa
     .sort((a, b) => a.polygonOrder! - b.polygonOrder!)
   const anchor = map.getStyle().layers.find(layer => isPointStyleLayer(layer)
     || (layer.type === 'symbol' && !layer.id.startsWith('analytics:')))?.id
-  for (const group of groups) {
-    for (const id of renderers.get(group.id)?.styleLayerIds ?? []) {
-      if (map.getLayer(id)) map.moveLayer(id, anchor)
-    }
+  const layers = groups.flatMap(group => (renderers.get(group.id)?.styleLayerIds ?? []).map(id => ({
+    id,
+    order: id.endsWith(':fill') ? group.polygonOrder! : (group.polygonOutlineOrder ?? group.polygonOrder!),
+  }))).sort((a, b) => a.order - b.order)
+  for (const { id } of layers) {
+    if (map.getLayer(id)) map.moveLayer(id, anchor)
   }
 }
 
 export function createPolygonLayer<P extends GeoJsonProperties>(definition: PolygonDefinition<P>): MapLayerDefinition {
   return {
     id: definition.id, label: definition.label, meaning: definition.meaning,
-    kind: 'polygon', polygonOrder: definition.order, legend: definition.legend, load: definition.load,
+    kind: 'polygon', polygonOrder: definition.order, polygonOutlineOrder: definition.outlineOrder,
+    legend: definition.legend, load: definition.load,
     attach(context, data) {
       const { map } = context
       const prefix = `analytics:${definition.id}`

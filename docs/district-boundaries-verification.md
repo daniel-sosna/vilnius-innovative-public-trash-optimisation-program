@@ -60,6 +60,12 @@ the contract.
 
 ## Recorded import results
 
+The merged chain now creates districts at `0016`, after collection-plan `0014`
+and service-zone `0015`. The `0014`/`0013` checks below describe the original
+branch. For the current district-only rollback, downgrade from `0016` to `0015`
+on disposable storage, then upgrade again. Discard databases that already ran
+an old conflicting `0014` migration as described in README.
+
 On 2026-10-10, the isolated `viptop-dist-verify` stack used ports 8003/5176/5435
 and an independent input copy. Migration 0014 created an empty table;
 downgrade to 0013 and re-upgrade preserved every other table. Native and

@@ -93,7 +93,7 @@ class DataDirSettings(BaseSettings):
 
 
 def data_dir() -> Path:
-    """Directory with the CSV exports and density file.
+    """Directory with CSV exports and import-only GeoJSON sources.
 
     `VIPTOP_DATA_DIR` (environment or root `.env`) when set, relative values
     resolved from the repository root as Compose does; otherwise `backend/data/`.
