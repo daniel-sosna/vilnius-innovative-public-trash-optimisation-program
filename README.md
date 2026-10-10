@@ -44,6 +44,24 @@ test -f .env || cp .env.example .env
 docker compose up --build -d
 ```
 
+When switching from the earlier `bins-ui-update` schema, discard its disposable
+database before starting this merged version:
+
+```bash
+docker compose down --volumes
+docker compose up --build -d
+```
+
+This removes all existing database records and recreates dependency volumes;
+CSV files under `backend/data/` remain on disk for your later import. The old
+branch used `0005` for resident requests and `0006` for manual collection
+management; main uses those revisions for truck volume and landfills. An old
+branch database cannot be upgraded using those ambiguous version numbers.
+Start with empty storage instead of stamping it to a newer revision. The merged
+chain keeps main's revisions through `0012`, resident requests at `0010`, and
+manual collection management at `0013`. Startup prepares the schema and seeds
+the landfill catalog, without importing collection data.
+
 To activate collection browsing after import, with the existing database already
 running, rebuild the application images and refresh the frontend dependency
 volume before recreating the application services:
@@ -150,7 +168,7 @@ return 404. `resident_requests` contains only generated `id`, required `bin_id`,
 and required `timestamp`. The database generates Europe/Vilnius local wall time
 and stores it as `TIMESTAMP WITHOUT TIME ZONE`, independent of the UTC connection
 setting. Parent-bin deletion cascades to resident requests, including importer
-cleanup. Additive migration `0005` preserves existing collection records and
+cleanup. Additive migration `0010` preserves existing collection records and
 checkpoints. Startup applies migrations without running import.
 
 Reports are raw resident signals; no verified fill, service event, prediction,
@@ -359,7 +377,7 @@ VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
 ## Collection browsing
 
 In the admin navbar, choose `Šiukšlių surinkimo vietos` or open
-`/admin/sites`. This read-only screen shows address-grouped sites and their bin
+`/admin/sites`. This screen shows address-grouped sites and their bin
 counts, with address search and 15 sites per page. Search is a trimmed,
 case-insensitive literal substring match; changing or clearing it resets page 1.
 The global site count, bin count, waste-type donut and capacity sum stay
@@ -465,7 +483,8 @@ See [Truck verification](docs/truck-management-verification.md) for the exact
 source hash, mapping and guarded upgrade/rollback procedure.
 
 Collection IDs are generated BIGINT identities. The unique `bins.external_id`
-retains VASA identity. Required Bin fields are site, external ID, waste type and
+retains VASA identity when present; manual Bins use NULL, with uniqueness retained
+for non-NULL IDs. Required Bin fields are site, waste type and
 coordinates; all other attributes are nullable. Site fields are required.
 Geographical/descriptive attributes are TEXT, including house numbers and postal
 codes. Preserve source formatting: a bin's `8303` is not replaced with a client's
@@ -482,8 +501,9 @@ sharing all three values can collapse, while different statuses at one timestamp
 coexist. Events missing from a refresh remain while their bin exists. No truck,
 route, duration, synthetic fill, prediction or historical location is inferred.
 
-Deleting a referenced Site is restricted. Removing a Bin cascades to its history;
-empty affected Sites are removed. Truck retirement retains the row, sets deleted
+Deleting a Site cascades to its Bins and their history and resident requests.
+Removing a Bin cascades to its history and resident requests; deleting its final
+Bin through the admin API also removes the Site. Truck retirement retains the row, sets deleted
 true/available false, and leaves all collection data unchanged.
 
 ```sql
@@ -585,6 +605,8 @@ docker compose exec backend uv run python -m app.interfaces.bin_schedule_sync
 
 - **Options:** `--workers N` (default 4) bounds concurrent requests; `--max-bins N`
   (default 0 = all) processes only the first N bins by ID.
+- **Manual bins:** bins with NULL external IDs are excluded before applying
+  the limit; they have no VASA identity and are never sent to the source API.
 - **Exit codes:** 0 when every bin was processed without failure; 1 on any failed bin,
   invalid arguments or configuration, or no stored bins; 2 for a `--max-bins` run
   without failures.
@@ -618,6 +640,8 @@ records cannot be reconstructed by downgrade.
 
 Rebuild the backend with `docker compose up --build` to package the new revision
 and dependencies. Its entrypoint upgrades before serving but never imports.
+Revision `0013` permits NULL Bin external IDs and cascades Site deletion to its
+Bins; it follows main's population migration `0012` without changing its schema.
 Follow [data verification](docs/data-foundation-verification.md) and
 [truck verification](docs/truck-management-verification.md) on disposable data.
 Earlier revision-specific results there are historical evidence.
@@ -647,3 +671,81 @@ with `docker-compose.yml`.
 
 All lists (sites, bins, history and trucks) show pagination only when a known
 total exceeds page size. Empty, single-page and pending lists hide the controls.
+
+## Collection-site management
+
+At `/admin/sites`, choose `Pridėti surinkimo vietą` beside the address search. Enter street, sub-district
+and house number, optionally a postal code, select a location, and define one or
+more containers. The map title asks you to select a location by clicking. Disabled, nonselectable
+latitude/longitude fields below the map start empty and update
+when a point is selected. Click the map, or focus it, pan with the arrow keys and
+press Enter/Space to select its center; the initial Vilnius view does not count.
+Only the disabled coordinate fields appear below the map; no selection buttons
+or helper text are shown there.
+The modal scrolls within the viewport. Cancel saves nothing; failures retain
+inputs. Successful creation refreshes the current filtered list and global
+statistics without reloading.
+
+Every new container requires `Naudotojai` (`object_group`, descriptive text),
+inventory number, capacity, carrier and waste type. Capacity is a positive finite
+JSON number in m³; decimals are supported without a fixed upper bound or display
+rounding before persistence. Carriers are Kauno švara, Biomotorai, Ecoservice and
+Ekonovus. Waste selections map to the existing English storage values.
+
+```json
+{
+  "street": "Didlaukio g.",
+  "sub_district": "Verkių sen.",
+  "house_number": "53A",
+  "postal_code": "08303",
+  "latitude": 54.72,
+  "longitude": 25.28,
+  "bins": [{
+    "object_group": "Gyventojai",
+    "capacity_m3": 1.1,
+    "waste_carrier": "Ecoservice",
+    "inventory_number": "MANUAL-1",
+    "waste_type": "Glass waste"
+  }]
+}
+```
+
+`POST /sites` returns 201 `{id, address, bin_count}` after committing the Site
+and all initial Bins together. The example address is
+`Didlaukio g. 53A, Verkių sen., 08303`. Blank/omitted/NULL postal code stores NULL;
+house and postal numbers remain text. The server generates `manual:<UUID>` keys:
+creating at the same address makes a separate Site. Each Bin copies the selected
+location/address and receives NULL external identity, territory and client count,
+plus district `Vilniaus m. sav.`, region `Vilniaus apskr.` and city `Vilniaus m.`.
+History and resident requests start empty. Invalid inputs return 422; persistence
+failures return a generic 500 and roll back the entire operation.
+
+Imported locations are derived means during import; manual Site locations are
+explicit selections. Admin additions/deletions preserve surviving stored Site
+locations. Viewing a map does not change either kind of location. The new input
+rules preserve legacy nullable attributes and unrestricted source values.
+See [management verification](docs/collection-site-management-verification.md)
+for disposable API/SQL checks and recorded UI evidence.
+
+At Site details, `Pridėti konteinerį` opens just the five container fields.
+`POST /sites/{site_id}/bins` takes one Bin definition (the `bins` item above)
+and returns 201 `{id, inventory_number, waste_type, capacity_m3}`. It copies the
+Site's coordinates and all four address fields from the same lowest-ID child,
+including NULLs. A legacy empty Site supplies NULL address fields; its display
+address is not parsed. The refreshed list opens the last ascending-ID page so
+the new Bin can be inspected, with empty history until actual records exist.
+
+Truck, Site and Bin rows share the same small red ghost-style `Ištrinti` control.
+Site list rows show street and house number; full addresses remain in details,
+confirmation and API responses, and address search still uses the full address. Confirmation identifies
+the record and explains permanent removal of history and resident requests.
+`DELETE /sites/{site_id}` returns bodyless 204 after cascading deletion.
+`DELETE /bins/{bin_id}` returns 200 `{site_id, site_deleted}`; deleting the final
+Bin removes its Site in the same transaction and returns to `/admin/sites`.
+Successful deletions refresh lists/statistics and recover the last valid page
+under the current filter. Missing positive IDs (including BIGINT overflow) return
+404; nonpositive/noninteger IDs return 422. Missing UI records offer a read refresh
+or navigation back. Refresh retries do not repeat successful mutations. Adding
+or deleting children locks the Site first, keeping concurrent final-child changes
+consistent. Deleted imported records can reappear after a future explicit import;
+manual NULL-ID Bins are excluded from importer cleanup.

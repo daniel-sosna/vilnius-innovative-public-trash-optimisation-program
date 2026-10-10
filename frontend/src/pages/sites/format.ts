@@ -35,3 +35,9 @@ export function formatHistoryDate(value: string | null | undefined): string {
   const parts = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?$/.exec(value)
   return parts ? `${parts[1]} ${parts[2]}` : value
 }
+
+export function siteListAddress(address: string | null | undefined): string {
+  // Imported addresses already contain street/house; manual addresses append
+  // comma-separated sub-district/postal text. This is presentation only.
+  return address == null ? 'N/A' : address.split(',')[0].trim()
+}

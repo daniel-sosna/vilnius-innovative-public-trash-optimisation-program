@@ -60,9 +60,9 @@ class Bin(Base):
     )
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     site_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("sites.id", name="fk_bins_site_id", ondelete="RESTRICT")
+        BigInteger, ForeignKey("sites.id", name="fk_bins_site_id", ondelete="CASCADE")
     )
-    external_id: Mapped[int] = mapped_column(BigInteger)
+    external_id: Mapped[int | None] = mapped_column(BigInteger)
     inventory_number: Mapped[str | None] = mapped_column(Text)
     waste_type: Mapped[str] = mapped_column(Text)
     capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)

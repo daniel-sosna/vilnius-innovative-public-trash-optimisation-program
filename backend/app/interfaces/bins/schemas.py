@@ -22,6 +22,11 @@ class ResidentRequestSuccess(BaseModel):
     success: bool
 
 
+class BinDeleteResult(BaseModel):
+    site_id: int
+    site_deleted: bool
+
+
 class HistoryEntry(BaseModel):
     id: int
     date: datetime

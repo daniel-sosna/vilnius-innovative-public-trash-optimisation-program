@@ -1,11 +1,33 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.models import Bin, BinHist, Site
+from app.services.sites import SiteNotFoundError, lock_site
 
 
 class BinNotFoundError(Exception):
     pass
+
+
+def delete_bin(session: Session, bin_id: int) -> dict:
+    site_id = None if bin_id > 2**63 - 1 else session.scalar(
+        select(Bin.site_id).where(Bin.id == bin_id)
+    )
+    if site_id is None:
+        raise BinNotFoundError
+    try:
+        lock_site(session, site_id)
+    except SiteNotFoundError:
+        raise BinNotFoundError from None
+    item = session.scalar(select(Bin.id).where(Bin.id == bin_id, Bin.site_id == site_id))
+    if item is None:
+        raise BinNotFoundError
+    session.execute(delete(Bin).where(Bin.id == bin_id))
+    site_deleted = session.scalar(select(Bin.id).where(Bin.site_id == site_id).limit(1)) is None
+    if site_deleted:
+        session.execute(delete(Site).where(Site.id == site_id))
+    session.commit()
+    return {"site_id": site_id, "site_deleted": site_deleted}
 
 
 def get_bin(session: Session, bin_id: int) -> dict:

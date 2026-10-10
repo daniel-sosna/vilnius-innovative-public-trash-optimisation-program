@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TablePagination } from '@/components/table-pagination'
+import { RowDeleteButton } from '@/components/row-delete-button'
 import { TruckOverview } from './truck-overview'
 import { useToast } from '@/components/ui/toast-context'
 import { TruckEditor } from './truck-editor'
@@ -356,18 +357,14 @@ export function TrucksPage() {
                     </span>
                   </td>
                   <td className="col-span-2 row-start-4 sm:px-4 sm:py-3 sm:text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    <RowDeleteButton
+                      recordName={truck.name}
                       onClick={(e) => {
                         e.stopPropagation()
                         rememberFocus()
                         setDeletion(truck)
                       }}
-                    >
-                      Ištrinti<span className="sr-only">: {truck.name}</span>
-                    </Button>
+                    />
                   </td>
                 </tr>
               ))}

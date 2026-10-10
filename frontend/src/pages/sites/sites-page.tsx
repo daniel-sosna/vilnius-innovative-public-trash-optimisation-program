@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ExternalLink } from 'lucide-react'
 import { TablePagination } from '@/components/table-pagination'
+import { RowDeleteButton } from '@/components/row-delete-button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getSites, type SitePage } from './api'
-import { formatValue } from './format'
+import { getSites, type SitePage, type SiteSummary } from './api'
+import { formatValue, siteListAddress } from './format'
 import { SiteOverview } from './site-overview'
+import { CollectionEditor } from './collection-editor'
+import { CollectionDeleteDialog } from './collection-delete-dialog'
 
 type Query = { address: string; page: number; revision: number }
 type Result = { key: string; data: SitePage | null; error: boolean }
@@ -18,6 +21,10 @@ export function SitesPage() {
     page: 1,
     revision: 0,
   })
+  const [deleting, setDeleting] = useState<{ site: SiteSummary; trigger: HTMLButtonElement } | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [overviewRevision, setOverviewRevision] = useState(0)
+  const createTrigger = useRef<HTMLButtonElement>(null)
   const [result, setResult] = useState<Result | null>(null)
   const key = JSON.stringify(query)
   const current = result?.key === key ? result : null
@@ -53,6 +60,11 @@ export function SitesPage() {
     }
   }, [query, key])
 
+  function refresh() {
+    setQuery((value) => ({ ...value, revision: value.revision + 1 }))
+    setOverviewRevision((value) => value + 1)
+  }
+
   function clearFilter() {
     setQuery((value) => ({ ...value, address: '', page: 1 }))
   }
@@ -67,9 +79,9 @@ export function SitesPage() {
           Peržiūrėkite surinkimo vietas ir jų konteinerius.
         </p>
       </div>
-      <SiteOverview />
+      <SiteOverview revision={overviewRevision} />
       <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1 space-y-2 sm:max-w-lg">
+        <div className="min-w-0 flex-1 basis-full space-y-2 sm:basis-0 sm:max-w-lg">
           <Label htmlFor="site-address">Paieška pagal adresą</Label>
           <Input
             id="site-address"
@@ -88,15 +100,19 @@ export function SitesPage() {
         <Button variant="secondary" onClick={clearFilter}>
           Išvalyti filtrą
         </Button>
+        <Button className="ml-auto" ref={createTrigger} onClick={() => setCreating(true)}>Pridėti surinkimo vietą</Button>
       </div>
       <div
         className="overflow-hidden rounded-lg border bg-card"
         aria-busy={loading}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_1.25rem] items-center gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium">
-          <span>Adresas</span>
-          <span>Konteineriai</span>
-          <span aria-hidden="true" />
+        <div className="flex items-center gap-2 border-b bg-muted/40 pr-3 text-sm font-medium">
+          <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_1.25rem]">
+            <span>Adresas</span>
+            <span>Konteineriai</span>
+            <span aria-hidden="true" className="hidden sm:block" />
+          </div>
+          <span className="w-16 shrink-0 text-center text-xs">Veiksmai</span>
         </div>
         {loading ? (
           <p role="status" className="p-5 text-sm text-muted-foreground">
@@ -139,28 +155,34 @@ export function SitesPage() {
         ) : (
           <ul className="divide-y">
             {data?.items.map((site) => (
-              <li key={site.id}>
+              <li key={site.id} className="flex flex-wrap items-center gap-2 pr-3">
                 <Link
                   to={`/admin/sites/${site.id}`}
-                  className="group grid min-h-12 grid-cols-[minmax(0,1fr)_auto_1.25rem] items-center gap-3 px-4 py-3 text-sm hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-                  aria-label={`${formatValue(site.address)} – konteinerių skaičius: ${formatValue(site.bin_count)}`}
+                  className="group grid min-h-12 min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_1.25rem] items-center gap-3 px-4 py-3 text-sm hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  aria-label={`${siteListAddress(site.address)} – konteinerių skaičius: ${formatValue(site.bin_count)}`}
                 >
                   <span className="break-words">
-                    {formatValue(site.address)}
+                    {siteListAddress(site.address)}
                   </span>
                   <span className="tabular-nums">
                     {formatValue(site.bin_count)}
                   </span>
                   <ExternalLink
                     aria-hidden="true"
-                    className="size-4 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                    className="hidden size-4 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 sm:block"
                   />
                 </Link>
+                <RowDeleteButton recordName={siteListAddress(site.address)} className="my-2 w-16 shrink-0" aria-label={`Ištrinti surinkimo vietą: ${siteListAddress(site.address)}`} onClick={(event) => setDeleting({ site, trigger: event.currentTarget })} />
               </li>
             ))}
           </ul>
         )}
       </div>
+      {creating && <CollectionEditor onClose={() => setCreating(false)} restoreFocus={() => createTrigger.current?.focus()}
+        onSaved={() => { setCreating(false); refresh() }} />}
+      {deleting && <CollectionDeleteDialog kind="site" id={deleting.site.id} label={deleting.site.address} onClose={() => setDeleting(null)}
+        onDeleted={() => { setDeleting(null); refresh() }} onRefresh={refresh}
+        restoreFocus={() => { if (deleting.trigger.isConnected) deleting.trigger.focus(); else createTrigger.current?.focus() }} />}
       <TablePagination
         page={query.page}
         pageSize={data?.page_size ?? 15}

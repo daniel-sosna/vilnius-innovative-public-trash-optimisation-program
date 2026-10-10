@@ -12,10 +12,11 @@ type Result = { key: string; data: SiteDetail | null; error: 'missing' | 'failed
 export function SiteDetailPage() {
   const { id = '' } = useParams()
   const [revision, setRevision] = useState(0)
+  const [membershipRevision, setMembershipRevision] = useState(0)
   const [result, setResult] = useState<Result | null>(null)
   const key = JSON.stringify([id, revision])
   const current = result?.key === key ? result : null
-  const site = current?.data
+  const site = current?.data ?? (result?.data?.id === Number(id) ? result.data : null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -24,10 +25,10 @@ export function SiteDetailPage() {
         if (!controller.signal.aborted) setResult({ key, data, error: null })
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) setResult({
-          key, data: null,
+        if (!controller.signal.aborted) setResult((previous) => ({
+          key, data: error instanceof SiteReadError && error.status === 404 ? null : previous?.data?.id === Number(id) ? previous.data : null,
           error: error instanceof SiteReadError && error.status === 404 ? 'missing' : 'failed',
-        })
+        }))
       })
     return () => controller.abort()
   }, [id, revision, key])
@@ -42,9 +43,9 @@ export function SiteDetailPage() {
           {site ? formatValue(site.address) : 'Surinkimo vieta'}
         </h1>
       </div>
-      {!current ? (
+      {!current && !site ? (
         <p role="status" className="text-sm text-muted-foreground">Kraunami vietos duomenys…</p>
-      ) : current.error ? (
+      ) : current?.error ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-5">
           <p className="text-sm text-destructive">
             {current.error === 'missing' ? 'Surinkimo vieta nerasta.' : 'Nepavyko gauti surinkimo vietos duomenų.'}
@@ -59,9 +60,10 @@ export function SiteDetailPage() {
         <>
           <LocationMap latitude={site.latitude} longitude={site.longitude} zoom={15.5} interactive />
           <SiteStatistics site={site} />
-          <SiteBins key={id} siteId={id} />
+
         </>
       )}
+      {site && <SiteBins key={id} siteId={id} revision={membershipRevision} onChanged={() => { setRevision((value) => value + 1); setMembershipRevision((value) => value + 1) }} />}
     </section>
   )
 }

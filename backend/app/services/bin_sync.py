@@ -821,13 +821,14 @@ class Importer:
                 )
             )
             stale = and_(
+                B.c.external_id.is_not(None),
                 B.c.longitude.between(west, east),
                 B.c.latitude.between(south, north),
                 unseen,
             )
             session.execute(
                 text(
-                    "INSERT INTO vasa_affected_sites SELECT DISTINCT site_id FROM bins WHERE longitude BETWEEN :west AND :east AND latitude BETWEEN :south AND :north AND NOT EXISTS (SELECT 1 FROM vasa_import_progress p WHERE p.run_id=:run_id AND p.kind='seen' AND p.complete AND p.work_key=bins.external_id::text)"
+                    "INSERT INTO vasa_affected_sites SELECT DISTINCT site_id FROM bins WHERE external_id IS NOT NULL AND longitude BETWEEN :west AND :east AND latitude BETWEEN :south AND :north AND NOT EXISTS (SELECT 1 FROM vasa_import_progress p WHERE p.run_id=:run_id AND p.kind='seen' AND p.complete AND p.work_key=bins.external_id::text)"
                 ),
                 dict(
                     west=west, east=east, south=south, north=north, run_id=self.run_id
