@@ -74,3 +74,33 @@ class Settings(BaseSettings):
         if driver != "postgresql+psycopg":
             raise ValueError("DATABASE_URL must use postgresql+psycopg")
         return value
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BACKEND_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+
+
+class DataDirSettings(BaseSettings):
+    """Only the data directory, so CLIs need no database settings to find their files."""
+
+    model_config = SettingsConfigDict(
+        env_file=REPO_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    viptop_data_dir: str | None = None
+
+
+def data_dir() -> Path:
+    """Directory with the CSV exports and density file.
+
+    `VIPTOP_DATA_DIR` (environment or root `.env`) when set, relative values
+    resolved from the repository root as Compose does; otherwise `backend/data/`.
+    Inside the backend container the variable is not set and `/app/data` is the
+    mounted folder.
+    """
+    configured = DataDirSettings().viptop_data_dir
+    if not configured:
+        return BACKEND_DATA_DIR
+    return (REPO_ROOT / configured).resolve()

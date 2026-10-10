@@ -3,10 +3,11 @@
 Repeatable manual checks for `python -m app.interfaces.bin_population`. Run them against a
 **disposable or local** database: a rebuild replaces `population_cells` and `bin_population`,
 and check 6 temporarily deletes one allocation. Prerequisites: `docker compose up -d`,
-migrations applied, the three exports imported and `backend/data/population_density_1ha.geojson`
-in place. Expected numbers are for the current files (21,951 bins).
+migrations applied, the three exports imported and `population_density_1ha.geojson`
+in the data directory (`VIPTOP_DATA_DIR`, default `backend/data/`). Expected numbers are for the current files (21,951 bins).
 
 ```bash
+DATA="$(scripts/dev-info.sh | sed -n 's/^Data dir: *//p')"   # host folder mounted as /app/data
 POP="docker compose exec -T backend uv run python -m app.interfaces.bin_population"
 SQL() { docker compose exec -T db psql -U viptop -d viptop -Atc "$1"; }
 ```
@@ -91,9 +92,9 @@ $POP --file /nope.geojson; echo "exit=$?"      # 1, names /nope.geojson
 ## 9. CSV import interaction
 
 ```bash
-mkdir backend/data/histonly && cp backend/data/bin_hist_*.csv backend/data/histonly/
+mkdir $DATA/histonly && cp $DATA/bin_hist_*.csv $DATA/histonly/
 docker compose exec -T backend uv run python -m app.interfaces.table_import --dir /app/data/histonly
-rm -r backend/data/histonly
+rm -r $DATA/histonly
 SQL "select count(*) from bin_population"
 docker compose exec -T backend uv run python -m app.interfaces.table_import
 SQL "select (select count(*) from bin_population), (select count(*) from population_cells)"
