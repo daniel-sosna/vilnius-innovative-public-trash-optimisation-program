@@ -1,4 +1,7 @@
-from sqlalchemy import func, select
+from decimal import Decimal
+from uuid import uuid4
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.models import Bin, Site
@@ -6,6 +9,77 @@ from app.infrastructure.models import Bin, Site
 
 class SiteNotFoundError(Exception):
     pass
+
+
+ADDRESS_FIELDS = ("street", "sub_district", "house_number", "postal_code")
+
+
+def manual_bin(site: Site, values: dict, address: dict) -> Bin:
+    return Bin(
+        **{**values, "capacity_m3": Decimal(str(values["capacity_m3"]))},
+        site_id=site.id,
+        latitude=site.latitude,
+        longitude=site.longitude,
+        external_id=None,
+        territory_type=None,
+        client_count=None,
+        district="Vilniaus m. sav.",
+        region="Vilniaus apskr.",
+        city="Vilniaus m.",
+        **address,
+    )
+
+
+def create_site(session: Session, values: dict) -> dict:
+    address = {name: values[name] for name in ADDRESS_FIELDS}
+    display = f"{address['street']} {address['house_number']}, {address['sub_district']}"
+    if address["postal_code"]:
+        display += f", {address['postal_code']}"
+    site = Site(
+        site_key=f"manual:{uuid4()}",
+        address=display,
+        latitude=values["latitude"],
+        longitude=values["longitude"],
+    )
+    session.add(site)
+    session.flush()
+    session.add_all([manual_bin(site, item, address) for item in values["bins"]])
+    session.flush()
+    result = {"id": site.id, "address": site.address, "bin_count": len(values["bins"])}
+    session.commit()
+    return result
+
+
+def lock_site(session: Session, site_id: int) -> Site:
+    site = None if site_id > 2**63 - 1 else session.scalar(
+        select(Site).where(Site.id == site_id).with_for_update()
+    )
+    if site is None:
+        raise SiteNotFoundError
+    return site
+
+
+def add_bin(session: Session, site_id: int, values: dict) -> dict:
+    site = lock_site(session, site_id)
+    address = session.execute(
+        select(*(getattr(Bin, name) for name in ADDRESS_FIELDS))
+        .where(Bin.site_id == site_id).order_by(Bin.id).limit(1)
+    ).mappings().one_or_none()
+    item = manual_bin(site, values, dict(address) if address else dict.fromkeys(ADDRESS_FIELDS))
+    session.add(item)
+    session.flush()
+    result = {
+        "id": item.id, "inventory_number": item.inventory_number,
+        "waste_type": item.waste_type, "capacity_m3": float(item.capacity_m3),
+    }
+    session.commit()
+    return result
+
+
+def delete_site(session: Session, site_id: int) -> None:
+    lock_site(session, site_id)
+    session.execute(delete(Site).where(Site.id == site_id))
+    session.commit()
 
 
 def list_bins(session: Session, site_id: int, *, page: int, page_size: int) -> dict:

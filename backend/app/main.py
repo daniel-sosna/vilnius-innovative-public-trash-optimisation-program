@@ -1,6 +1,10 @@
 from contextlib import asynccontextmanager
+from math import isfinite
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from app.core.config import Settings
 from app.infrastructure.database import create_database_engine, create_session_factory
@@ -20,6 +24,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="VipTop", lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request, error: RequestValidationError):
+    # Invalid JSON extensions such as NaN/Infinity must still produce a JSON 422.
+    detail = jsonable_encoder(
+        error.errors(),
+        custom_encoder={float: lambda value: value if isfinite(value) else str(value)},
+    )
+    return JSONResponse(status_code=422, content={"detail": detail})
+
+
 app.include_router(trucks_router)
 app.include_router(sites_router)
 app.include_router(bins_router)
