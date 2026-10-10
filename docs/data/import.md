@@ -12,6 +12,7 @@ docker compose exec backend uv run python -m app.interfaces.table_import
 
 - Name each file `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. If one table has several files, the highest number wins. Other `.csv` files are ignored with a warning.
 - The minimum for development is `sites_*.csv`, `bins_*.csv` and `bin_hist_*.csv`. `bin_schedule_*.csv` and `resident_requests_*.csv` are optional.
+- The two map GeoJSON sources are optional too (see [below](#geojson-sources)).
 - Export settings are UTF-8, a header row, unquoted `NULL` for null (as DBeaver writes it) and quoted text. Export from a database at the same migration as yours.
 
 ## What an import replaces
@@ -31,7 +32,21 @@ docker compose exec backend uv run python -m app.interfaces.table_import
 
 An import without `bins` leaves all of these unchanged. The output names every table it emptied.
 
+## GeoJSON sources
+
+Two map catalogs are also loaded from GeoJSON files in the same folder, in the same transaction as the CSVs:
+
+| File | Replaces | Standalone command |
+|---|---|---|
+| `vilnius_seniuniju_ribos.geojson` | `district_boundaries` | [district boundaries](district-boundaries.md) |
+| `service_zones.geojson` | `service_zones` | [service zones](service-zones.md) |
+
+- If a file is missing, the import warns and keeps the stored rows.
+- A present but invalid or unreadable file fails the whole import.
+- A folder with only GeoJSON files is a valid import.
+- A GeoJSON file together with a CSV for the same table (`district_boundaries_*.csv` or `service_zones_*.csv`) fails before anything is written. Keep only the source you intend to use.
+
 ## Safety and exit codes
 
 - Everything runs in one transaction, so a failure leaves the database unchanged. **The current contents of the imported tables are discarded.**
-- The command exits 0 on success. It exits 1 when there is nothing to import, the directory is missing or the import fails.
+- The command exits 0 on success. It exits 1 when there is nothing to import (no CSV and no GeoJSON source), the directory is missing or the import fails.

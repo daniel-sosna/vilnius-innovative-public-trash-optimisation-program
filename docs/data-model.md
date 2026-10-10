@@ -13,6 +13,8 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `bin_population` | Bin | Estimated | Bin population |
 | `bin_days` | Bin and calendar day | Copied, estimated and synthetic | [Bin-day calendar](data/bin-days.md) ([columns](data/bin-days-columns.md)) |
 | `collection_stops`, `stop_bins` | Plan stop (date, carrier, site), and its bins | Mock prediction | [Collection plan](data/collection-plan.md) |
+| `district_boundaries` | District (seniūnija) polygon | Source data | [District boundaries](data/district-boundaries.md), import |
+| `service_zones` | Service-zone polygon | Source data | [Service zones](data/service-zones.md), import |
 | `trucks` | Truck | Manual | Admin UI |
 | `landfills` | Waste facility | Seeded by a migration | Migration |
 | `vasa_import_runs`, `vasa_import_progress` | Bin sync pass, and its checkpoints | Internal | Bin sync |

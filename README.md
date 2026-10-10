@@ -15,7 +15,7 @@ You need Docker with Docker Compose and the CSV exports from a teammate.
    docker compose up --build -d
    ```
 
-2. Put the exports in `backend/data/`: `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv` are required. `bin_schedule_<digits>.csv` and `population_density_1ha.geojson` are needed for the [data pipeline](#data-pipeline).
+2. Put the exports in `backend/data/`: `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv` are required. `bin_schedule_<digits>.csv` and `population_density_1ha.geojson` are needed for the [data pipeline](#data-pipeline). `vilnius_seniuniju_ribos.geojson` and `service_zones.geojson` feed the district and service-zone map layers.
 3. Import them:
 
    ```bash
@@ -32,17 +32,19 @@ Run these in order after an import. Importing `bins` empties every derived table
 
 | Step | Module | Builds | Docs |
 |---|---|---|---|
-| 1 | `table_import` | `sites`, `bins`, `bin_hist` (optionally `bin_schedule`, `resident_requests`) from CSV | [import](docs/data/import.md) |
+| 1 | `table_import` | `sites`, `bins`, `bin_hist` (optionally `bin_schedule`, `resident_requests`) from CSV, plus district boundaries and service zones from GeoJSON | [import](docs/data/import.md) |
 | 2 | `bin_population` | Estimated residents per bin | [bin population](docs/data/bin-population.md) |
 | 3 | `bin_days --start ... --end ...` | Bin-day calendar with simulated collections | [bin days](docs/data/bin-days.md) |
 | 4 | `collection_plan` | Sites to serve per carrier for a date (mock prediction) | [collection plan](docs/data/collection-plan.md) |
 
-Source refreshes (the slow ones, used to update the shared exports):
+Other commands:
 
-| Module | Refreshes | Docs |
+| Module | Does | Docs |
 |---|---|---|
-| `bin_schedule_sync` | VASA planned dates, current month (about 13 min) | [schedule sync](docs/data/bin-schedule-sync.md) |
-| `bin_sync` | Sites, bins and history from VASA (hours) | [bin sync](docs/data/bin-sync.md) |
+| `district_boundaries` | Loads only the district boundaries | [district boundaries](docs/data/district-boundaries.md) |
+| `service_zones` | Loads only the service zones | [service zones](docs/data/service-zones.md) |
+| `bin_schedule_sync` | Refreshes VASA planned dates for the current month (about 13 min) | [schedule sync](docs/data/bin-schedule-sync.md) |
+| `bin_sync` | Refreshes sites, bins and history from VASA (takes hours) | [bin sync](docs/data/bin-sync.md) |
 
 ## Features
 
@@ -51,7 +53,7 @@ Source refreshes (the slow ones, used to update the shared exports):
 | Role selection | `/` | – |
 | Truck management | `/admin/trucks` | [truck-management](openspec/specs/truck-management/spec.md) |
 | Collection sites, details, adding and deleting sites and bins | `/admin/sites`, `/admin/sites/{id}` | [collection-site-browsing](openspec/specs/collection-site-browsing/spec.md), [collection-site-management](openspec/specs/collection-site-management/spec.md) |
-| Map analytics (landfills, bins, population density) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md) |
+| Map analytics (landfills, bins, population density, districts, service zones) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md) |
 | Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
 
 The admin screens have no authentication.
@@ -82,7 +84,7 @@ The admin screens have no authentication.
 
 - [Development](docs/development.md): configuration, running without Docker, migrations, several worktrees at once
 - [Data model](docs/data-model.md): tables and what their data means
-- Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
+- Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
 - Behaviour: [`openspec/specs/`](openspec/specs/)
 - HTTP API: `/docs` on the running backend
 - Contributing with AI agents: [AGENTS.md](AGENTS.md)

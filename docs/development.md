@@ -32,12 +32,12 @@ Settings come from the repository-root `.env`, which is created from `.env.examp
 | `VASA_TILE_URL_TEMPLATE`, `VASA_BIN_URL_TEMPLATE`, `VASA_HISTORY_URL_TEMPLATE`, `VASA_SCHEDULE_URL_TEMPLATE` | HTTPS endpoints for [bin sync](data/bin-sync.md) and [schedule sync](data/bin-schedule-sync.md) |
 | `BIN_SYNC_HTTP_TIMEOUT_SECONDS` | Required. Positive socket timeout for VASA requests. |
 | `VITE_MAP_STYLE_URL` | MapLibre style for every map. There is no fallback in the code. The style must provide the `Noto Sans Regular` font used for cluster counts. |
-| `VIPTOP_DATA_DIR` | Host folder with CSV exports and the density file, mounted as the backend's `/app/data`. The default is `backend/data/`. See [Data directory](#data-directory). |
+| `VIPTOP_DATA_DIR` | Host folder with the CSV exports and GeoJSON sources, mounted as the backend's `/app/data`. The default is `backend/data/`. See [Data directory](#data-directory). |
 | `COMPOSE_FILE`, `FRONTEND_PORT`, `BACKEND_PORT`, `DB_PORT` | See [Several worktrees at once](#several-worktrees-at-once) |
 
 ## Data directory
 
-CSV exports and `population_density_1ha.geojson` live in `backend/data/`, which git and the Docker build ignore. To use another folder, set `VIPTOP_DATA_DIR`. A relative value is resolved from the repository root.
+CSV exports and GeoJSON sources (population density, district boundaries, service zones) live in `backend/data/`, which git and the Docker build ignore. To use another folder, set `VIPTOP_DATA_DIR`. A relative value is resolved from the repository root.
 
 - Create the folder before starting the stack. If it doesn't exist, Docker creates it empty and owned by root, and the import then finds nothing.
 - After changing the variable, run `docker compose up -d` to recreate the backend.
