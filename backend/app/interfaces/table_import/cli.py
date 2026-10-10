@@ -24,6 +24,8 @@ BIN_DERIVED_TABLES = {
     "bin_days": "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
     "bin_schedule": "python -m app.interfaces.bin_schedule_sync",
 }
+# Tables referencing bins that cannot be refilled; their rows belong to the replaced bins.
+BIN_DEPENDENT_TABLES = ("resident_requests",)
 COPY_CHUNK_BYTES = 1 << 16
 
 
@@ -59,7 +61,11 @@ def read_columns(path: Path) -> list[str]:
 def emptied_derived_tables(files: dict[str, Path]) -> list[str]:
     if "bins" not in files:
         return []
-    return [name for name in BIN_DERIVED_TABLES if name not in files]
+    return [
+        name
+        for name in (*BIN_DERIVED_TABLES, *BIN_DEPENDENT_TABLES)
+        if name not in files
+    ]
 
 
 def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
@@ -135,11 +141,14 @@ def main() -> int:
         for table, path in files.items():
             logger.info("%s <- %s: %d rows", table, path.name, counts[table])
         for table in emptied_derived_tables(files):
-            logger.info(
-                "%s emptied with the replaced bins; refill it with %s",
-                table,
-                BIN_DERIVED_TABLES[table],
-            )
+            if table in BIN_DERIVED_TABLES:
+                logger.info(
+                    "%s emptied with the replaced bins; refill it with %s",
+                    table,
+                    BIN_DERIVED_TABLES[table],
+                )
+            else:
+                logger.info("%s emptied with the replaced bins", table)
         return 0
     except Exception as error:
         cause = getattr(error, "orig", error)

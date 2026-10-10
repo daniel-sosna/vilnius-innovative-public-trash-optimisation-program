@@ -188,6 +188,8 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   output says so), because planned dates belong to the replaced bins; fetch them again with
   the schedule command. With a `bin_schedule_<digits>.csv`, that table is loaded from the file.
   An import without `bins` (e.g. only `bin_hist`) leaves `bin_schedule` unchanged.
+  Importing `bins` without a `resident_requests_<digits>.csv` also empties `resident_requests`
+  (the output says so): the requests belong to the replaced bins and cannot be refetched.
 - **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
   **The current contents of the imported tables are discarded.**
 - **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
