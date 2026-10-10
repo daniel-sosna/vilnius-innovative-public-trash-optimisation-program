@@ -67,6 +67,14 @@ SQL "select distinct site_id, waste_type, capacity_m3, sub_district, object_grou
 
 Expected: `0`, then `2|Mixed municipal waste|1.1|Panerių sen.|Komercinė paskirtis`.
 
+Population attributes (run `python -m app.interfaces.bin_population` first):
+
+```bash
+SQL "select count(*) from bin_days d join bin_population p on p.bin_id = d.bin_id where (d.population_cell_id, d.resident_factor) is distinct from (p.population_cell_id, p.resident_factor)"
+```
+
+Expected: `0`.
+
 ## 6. Bin deletion cascades
 
 ```bash

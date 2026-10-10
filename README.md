@@ -182,8 +182,9 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
   also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
   A table referenced by a table without a file (e.g. only `sites`) is rejected.
-  Importing `bins` also empties the derived `bin_days` table; rebuild it afterwards as
-  described in [Bin-day calendar](#bin-day-calendar).
+  Importing `bins` also empties the derived `bin_population` and `bin_days` tables; refill
+  them afterwards in this order: [Bin population](#bin-population-residents-per-bin), then
+  [Bin-day calendar](#bin-day-calendar). The population polygons (`population_cells`) are kept.
   Importing `bins` without a `bin_schedule_<digits>.csv` also empties `bin_schedule` (the
   output says so), because planned dates belong to the replaced bins; fetch them again with
   the schedule command. With a `bin_schedule_<digits>.csv`, that table is loaded from the file.
@@ -198,20 +199,66 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
 **For AI agents:** before any task that needs collection data, check that
 `backend/data/` contains `sites_<digits>.csv`, `bins_<digits>.csv` and
 `bin_hist_<digits>.csv`. If any is missing, stop and ask the developer to add the
-exports. Do not run `bin_sync` to obtain the data instead.
+exports. Do not run `bin_sync` to obtain the data instead. Likewise, before building the
+bin population, check that `backend/data/population_density_1ha.geojson` exists; if it is
+missing, stop and ask the developer to add it.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
+## Bin population (residents per bin)
+
+`bin_population` estimates how many residents each bin serves, from the Vilnius
+population-density grid. Place `population_density_1ha.geojson` in `backend/data/`
+(git-ignored like the CSV exports), import the collection data, then run:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_population
+# native, from backend/
+uv run python -m app.interfaces.bin_population --file /path/to/population_density_1ha.geojson
+```
+
+Options: `--file` (default `backend/data/population_density_1ha.geojson`) and
+`--suppressed-density` (default 5, between 0 and 10). It takes a few seconds, replaces
+`population_cells` and `bin_population` in one transaction (a failure changes nothing) and
+exits 0 on success, 1 on failure. The summary prints polygon and resident totals, how many
+bins have a polygon, and per waste type the residential bins, collection points, allocated
+and unallocated residents, distance percentiles and factor percentiles (p50, p90, p99, max).
+
+- `population_cells`: one row per source polygon (`id` = `OBJECTID`), with its density per ha,
+  area, `residents` (density × area, assumed density applied) and geometry.
+- `bin_population`: per bin, `population_cell_id` (polygon containing the bin, or NULL) and
+  `resident_factor`, the **estimated** residents the bin serves (not observed). It is copied
+  into `bin_days`.
+
+Refill order: import, then bin population, then bin days. The bin-day rebuild refuses to run
+while an eligible bin has no allocation (for example after a sync adds bins).
+
+**Assumptions:**
+- Each polygon's residents use the nearest residential collection point of each waste type
+  (bins of that type at identical coordinates), measured from the polygon centroid. The
+  point's residents are split among its bins by capacity.
+- Residential means object group `Daugiabučiai namai`, `Dvibučiai`,
+  `Daugiabučių/garažų bendrijos`, `Sodų bendrijos` or `Sodų/garažų bendrijos`, with capacity
+  above 0. All other bins get factor 0; the generator supplies their baseline.
+- The source value is a density per ha; merged polygons are allocated whole from their
+  centroid. `"<11"` counts as 5 per ha, null as 0.
+- Declared residence matches actual residence.
+- Isolated points can take very large catchments (max about 7,600 residents for mixed waste);
+  p99 and max are printed so outliers are visible.
+
+See [bin population verification](docs/bin-population-verification.md) for repeatable checks.
 
 ## Bin-day calendar
 
 `bin_days` holds one row per bin per calendar day. It is the input for the future
 synthetic fill-level generator. It is derived from `bins`, the stored planned dates in
-`bin_schedule`, the requested dates, the Lithuanian public holidays and the simulation
+`bin_schedule`, `bin_population`, the requested dates, the Lithuanian public holidays and the simulation
 parameters. It does not read `bin_hist`, and it holds no observed outcomes or fill levels.
 The generator reads `bin_hist` itself and, when one bin has several events on the same day,
 uses the last one. The generator should reset fill on `collected` and `retry_collected`.
 
-Build it after importing the collection data (including `bin_schedule`):
+Build it after importing the collection data (including `bin_schedule`) and running the
+[bin population](#bin-population-residents-per-bin) command:
 
 ```bash
 docker compose exec backend uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
@@ -227,23 +274,8 @@ runs in plain Python, so long ranges take a while: 31 days take about 20 s and o
 (2026-10-10..2027-10-09, about 7.9M rows) about 4 minutes. The five-year maximum would take
 roughly 20 minutes.
 
-| Column | Meaning |
-|---|---|
-| `date` | Each day from `--start` to `--end`, inclusive |
-| `day_of_week` | ISO, 1 = Monday … 7 = Sunday |
-| `week_of_year` | ISO week, 1–53 |
-| `month` | 1–12 |
-| `season` | Meteorological: 1 winter (Dec–Feb), 2 spring, 3 summer, 4 autumn (Sep–Nov) |
-| `bin_id`, `site_id`, `waste_type`, `capacity_m3`, `sub_district`, `object_group` | Copied from `bins`; `capacity_m3` and `object_group` may be NULL |
-| `collection_status` | **Synthetic.** Outcome of the day's own attempt, see below |
-| `holidays_since_last_collection` | **Synthetic.** Holidays from the day after the latest successful collection through the day before the row's date; counted from the simulation start if there is none |
-| `collections_last_28d` | **Synthetic.** Days with a successful collection from date − 28 to date − 1 |
-| `missed_collections_28d` | **Synthetic.** Days with status `missed` from date − 28 to date − 1 |
-
-`collection_status` values: `none` (no attempt), `collected` (first attempt succeeded),
-`retry_collected` (a retry succeeded), `failed` (attempt failed, a retry follows the next
-day) and `missed` (attempt failed, no retry follows). An occurrence counts as missed only
-once all its attempts failed, on the day that became final.
+Every column (type, nullability, meaning, values, and whether it is copied, estimated or
+synthetic) is described in [`bin_days` columns](docs/bin-days-columns.md).
 
 - **Which bins:** a bin gets a row for every date when it has a `sub_district` and at least
   one stored planned date. Others are skipped and counted in the summary as excluded
@@ -274,7 +306,7 @@ once all its attempts failed, on the day that became final.
   - Each bin has its own random stream (`seed` and `bin_id`), so the same arguments give
     identical output regardless of other bins.
 - **Keeping it in sync:** a deleted bin loses its rows. A CSV import that replaces `bins`
-  empties the table, so rerun the command afterwards. Refreshing `bin_schedule` does not
+  empties the table, so rerun the command afterwards (after the bin population command). Refreshing `bin_schedule` does not
   change existing rows until the next rebuild.
 
 See [bin-day calendar verification](docs/bin-day-calendar-verification.md) for repeatable checks.

@@ -86,6 +86,9 @@ class Bin(Base):
     schedule: Mapped[list["BinSchedule"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
+    bin_population: Mapped["BinPopulation | None"] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
     resident_requests: Mapped[list["ResidentRequest"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
@@ -125,7 +128,10 @@ class BinHist(Base):
 
 
 class BinDay(Base):
-    """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`."""
+    """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`.
+
+    Every column is documented in docs/bin-days-columns.md; update it when columns change.
+    """
 
     __tablename__ = "bin_days"
     __table_args__ = (
@@ -151,6 +157,7 @@ class BinDay(Base):
             "missed_collections_28d BETWEEN 0 AND 28",
             name="ck_bin_days_missed_collections_28d",
         ),
+        CheckConstraint("resident_factor >= 0", name="ck_bin_days_resident_factor"),
     )
     bin_id: Mapped[int] = mapped_column(
         BigInteger,
@@ -167,11 +174,58 @@ class BinDay(Base):
     capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
     sub_district: Mapped[str] = mapped_column(Text)
     object_group: Mapped[str | None] = mapped_column(Text)
+    # Estimated from population data (not observed), copied from bin_population.
+    population_cell_id: Mapped[int | None] = mapped_column(Integer)
+    resident_factor: Mapped[float] = mapped_column(Double)
     # Synthetic columns, simulated from the schedule (not observations).
     collection_status: Mapped[str] = mapped_column(Text)
     holidays_since_last_collection: Mapped[int] = mapped_column(SmallInteger)
     collections_last_28d: Mapped[int] = mapped_column(SmallInteger)
     missed_collections_28d: Mapped[int] = mapped_column(SmallInteger)
+
+
+class PopulationCell(Base):
+    """Population-density polygon, loaded by `python -m app.interfaces.bin_population`."""
+
+    __tablename__ = "population_cells"
+    __table_args__ = (
+        CheckConstraint("residents >= 0", name="ck_population_cells_residents"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    density_per_ha: Mapped[int | None] = mapped_column(Integer)
+    suppressed: Mapped[bool] = mapped_column(Boolean)
+    area_ha: Mapped[float] = mapped_column(Double)
+    # Density x area, with the assumed density for suppressed values already applied.
+    residents: Mapped[float] = mapped_column(Double)
+    min_lon: Mapped[float] = mapped_column(Double)
+    min_lat: Mapped[float] = mapped_column(Double)
+    max_lon: Mapped[float] = mapped_column(Double)
+    max_lat: Mapped[float] = mapped_column(Double)
+    geometry: Mapped[list] = mapped_column(JSONB)
+
+
+class BinPopulation(Base):
+    """Derived per-bin resident allocation (estimated, not observed)."""
+
+    __tablename__ = "bin_population"
+    __table_args__ = (
+        CheckConstraint("resident_factor >= 0", name="ck_bin_population_resident_factor"),
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_population_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    population_cell_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(
+            "population_cells.id",
+            name="fk_bin_population_population_cell_id",
+            ondelete="RESTRICT",
+        ),
+    )
+    resident_factor: Mapped[float] = mapped_column(Double)
+    bin: Mapped[Bin] = relationship(back_populates="bin_population")
 
 
 class BinSchedule(Base):

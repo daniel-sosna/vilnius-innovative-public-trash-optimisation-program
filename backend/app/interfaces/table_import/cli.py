@@ -22,6 +22,7 @@ SYNC_STATE_TABLES = ("vasa_import_runs", "vasa_import_progress")
 # with the command that refills each.
 BIN_DERIVED_TABLES = {
     "bin_days": "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
+    "bin_population": "python -m app.interfaces.bin_population",
     "bin_schedule": "python -m app.interfaces.bin_schedule_sync",
 }
 # Tables referencing bins that cannot be refilled; their rows belong to the replaced bins.
