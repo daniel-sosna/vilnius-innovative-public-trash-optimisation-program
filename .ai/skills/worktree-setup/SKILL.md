@@ -5,7 +5,7 @@ description: Prepare an existing checkout (git worktree) to run its own Docker C
 
 # worktree-setup
 
-Prepare the current checkout to run in worktree mode (Docker-chosen host ports) and fill it with collection data. Run every command from the checkout's root. See README "Running several worktrees at once" for background.
+Prepare the current checkout to run in worktree mode (Docker-chosen host ports) and fill it with collection data. Run every command from the checkout's root. See `docs/development.md` ("Several worktrees at once") for background.
 
 ## Rules
 
@@ -40,7 +40,7 @@ Prepare the current checkout to run in worktree mode (Docker-chosen host ports) 
 
 9. **Import.** `docker compose exec -T backend uv run python -m app.interfaces.table_import`. It discards the current contents of the imported tables, which is expected for a fresh stack; with reused volumes the developer already agreed in step 5. Report the row counts.
 
-10. **Derived tables.** The import reports tables it emptied (`bin_population`, `bin_days`, ...) with their refill commands. List them in README order (bin population first, then the bin-day calendar) and **ASK** whether to run them. Bin population needs `population_density_1ha.geojson` in the data folder; if it is missing, say so and ask the developer to add it.
+10. **Derived tables.** The import reports tables it emptied (`bin_population`, `bin_days`, ...) with their refill commands. List them in the data-pipeline order from the README (bin population, then the bin-day calendar, then the collection plan) and **ASK** whether to run them. Bin population needs `population_density_1ha.geojson` in the data folder; if it is missing, say so and ask the developer to add it.
 
 11. **Show the result.** Run `scripts/dev-info.sh` and show its output to the developer: project, mode, URLs, database port, data directory.
 
