@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # trucks/ HTTP API, bin_sync/ and table_import/ CLIs
+│       ├── interfaces/     # trucks/ HTTP API, bin_sync/, bin_schedule_sync/, table_import/ and bin_days/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -182,6 +182,14 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
   also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
   A table referenced by a table without a file (e.g. only `sites`) is rejected.
+  Importing `bins` also empties the derived `bin_days` table; rebuild it afterwards as
+  described in [Bin-day calendar](#bin-day-calendar).
+  Importing `bins` without a `bin_schedule_<digits>.csv` also empties `bin_schedule` (the
+  output says so), because planned dates belong to the replaced bins; fetch them again with
+  the schedule command. With a `bin_schedule_<digits>.csv`, that table is loaded from the file.
+  An import without `bins` (e.g. only `bin_hist`) leaves `bin_schedule` unchanged.
+  Importing `bins` without a `resident_requests_<digits>.csv` also empties `resident_requests`
+  (the output says so): the requests belong to the replaced bins and cannot be refetched.
 - **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
   **The current contents of the imported tables are discarded.**
 - **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
@@ -193,6 +201,83 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
 exports. Do not run `bin_sync` to obtain the data instead.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
+## Bin-day calendar
+
+`bin_days` holds one row per bin per calendar day. It is the input for the future
+synthetic fill-level generator. It is derived from `bins`, the stored planned dates in
+`bin_schedule`, the requested dates, the Lithuanian public holidays and the simulation
+parameters. It does not read `bin_hist`, and it holds no observed outcomes or fill levels.
+The generator reads `bin_hist` itself and, when one bin has several events on the same day,
+uses the last one. The generator should reset fill on `collected` and `retry_collected`.
+
+Build it after importing the collection data (including `bin_schedule`):
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
+# native, from backend/
+uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
+```
+
+The current exports give 31 days × 21,695 bins = 672,545 rows. Options (all optional):
+`--seed` (42), `--p-first` (0.028), `--p-retry1` (0.40), `--p-retry2` (0.70) and
+`--holiday-factor` (2). Probabilities must be in [0, 1] and the factor at least 0. The
+summary prints the seed, the parameters and the number of rows per status. The simulation
+runs in plain Python, so long ranges take a while: 31 days take about 20 s and one year
+(2026-10-10..2027-10-09, about 7.9M rows) about 4 minutes. The five-year maximum would take
+roughly 20 minutes.
+
+| Column | Meaning |
+|---|---|
+| `date` | Each day from `--start` to `--end`, inclusive |
+| `day_of_week` | ISO, 1 = Monday … 7 = Sunday |
+| `week_of_year` | ISO week, 1–53 |
+| `month` | 1–12 |
+| `season` | Meteorological: 1 winter (Dec–Feb), 2 spring, 3 summer, 4 autumn (Sep–Nov) |
+| `bin_id`, `site_id`, `waste_type`, `capacity_m3`, `sub_district`, `object_group` | Copied from `bins`; `capacity_m3` and `object_group` may be NULL |
+| `collection_status` | **Synthetic.** Outcome of the day's own attempt, see below |
+| `holidays_since_last_collection` | **Synthetic.** Holidays from the day after the latest successful collection through the day before the row's date; counted from the simulation start if there is none |
+| `collections_last_28d` | **Synthetic.** Days with a successful collection from date − 28 to date − 1 |
+| `missed_collections_28d` | **Synthetic.** Days with status `missed` from date − 28 to date − 1 |
+
+`collection_status` values: `none` (no attempt), `collected` (first attempt succeeded),
+`retry_collected` (a retry succeeded), `failed` (attempt failed, a retry follows the next
+day) and `missed` (attempt failed, no retry follows). An occurrence counts as missed only
+once all its attempts failed, on the day that became final.
+
+- **Which bins:** a bin gets a row for every date when it has a `sub_district` and at least
+  one stored planned date. Others are skipped and counted in the summary as excluded
+  without sub-district or without schedule.
+- **Replacement:** each run replaces the whole table in one transaction, and a failure leaves
+  it unchanged. Both dates are required, and ranges longer than five years (1,827 days) are
+  rejected. Exit codes: 0 on success, 1 on invalid arguments or failure.
+- **Assumptions:**
+  - Attributes are a snapshot from the time of the rebuild, applied to every date.
+  - Bins have no install or removal dates, so every included bin is assumed to exist on
+    every day.
+  - ISO weeks near New Year can belong to the neighbouring year (2027-01-01 is week 53).
+  - The stored schedule (the latest monthly snapshot) repeats unchanged over the whole
+    range. Its cycle is the shortest of 1, 7, 14, 21 or 28 days that reproduces the stored
+    dates; a single stored date means every 28 days, and irregular dates fall back to 28.
+  - A collection is attempted on every planned day. A failed attempt is retried on the next
+    day and, if that fails, once more on the day after. A planned day cancels a pending retry.
+  - The failure probabilities are assumptions, not fitted values. For reference, 3.4% of
+    `bin_hist` events are non-serviced (including reasons that are not carrier failures),
+    and 23% of next-day events after a non-service are non-serviced too. Holidays multiply
+    the probability by the factor, capped at 0.95. With the defaults a planned collection is
+    missed with probability 0.028 × 0.40 × 0.70 ≈ 0.78%. The observed share is higher: about
+    1.0% for non-daily bins (holidays raise it) and 1.8% overall, because a daily bin has
+    no retry, so any failure is a miss (2.8%).
+  - Holidays do not move collections. They only raise failure probability.
+  - The simulation starts 35 days before `--start` so the first rows have full 28-day
+    features. Output depends on the arguments, so changing `--start` changes the draws.
+  - Each bin has its own random stream (`seed` and `bin_id`), so the same arguments give
+    identical output regardless of other bins.
+- **Keeping it in sync:** a deleted bin loses its rows. A CSV import that replaces `bins`
+  empties the table, so rerun the command afterwards. Refreshing `bin_schedule` does not
+  change existing rows until the next rebuild.
+
+See [bin-day calendar verification](docs/bin-day-calendar-verification.md) for repeatable checks.
 
 ## Truck management
 
@@ -453,6 +538,33 @@ A trial exits 2 and never removes missing bins. Matching incomplete runs resume.
 After full success (exit 0), the next invocation starts a fresh refresh. Failures
 exit 1 and retain already committed progress. In Docker, prefix the commands with
 `docker compose exec backend`.
+
+## Collection schedules
+
+`bin_schedule` holds VASA's planned collection dates per bin (one row per bin and
+date). They are VASA's plan, not observed service history. Load collection data
+first (CSV import or `bin_sync`), then run:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_schedule_sync --max-bins 20
+docker compose exec backend uv run python -m app.interfaces.bin_schedule_sync
+# native: run the same command from backend/ without the docker prefix
+```
+
+- **Options:** `--workers N` (default 4) bounds concurrent requests; `--max-bins N`
+  (default 0 = all) processes only the first N bins by ID.
+- **Exit codes:** 0 when every bin was processed without failure; 1 on any failed bin,
+  invalid arguments or configuration, or no stored bins; 2 for a `--max-bins` run
+  without failures.
+- **Snapshot:** VASA only returns the current month. Each successful response replaces
+  that bin's stored dates, so the table holds the latest fetched month only. A failed
+  bin keeps its previous dates and its external ID is listed (first 20) in the summary.
+  Re-run at the start of each month; consumers should filter on `date >= today`.
+- **Empty lists:** VASA returns an empty list both for a bin without a plan and for an
+  unknown ID, so the summary reports the empty count; a sudden jump points to a source problem.
+- **Duration:** a full run takes about 13 minutes for ~22k bins with 4 workers.
+- **Import side effect:** a CSV import that replaces `bins` empties `bin_schedule`; see
+  [Import table CSV exports](#import-table-csv-exports).
 
 ## Migration and verification
 

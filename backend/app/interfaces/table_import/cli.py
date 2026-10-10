@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_DIR = Path(__file__).resolve().parents[3] / "data"
 COLLECTION_TABLES = {"sites", "bins", "bin_hist"}
 SYNC_STATE_TABLES = ("vasa_import_runs", "vasa_import_progress")
+# Tables derived from bins, emptied when bins are replaced without their own file,
+# with the command that refills each.
+BIN_DERIVED_TABLES = {
+    "bin_days": "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
+    "bin_schedule": "python -m app.interfaces.bin_schedule_sync",
+}
+# Tables referencing bins that cannot be refilled; their rows belong to the replaced bins.
+BIN_DEPENDENT_TABLES = ("resident_requests",)
 COPY_CHUNK_BYTES = 1 << 16
 
 
@@ -50,11 +58,22 @@ def read_columns(path: Path) -> list[str]:
     return header
 
 
+def emptied_derived_tables(files: dict[str, Path]) -> list[str]:
+    if "bins" not in files:
+        return []
+    return [
+        name
+        for name in (*BIN_DERIVED_TABLES, *BIN_DEPENDENT_TABLES)
+        if name not in files
+    ]
+
+
 def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
     columns = {table: read_columns(path) for table, path in files.items()}
     truncated = list(files)
     if COLLECTION_TABLES & files.keys():
         truncated += [name for name in SYNC_STATE_TABLES if name not in files]
+    truncated += emptied_derived_tables(files)
     counts: dict[str, int] = {}
     with engine.begin() as connection:
         connection.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
@@ -121,6 +140,15 @@ def main() -> int:
         counts = load_tables(engine, files)
         for table, path in files.items():
             logger.info("%s <- %s: %d rows", table, path.name, counts[table])
+        for table in emptied_derived_tables(files):
+            if table in BIN_DERIVED_TABLES:
+                logger.info(
+                    "%s emptied with the replaced bins; refill it with %s",
+                    table,
+                    BIN_DERIVED_TABLES[table],
+                )
+            else:
+                logger.info("%s emptied with the replaced bins", table)
         return 0
     except Exception as error:
         cause = getattr(error, "orig", error)

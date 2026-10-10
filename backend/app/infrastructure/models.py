@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date as date_, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -83,6 +83,9 @@ class Bin(Base):
     history: Mapped[list["BinHist"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
+    schedule: Mapped[list["BinSchedule"]] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
     resident_requests: Mapped[list["ResidentRequest"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
@@ -119,6 +122,71 @@ class BinHist(Base):
     non_serviced_reason: Mapped[str | None] = mapped_column(Text)
     fill_level: Mapped[int | None] = mapped_column(SmallInteger)
     bin: Mapped[Bin] = relationship(back_populates="history")
+
+
+class BinDay(Base):
+    """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`."""
+
+    __tablename__ = "bin_days"
+    __table_args__ = (
+        CheckConstraint("day_of_week BETWEEN 1 AND 7", name="ck_bin_days_day_of_week"),
+        CheckConstraint(
+            "week_of_year BETWEEN 1 AND 53", name="ck_bin_days_week_of_year"
+        ),
+        CheckConstraint("month BETWEEN 1 AND 12", name="ck_bin_days_month"),
+        CheckConstraint("season BETWEEN 1 AND 4", name="ck_bin_days_season"),
+        CheckConstraint(
+            "collection_status IN ('none', 'collected', 'retry_collected', 'failed', 'missed')",
+            name="ck_bin_days_collection_status",
+        ),
+        CheckConstraint(
+            "holidays_since_last_collection >= 0",
+            name="ck_bin_days_holidays_since_last_collection",
+        ),
+        CheckConstraint(
+            "collections_last_28d BETWEEN 0 AND 28",
+            name="ck_bin_days_collections_last_28d",
+        ),
+        CheckConstraint(
+            "missed_collections_28d BETWEEN 0 AND 28",
+            name="ck_bin_days_missed_collections_28d",
+        ),
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_days_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    date: Mapped[date_] = mapped_column(Date, primary_key=True)
+    day_of_week: Mapped[int] = mapped_column(SmallInteger)
+    week_of_year: Mapped[int] = mapped_column(SmallInteger)
+    month: Mapped[int] = mapped_column(SmallInteger)
+    season: Mapped[int] = mapped_column(SmallInteger)
+    site_id: Mapped[int] = mapped_column(BigInteger)
+    waste_type: Mapped[str] = mapped_column(Text)
+    capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
+    sub_district: Mapped[str] = mapped_column(Text)
+    object_group: Mapped[str | None] = mapped_column(Text)
+    # Synthetic columns, simulated from the schedule (not observations).
+    collection_status: Mapped[str] = mapped_column(Text)
+    holidays_since_last_collection: Mapped[int] = mapped_column(SmallInteger)
+    collections_last_28d: Mapped[int] = mapped_column(SmallInteger)
+    missed_collections_28d: Mapped[int] = mapped_column(SmallInteger)
+
+
+class BinSchedule(Base):
+    __tablename__ = "bin_schedule"
+    __table_args__ = (
+        UniqueConstraint("bin_id", "date", name="uq_bin_schedule_bin_date"),
+        Index("ix_bin_schedule_date", "date"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_schedule_bin_id", ondelete="CASCADE"),
+    )
+    date: Mapped[date_] = mapped_column(Date)
+    bin: Mapped[Bin] = relationship(back_populates="schedule")
 
 
 class VasaImportRun(Base):
@@ -190,7 +258,7 @@ class Landfill(Base):
     facility_source: Mapped[str | None] = mapped_column(Text)
     municipal_arrangement_source: Mapped[str | None] = mapped_column(Text)
     current_status_source: Mapped[str | None] = mapped_column(Text)
-    verified_at: Mapped[date | None] = mapped_column(Date)
+    verified_at: Mapped[date_ | None] = mapped_column(Date)
 
 
 class Truck(Base):

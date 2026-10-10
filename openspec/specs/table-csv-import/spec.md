@@ -77,7 +77,7 @@ After an import, the next generated identifier of each imported table SHALL be g
 - **THEN** the new bin gets an ID greater than 21950 without a key conflict
 
 ### Requirement: Reject imports that would break references
-The command SHALL fail without changes when it would replace a table that another table without a file still references. Tables that have no file are never emptied implicitly.
+The command SHALL fail without changes when it would replace a table that another table without a file still references. Apart from the synchronization state and bin-day calendar resets described in this specification, tables that have no file are never emptied implicitly, except `bin_schedule`, which follows the requirement "Reset bin schedules with replaced bins".
 
 #### Scenario: Sites without dependents
 - **WHEN** only `sites_*.csv` is present and stored bins reference sites
@@ -99,6 +99,17 @@ When the import replaces `sites`, `bins` or `bin_hist`, it SHALL also discard al
 - **WHEN** only `trucks_*.csv` is present
 - **THEN** stored synchronization runs and progress are unchanged
 
+### Requirement: Empty the bin-day calendar with replaced bins
+When the import replaces `bins` and no `bin_days` file is selected, it SHALL also empty the derived bin-day calendar in the same transaction, so that no calendar row refers to a replaced bin. An import that does not replace `bins` SHALL keep the calendar.
+
+#### Scenario: Collection import empties the calendar
+- **WHEN** the calendar holds rows and files for `sites`, `bins` and `bin_hist` are imported
+- **THEN** the import succeeds and the calendar is empty until it is rebuilt
+
+#### Scenario: History-only import keeps the calendar
+- **WHEN** only `bin_hist_*.csv` is present
+- **THEN** the calendar rows are unchanged
+
 ### Requirement: Clear output and exit codes
 The command SHALL report which file is used for each table and how many rows each table contains after the import. It SHALL exit with 0 on success. It SHALL exit with 1 when there is nothing to import, the directory is missing, or the import fails, with a readable reason that doesn't disclose database credentials.
 
@@ -113,3 +124,18 @@ The command SHALL report which file is used for each table and how many rows eac
 #### Scenario: Missing directory
 - **WHEN** `--dir` points to a directory that does not exist
 - **THEN** the command changes nothing, reports the path, and exits with 1
+
+### Requirement: Reset bin schedules with replaced bins
+When the import replaces `bins` and there is no `bin_schedule` file, it SHALL empty `bin_schedule` in the same transaction and report that it did so. When a `bin_schedule` file is present, that table SHALL be replaced from the file like any other table. Imports that do not replace `bins` SHALL keep `bin_schedule` unchanged.
+
+#### Scenario: Current collection exports without a schedule file
+- **WHEN** the data directory has `sites`, `bins` and `bin_hist` exports but no `bin_schedule` export, and planned dates are stored
+- **THEN** the import succeeds, `bin_schedule` is empty, and the output says the schedules were cleared
+
+#### Scenario: Schedule export included
+- **WHEN** the data directory also contains `bin_schedule_202610101200.csv`
+- **THEN** `bin_schedule` contains exactly the rows of that file
+
+#### Scenario: History-only import keeps schedules
+- **WHEN** only `bin_hist_*.csv` is present
+- **THEN** stored planned dates are unchanged
