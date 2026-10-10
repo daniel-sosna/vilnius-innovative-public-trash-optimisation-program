@@ -41,4 +41,4 @@
 ## Workflow follow-up
 
 - Implementation begins only through the apply workflow after this proposal is presented.
-- Before a later user-requested archive, reconcile the overlapping daily-fill-prediction delta from train-fill-classifier with this superseding contract. Do not archive either change automatically.
+- Archive reconciliation (2026-10-11, explicitly requested by the user): retain train-fill-classifier as superseded history without syncing its obsolete delta, and sync this change's complete current daily-fill-prediction contract to main specs. See ARCHIVE_NOTES.md in both changes for the decision and verification evidence.
