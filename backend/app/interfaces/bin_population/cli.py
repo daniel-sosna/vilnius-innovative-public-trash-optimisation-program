@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import Settings
+from app.core.config import Settings, data_dir
 from app.infrastructure.database import SYNC_LOCK_TIMEOUT_MS, create_database_engine
 from app.interfaces.bin_population.allocation import (
     DEFAULT_SUPPRESSED_DENSITY,
@@ -22,7 +22,7 @@ from app.interfaces.bin_population.allocation import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FILE = Path(__file__).resolve().parents[3] / "data" / "population_density_1ha.geojson"
+DENSITY_FILE_NAME = "population_density_1ha.geojson"
 
 BINS_SQL = text(
     """
@@ -123,8 +123,8 @@ def main() -> int:
             "polygons and estimate the residents each bin serves."
         )
         parser.add_argument(
-            "--file", type=Path, default=DEFAULT_FILE,
-            help=f"Population density GeoJSON (default {DEFAULT_FILE})",
+            "--file", type=Path, default=data_dir() / DENSITY_FILE_NAME,
+            help=f"Population density GeoJSON (default: {DENSITY_FILE_NAME} in VIPTOP_DATA_DIR, else backend/data)",
         )
         parser.add_argument(
             "--suppressed-density", type=suppressed_density,

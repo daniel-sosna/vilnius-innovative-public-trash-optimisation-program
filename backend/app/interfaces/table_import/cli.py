@@ -9,13 +9,12 @@ from psycopg.errors import FeatureNotSupported
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
-from app.core.config import Settings
+from app.core.config import Settings, data_dir
 from app.infrastructure.database import SYNC_LOCK_TIMEOUT_MS, create_database_engine
 from app.infrastructure.models import Base
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path(__file__).resolve().parents[3] / "data"
 COLLECTION_TABLES = {"sites", "bins", "bin_hist"}
 SYNC_STATE_TABLES = ("vasa_import_runs", "vasa_import_progress")
 # Tables derived from bins, emptied when bins are replaced without their own file,
@@ -121,8 +120,8 @@ def main() -> int:
         parser.add_argument(
             "--dir",
             type=Path,
-            default=DEFAULT_DIR,
-            help=f"Directory with CSV exports (default: {DEFAULT_DIR})",
+            default=data_dir(),
+            help="Directory with CSV exports (default: VIPTOP_DATA_DIR, else backend/data)",
         )
         try:
             args = parser.parse_args()
