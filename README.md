@@ -1,6 +1,6 @@
 # VipTop Waste Collection Optimisation
 
-VipTop MVP for exploring more efficient public waste-container collection in Vilnius. Administrators can manage the truck fleet through the Lithuanian UI and persistent API. The backend also stores collection records and imports address-grouped sites, physical bins and service history from VASA on explicit command invocation. Prediction, route generation, and driver interfaces are future changes.
+VipTop MVP for exploring more efficient public waste-container collection in Vilnius. Administrators can manage the truck fleet through the Lithuanian UI and persistent API. The backend also stores collection records and imports address-grouped sites, physical bins and service history from VASA on explicit command invocation. Offline next-day fill prediction and a standalone model package are available; prediction integration into the demo UI, route generation, and driver interfaces are future changes.
 
 ## Technologies
 
@@ -18,6 +18,16 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │   ├── alembic/            # Reviewed database migrations
 │   ├── alembic.ini
 │   ├── start.sh            # Migrate before starting the server
+│   ├── configs/ml.yaml     # Offline ML inputs, dates and resource limits
+│   ├── requirements-ml.txt # Optional training and analysis dependencies
+│   ├── viptop_fill/        # Shared feature builder and standalone predictor
+│   ├── tests/ml/           # Focused offline ML checks
+│   ├── data/               # Local CSV exports and generated artifacts (git-ignored)
+│   │   └── ml/september-fill-predictor/
+│   │       ├── models/     # Both current trained candidates
+│   │       ├── charts/     # Analysis figures, with source tables indexed in the run
+│   │       ├── product/    # Standalone selected model and developer instructions
+│   │       └── product.zip # Developer handoff archive
 │   └── app/
 │       ├── core/           # Configuration and shared setup
 │       ├── domain/         # Business concepts and rules
@@ -27,13 +37,28 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── interfaces/     # trucks/ HTTP API, bin_sync/, bin_schedule_sync/, table_import/ and bin_days/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
-│       ├── ml/             # Future prediction logic
+│       ├── ml/             # Offline training, evaluation, reports and stage CLIs
 │       ├── optimization/   # Future route optimisation logic
 │       └── main.py
-├── scripts/                 # Future database and utility scripts
-├── docs/                    # Repeatable manual verification
+├── scripts/                 # Offline data preparation, fill/QR generation and cleanup
+├── docs/                    # Data-generation guides and repeatable manual verification
+├── openspec/                # Project governance, specifications and change artifacts
+├── README_ML.md             # Offline ML setup, reproduction and developer interface
 └── docker-compose.yml
 ```
+
+See [the ML guide](README_ML.md) for training and prediction commands and the
+developer package location. `backend/app/ml/` owns experiment orchestration;
+`backend/viptop_fill/` owns reusable in-memory features and inference. The latter
+is copied into the standalone product, which runs independently of backend and
+database settings. The default backend Docker image runs the API; run the offline
+ML commands with the separate dependencies described in the guide.
+
+The [fill/QR generation guide](docs/fill-qr-generation.md) describes the offline
+scripts. `scripts/prepare_training_data.py` prepares the base calendar and population
+exports using existing backend algorithms. Its inputs and outputs stay in
+`backend/data/`. The historical training CSV is fixed for the current ML run;
+prediction does not run data-generation scripts.
 
 ## Run locally
 

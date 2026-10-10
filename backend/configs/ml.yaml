@@ -1,0 +1,108 @@
+seed: 42
+threads: 4
+models:
+- catboost
+- random_forest
+paths:
+  daily: backend/data/bin_days_20231010_20261009_enriched.csv
+  registry: backend/data/bins_202610091935.csv
+  population: backend/data/bin_population.csv
+  district_aliases: backend/data/rules/district_aliases.csv
+  output: backend/data/ml/september-fill-predictor
+expected:
+  rows: 23777720
+  daily_bins: 21695
+  registry_bins: 21951
+  start: '2023-10-10'
+  end: '2026-10-09'
+splits:
+  calibration:
+  - '2023-10-10'
+  - '2024-10-09'
+  train:
+  - '2024-10-10'
+  - '2026-07-31'
+  validation:
+  - '2026-08-01'
+  - '2026-08-31'
+  test:
+  - '2026-09-02'
+  - '2026-10-01'
+folds:
+- train:
+  - '2024-10-10'
+  - '2025-10-09'
+  validation:
+  - '2025-10-10'
+  - '2026-01-09'
+- train:
+  - '2024-10-10'
+  - '2026-01-09'
+  validation:
+  - '2026-01-10'
+  - '2026-04-09'
+prediction_date: '2026-09-16'
+processing:
+  csv_chunk_rows: 100000
+  parquet_batch_rows: 100000
+  prediction_batch_rows: 20000
+sampling:
+  strata: marginal
+  pilot_rows: 2000
+  tuning_rows: 20000
+  final_rows: 100000
+  permutation_rows: 500
+  shap_rows: 50
+search:
+  budget_seconds: 600
+  max_process_memory_gib: 2.5
+  device: cuda
+  coarse:
+    random_forest:
+      n_estimators:
+      - 150
+      max_depth:
+      - 10
+      - 16
+      min_samples_leaf:
+      - 10
+      class_weight:
+      - null
+      - balanced_subsample
+      max_features:
+      - sqrt
+      max_samples:
+      - 0.7
+    catboost:
+      iterations:
+      - 300
+      depth:
+      - 4
+      - 6
+      learning_rate:
+      - 0.1
+      auto_class_weights:
+      - null
+      - Balanced
+      l2_leaf_reg:
+      - 3.0
+      random_strength:
+      - 1.0
+      bagging_temperature:
+      - 1.0
+unseen_sites:
+  fraction: 0.1
+  cold_start: true
+features:
+  inputs: active_21
+objective: needs_collection_f1
+decision:
+  tune_threshold: true
+evaluation:
+  reused_test_period: true
+final_train:
+- '2024-10-10'
+- '2026-08-31'
+demo_today:
+- '2026-09-01'
+- '2026-09-30'
