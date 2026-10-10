@@ -26,3 +26,10 @@ Never run `bin_sync` to get development data: parsing the VASA API is too slow. 
 The skills `worktree-create` (new git worktree for a branch, then set it up) and `worktree-setup` (prepare an existing checkout to run next to others) help run several branches at once. Their single maintained copy is in `.ai/skills/<name>/SKILL.md`; the files under `.claude/skills/`, `.agents/skills/` and `.github/skills/` only point to it, so edit `.ai/skills/` only. See [docs/development.md](docs/development.md#several-worktrees-at-once).
 
 See `README.md` for the Quick Start, project structure and documentation index.
+
+## OpenAI MCP
+
+When working with the OpenAI API, Responses API, function calling,
+models, SDKs, or other OpenAI functionality, always consult the
+OpenAI developer documentation MCP server before implementing.
+Prefer current official documentation over remembered API behavior.
