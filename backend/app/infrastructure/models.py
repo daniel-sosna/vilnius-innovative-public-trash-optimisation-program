@@ -28,6 +28,25 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention={"pk": "pk_%(table_name)s"})
 
 
+class ServiceZone(Base):
+    __tablename__ = "service_zones"
+    __table_args__ = (
+        UniqueConstraint("zone_number", name="uq_service_zones_zone_number"),
+        CheckConstraint("btrim(zone_name) <> ''", name="ck_service_zones_name"),
+        CheckConstraint(
+            "jsonb_typeof(geometry) = 'object' AND "
+            "geometry->>'type' IS NOT DISTINCT FROM 'Polygon' AND "
+            "jsonb_typeof(geometry->'coordinates') IS NOT DISTINCT FROM 'array'",
+            name="ck_service_zones_geometry",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    zone_name: Mapped[str] = mapped_column(Text)
+    zone_number: Mapped[int] = mapped_column(Integer)
+    geometry: Mapped[dict] = mapped_column(JSONB)
+
+
 class Site(Base):
     __tablename__ = "sites"
     __table_args__ = (

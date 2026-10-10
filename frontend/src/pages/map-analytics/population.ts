@@ -1,6 +1,7 @@
 import type { Feature, FeatureCollection, Polygon } from 'geojson'
 import type { ExpressionSpecification, FilterSpecification, MapLayerMouseEvent } from 'maplibre-gl'
 import type { MapLayerDefinition } from '@/components/maps/map-layer'
+import { isAnalyticsPoint } from '@/components/maps/layer-order'
 import { loadPopulation } from './api'
 import type { PopulationProperties } from './api'
 
@@ -66,11 +67,6 @@ export function populationDetails(feature: Feature<Polygon, PopulationProperties
   content.append(explanation)
   return content
 }
-
-// Point renderers use circle markers and symbol counts. Include future registered
-// point groups without depending on the order in which datasets finish loading.
-const isAnalyticsPoint = (layer: { id: string; type: string }) =>
-  layer.id.startsWith('analytics:') && (layer.type === 'circle' || layer.type === 'symbol')
 
 export const populationLayer: MapLayerDefinition = {
   id: 'population',

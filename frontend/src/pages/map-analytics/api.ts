@@ -1,5 +1,18 @@
 import type { FeatureCollection, Point, Polygon } from 'geojson'
 
+export type ServiceZoneProperties = {
+  zone_name: string
+  zone_number: number
+}
+
+export async function loadServiceZones(signal: AbortSignal): Promise<FeatureCollection<Polygon, ServiceZoneProperties>> {
+  const response = await fetch('/api/map-analytics/service-zones', { signal })
+  if (!response.ok) throw new Error('Service-zone read failed')
+  const data = await response.json() as FeatureCollection<Polygon, ServiceZoneProperties>
+  if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) throw new Error('Invalid map response')
+  return data
+}
+
 export type LandfillProperties = {
   name: string
   operator: string | null

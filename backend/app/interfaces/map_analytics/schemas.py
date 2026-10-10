@@ -32,6 +32,23 @@ class PolygonGeometry(BaseModel):
     coordinates: list[list[tuple[float, float]]]
 
 
+class ServiceZoneProperties(BaseModel):
+    zone_name: str
+    zone_number: int
+
+
+class ServiceZoneFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    id: int
+    geometry: PolygonGeometry
+    properties: ServiceZoneProperties
+
+
+class ServiceZoneFeatureCollection(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[ServiceZoneFeature]
+
+
 class PopulationProperties(BaseModel):
     density_per_ha: int | None
     suppressed: bool
