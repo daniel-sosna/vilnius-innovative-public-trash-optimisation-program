@@ -52,3 +52,11 @@ The tables and what their data means. Columns and constraints are defined in [`b
 ## Resident requests
 
 `resident_requests` stores only the bin and a timestamp, in Europe/Vilnius local time, without a time zone. A request is a raw signal: it is not a verified fill level and does not create a service event. Every submission adds a row.
+
+## Offline data and models
+
+The [fill/QR generator](data/fill-qr.md) produces an enriched local CSV with
+synthetic labels and QR counts. The [fill predictor](data/fill-prediction.md)
+uses that fixed source and writes its models, analysis and standalone delivery
+under the configured run directory. These are files rather than database tables;
+the collection plan uses the mock provider described in its own guide.

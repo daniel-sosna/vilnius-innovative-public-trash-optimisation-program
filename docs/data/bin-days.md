@@ -40,4 +40,5 @@ A bin gets a row for every date when it has a `sub_district` and at least one st
 
 A deleted bin loses its rows. An [import](import.md) of `bins` empties the table. Refreshing `bin_schedule` has no effect until the next rebuild.
 
-The generator reads `bin_hist` itself. When a bin has several events on one day, it uses the last one, and it resets fill on `collected` and `retry_collected`.
+Offline CSV preparation and synthetic fill/QR generation are described in
+[Fill/QR generation](fill-qr.md).

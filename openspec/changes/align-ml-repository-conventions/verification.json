@@ -1,0 +1,144 @@
+{
+  "recorded_at_utc": "2026-10-10T21:42:59.235348+00:00",
+  "branch": "ml-training",
+  "branch_parent": "e980a269258774cfc496f6d914d42a7122aec26d",
+  "merged_origin_main": "b1221e371b296caab4cd9468bcd5c274ec2f751b",
+  "passed": true,
+  "checks": {
+    "focused_ml": {
+      "passed": true,
+      "tests": 14,
+      "duration_seconds": 25.57
+    },
+    "generator_unit": {
+      "passed": true,
+      "tests": 20,
+      "duration_seconds": 2.105
+    },
+    "generator_fixture": {
+      "passed": true,
+      "rows": 90,
+      "excluded_bins": 5
+    },
+    "integrated_delivery": {
+      "passed": true,
+      "checks": {
+        "source_audit": true,
+        "source_hashes": true,
+        "active_schema": true,
+        "shared_builder_hash": true,
+        "ephemeral_features": true,
+        "tuning_sample": true,
+        "selection_train_sample": true,
+        "final_train_sample": true,
+        "search_fits": true,
+        "search_boundaries": true,
+        "search_resources": true,
+        "selection_frozen": true,
+        "catboost_final_fit": true,
+        "catboost_selection_fit": true,
+        "catboost_threshold_grid": true,
+        "random_forest_final_fit": true,
+        "random_forest_selection_fit": true,
+        "random_forest_threshold_grid": true,
+        "august_winner": true,
+        "thirty_scenarios": true,
+        "catboost_pooled_metrics": true,
+        "random_forest_pooled_metrics": true,
+        "chart_sources": true,
+        "unseen_sites_disjoint": true,
+        "cold_start_mask": true,
+        "catboost_importance_schema": true,
+        "random_forest_importance_schema": true,
+        "importance_dates": true,
+        "report": true,
+        "isolated_product": true,
+        "full_registry_product": true
+      },
+      "failed": []
+    },
+    "isolated_product": {
+      "passed": true,
+      "cases": [
+        {
+          "today": "2026-09-15",
+          "rows": 8
+        },
+        {
+          "today": "2026-09-30",
+          "rows": 8
+        }
+      ],
+      "probability_equality": true,
+      "csv_batch_equality": true,
+      "isolated": true,
+      "inference_device": "cpu",
+      "implicit_writes": false,
+      "product_model": "catboost",
+      "active_features": 21,
+      "manifest_sha256": "dbfdf000f3500296cfde7d4ad9c5cfdb5c608c21e7ad7b6dcdd4bb4d63122fba"
+    },
+    "docs": {
+      "passed": true,
+      "markdown_files": 16,
+      "relative_links": 99,
+      "readme_lines": 104,
+      "all_docs_indexed": true
+    },
+    "frontend_build": {
+      "passed": true,
+      "typescript": true,
+      "vite": "8.3.2",
+      "vite_duration_seconds": 16.65
+    },
+    "frontend_lint": {
+      "passed": true
+    },
+    "backend": {
+      "passed": true,
+      "openapi_paths": 16,
+      "migration_heads": [
+        "0016"
+      ],
+      "api_without_optional_ml_imports": true,
+      "configured_exports_present": true
+    },
+    "ml_cli_help": {
+      "passed": true,
+      "commands": 13
+    },
+    "openspec": {
+      "change_strict": true,
+      "main_specs_passed": 19
+    },
+    "integrity": {
+      "generator_executable_ast_unchanged": true,
+      "portable_source_unchanged": true,
+      "product_zip_sha256": "57eb506a5d2ae923c7126cf6881e4567823633e8e65aae0b4c395151e3133ae9",
+      "dependency_locks_unchanged": true,
+      "training_config_unchanged": true,
+      "moved_evidence_preserved": true,
+      "ml_entrypoint_eof_cleanup_ast_unchanged": true
+    },
+    "git": {
+      "conflicts": 0,
+      "data_files_staged": 0,
+      "diff_check_against_origin_main": true,
+      "remote_main_still_current": true
+    }
+  },
+  "warnings": [
+    "Existing large frontend bundle warning",
+    "Existing long-requirement warnings in upstream main specs",
+    "Full merge diff reports four upstream blank-EOF warnings; all four files exactly match origin/main, and branch changes pass git diff --check against origin/main"
+  ],
+  "limits": [
+    "No live database migration, database data write or browser UI verification",
+    "No full data regeneration or model refit; immutable source hashes and saved delivery verified"
+  ],
+  "generator_source": {
+    "recorded_at_generation_sha256": "e2e5be1e93acecfed94f10456adf67893754c401461c42e95aa27421ae106046",
+    "current_sha256": "1ea3581830663c08a94f4f299671d1ca0ba70d1224f693abfc60bd6c3f3d27b1",
+    "difference": "Guide pointer in module docstring only; executable AST is unchanged"
+  }
+}
