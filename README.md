@@ -252,6 +252,7 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   Importing `bins` also empties the derived `bin_population` and `bin_days` tables; refill
   them afterwards in this order: [Bin population](#bin-population-residents-per-bin), then
   [Bin-day calendar](#bin-day-calendar). The population polygons (`population_cells`) are kept.
+  It also empties the stored [Collection plan](#collection-plan); rebuild it with its command.
   Importing `bins` without a `bin_schedule_<digits>.csv` also empties `bin_schedule` (the
   output says so), because planned dates belong to the replaced bins; fetch them again with
   the schedule command. With a `bin_schedule_<digits>.csv`, that table is loaded from the file.
@@ -377,6 +378,49 @@ synthetic) is described in [`bin_days` columns](docs/bin-days-columns.md).
   change existing rows until the next rebuild.
 
 See [bin-day calendar verification](docs/bin-day-calendar-verification.md) for repeatable checks.
+
+## Collection plan
+
+The plan lists, for one date, the sites each waste carrier must serve, so routing can start
+from one consistent input. Tables: `collection_stops` (one row per date, carrier and site,
+with `overall_volume_m3` and `overall_predicted_fill_m3`) and `stop_bins` (the bins of a stop
+with their predicted fill level and a `due` flag).
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.collection_plan [--date YYYY-MM-DD] [--threshold N]
+```
+
+- **`--date`:** plan date, default today (container local date). Only that date's plan is
+  replaced, in one transaction; other dates are kept.
+- **`--threshold`:** integer 0..4, default 2. A bin is due when its predicted fill level is
+  **strictly greater** (default: levels 3 and 4). Invalid values exit 1 before anything changes.
+- **Mock prediction (assumption):** fill levels (0 empty .. 4 full) come from
+  `predict_fill_levels` in `backend/app/ml/fill_prediction.py`: synthetic, uniform per bin,
+  seeded from the date, so a date always gives the same plan. They are not observed data and
+  not a model; the real model replaces only that function (same `{bin_id: level}` contract).
+- **Grouping:** one stop per (date, waste carrier, site) that has at least one due bin; a
+  site with two carriers gives two stops. Bins without a carrier form **unassigned** stops
+  (carrier `NULL`).
+- **Stop contents:** the carrier's truck empties **all** of its bins at the site, so a stop
+  holds every bin of that carrier there (`due` marks the ones above the threshold). Totals
+  cover all those bins: `overall_volume_m3` is the sum of capacities and
+  `overall_predicted_fill_m3` the sum of capacity times the share a fill level stands for
+  (**assumption**, not measured: 0 = 20%, 1 = 50%, 2 = 80%, 3 = 100%, 4 = 150%, above 100%
+  meaning over-full; e.g. 0.6 m3 at level 2 gives 0.48 m3). A missing capacity counts as 0
+  and is reported in the summary. The totals are not recalculated until the next rebuild.
+- **Output and exit codes:** prints the counts and exits 0; exits 1 on invalid arguments,
+  database failure or when no bins are stored.
+- **Reading for routing:** `from app.services.collection_plan import get_plan`;
+  `get_plan(session, date, carriers=None)` returns `{carrier: [stop, ...]}` with the `None`
+  key for unassigned stops. With `carriers` (use `None` in it for unassigned) every requested
+  group is present, empty when it has no stops. A stop is a dict with `stop_id`, `site_id`,
+  `address`, `latitude`, `longitude`, `overall_volume_m3`, `overall_predicted_fill_m3` and
+  `bins` (`bin_id`, `waste_type`, `capacity_m3`, `predicted_fill`, `due`). Stops without a due
+  bin are skipped.
+- **Keeping it in sync:** deleting a bin or site removes it from the plan. A CSV import that
+  replaces `bins` empties the plan, so rebuild it afterwards.
+
+See [collection plan verification](docs/collection-plan-verification.md) for repeatable checks.
 
 ## Truck management
 

@@ -342,3 +342,56 @@ class Truck(Base):
     )
     available: Mapped[bool] = mapped_column(Boolean)
     deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+
+
+class CollectionStop(Base):
+    __tablename__ = "collection_stops"
+    __table_args__ = (
+        UniqueConstraint(
+            "date",
+            "waste_carrier",
+            "site_id",
+            name="uq_collection_stops_date_carrier_site",
+            postgresql_nulls_not_distinct=True,
+        ),
+        Index("ix_collection_stops_date", "date"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date)
+    # NULL is the unassigned group (bins without a waste carrier).
+    waste_carrier: Mapped[str | None] = mapped_column(Text)
+    site_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("sites.id", name="fk_collection_stops_site_id", ondelete="CASCADE"),
+    )
+    # Totals over all the carrier's bins at the site (not only the due ones), fixed at
+    # planning time and not recalculated afterwards.
+    overall_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
+    # Predicted (mock) volume of waste: capacity times the share each fill level stands for.
+    overall_predicted_fill_m3: Mapped[Decimal] = mapped_column(Numeric)
+
+
+class StopBin(Base):
+    __tablename__ = "stop_bins"
+    __table_args__ = (
+        CheckConstraint(
+            "predicted_fill BETWEEN 0 AND 4", name="ck_stop_bins_predicted_fill_range"
+        ),
+        Index("ix_stop_bins_bin_id", "bin_id"),
+    )
+
+    stop_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("collection_stops.id", name="fk_stop_bins_stop_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_stop_bins_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    # Predicted (currently mock, synthetic) fill level: 0 to 4.
+    predicted_fill: Mapped[int] = mapped_column(SmallInteger)
+    # True when bin is due for collection today.
+    due: Mapped[bool] = mapped_column(Boolean)
