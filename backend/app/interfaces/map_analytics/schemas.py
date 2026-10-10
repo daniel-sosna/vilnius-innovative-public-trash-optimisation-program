@@ -49,3 +49,21 @@ class PopulationFeature(BaseModel):
 class PopulationFeatureCollection(BaseModel):
     type: Literal["FeatureCollection"] = "FeatureCollection"
     features: list[PopulationFeature]
+
+
+class BinProperties(BaseModel):
+    inventory_number: str | None
+    waste_type: str
+    capacity_m3: float | None
+
+
+class BinFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    id: int
+    geometry: PointGeometry
+    properties: BinProperties
+
+
+class BinFeatureCollection(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[BinFeature]

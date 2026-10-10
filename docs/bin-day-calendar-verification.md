@@ -9,6 +9,7 @@ Expected numbers are for the current exports (21,951 bins, 147 without a sub-dis
 Shorthand used below:
 
 ```bash
+DATA="$(scripts/dev-info.sh | sed -n 's/^Data dir: *//p')"   # host folder mounted as /app/data
 BIN_DAYS="docker compose exec -T backend uv run python -m app.interfaces.bin_days"
 SQL() { docker compose exec -T db psql -U viptop -d viptop -Atc "$1"; }
 SQLF() { docker compose exec -T db psql -U viptop -d viptop -At -v ON_ERROR_STOP=1; }  # reads stdin
@@ -96,9 +97,9 @@ SQL "$HASH"
 SQL "delete from bin_hist"
 $BIN_DAYS --start 2026-09-09 --end 2026-10-09
 SQL "$HASH"
-mkdir backend/data/histonly && cp backend/data/bin_hist_*.csv backend/data/histonly/
+mkdir $DATA/histonly && cp $DATA/bin_hist_*.csv $DATA/histonly/
 docker compose exec -T backend uv run python -m app.interfaces.table_import --dir /app/data/histonly
-rm -r backend/data/histonly
+rm -r $DATA/histonly
 ```
 
 Expected: both hashes are identical. The history-only import restores `bin_hist` without

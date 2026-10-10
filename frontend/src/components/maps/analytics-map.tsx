@@ -3,7 +3,7 @@ import { Map as LibreMap, NavigationControl, Popup, setWorkerUrl } from 'maplibr
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
-import type { LayerRenderer, LayerSelection, LayerStates, MapLayerDefinition } from './map-layer'
+import type { LayerData, LayerRenderer, LayerSelection, LayerStates, MapLayerDefinition } from './map-layer'
 import './analytics-map.css'
 
 setWorkerUrl(workerUrl)
@@ -12,6 +12,7 @@ type MapProps = {
   definitions: readonly MapLayerDefinition[]
   selection: LayerSelection
   states: LayerStates
+  renderedData?: Record<string, LayerData | undefined>
 }
 
 export function AnalyticsMap(props: MapProps) {
@@ -30,19 +31,19 @@ export function AnalyticsMap(props: MapProps) {
   return <AnalyticsCanvas {...props} style={style} />
 }
 
-function AnalyticsCanvas({ definitions, selection, states, style }: MapProps & { style: string }) {
+function AnalyticsCanvas({ definitions, selection, states, renderedData, style }: MapProps & { style: string }) {
   const container = useRef<HTMLDivElement>(null)
-  const latest = useRef({ selection, states })
+  const latest = useRef({ selection, states, renderedData })
   const camera = useRef({ center: [25.2797, 54.6872] as [number, number], zoom: 10, bearing: 0, pitch: 0 })
-  const runtime = useRef<{ map: LibreMap; sync(selection: LayerSelection, states: LayerStates): void } | null>(null)
+  const runtime = useRef<{ map: LibreMap; sync(selection: LayerSelection, states: LayerStates, renderedData?: Record<string, LayerData | undefined>): void } | null>(null)
   const [revision, setRevision] = useState(0)
   const [result, setResult] = useState<{ revision: number; status: 'ready' | 'error' } | null>(null)
   const status = result?.revision === revision ? result.status : 'loading'
 
   useEffect(() => {
-    latest.current = { selection, states }
-    runtime.current?.sync(selection, states)
-  }, [selection, states])
+    latest.current = { selection, states, renderedData }
+    runtime.current?.sync(selection, states, renderedData)
+  }, [selection, states, renderedData])
 
   useEffect(() => {
     if (!container.current) return
@@ -50,6 +51,7 @@ function AnalyticsCanvas({ definitions, selection, states, style }: MapProps & {
     let observer: ResizeObserver | undefined
     let popup: { id: string; value: Popup } | undefined
     const renderers = new Map<string, LayerRenderer>()
+    const appliedData = new Map<string, LayerData>()
     let disposed = false
     let ready = false
     let failed = false
@@ -83,26 +85,35 @@ function AnalyticsCanvas({ definitions, selection, states, style }: MapProps & {
       const clearPointerFocus = () => canvas.removeAttribute('data-pointer-focus')
       canvas.addEventListener('keydown', clearPointerFocus, { signal: events.signal })
       canvas.addEventListener('blur', clearPointerFocus, { signal: events.signal })
-      const sync = (selected: LayerSelection, loaded: LayerStates) => {
+      const sync = (selected: LayerSelection, loaded: LayerStates, rendered?: Record<string, LayerData | undefined>) => {
         if (!ready || disposed) return
         for (const layer of definitions) {
           let renderer = renderers.get(layer.id)
           const state = loaded[layer.id]
+          const data = rendered?.[layer.id] ?? (state?.status === 'ready' ? state.data : undefined)
           if (!renderer && selected[layer.id] && state?.status === 'ready') {
             renderer = layer.attach({
               map: instance, closeDetails,
-              showDetails(id, coordinates, content) {
+              showDetails(id, coordinates, content, onClose) {
                 popup?.value.remove()
                 const value = new Popup({ maxWidth: '280px', className: 'analytics-popup', focusAfterOpen: true })
                   .setLngLat(coordinates).setDOMContent(content).addTo(instance)
                 popup = { id, value }
+                value.on('close', () => {
+                  if (popup?.value === value) popup = undefined
+                  onClose?.()
+                })
                 const close = value.getElement().querySelector<HTMLButtonElement>('.maplibregl-popup-close-button')
                 close?.setAttribute('aria-label', 'Uždaryti informaciją')
                 close?.setAttribute('title', 'Uždaryti informaciją')
                 close?.addEventListener('click', () => instance.getCanvas().focus(), { once: true })
               },
-            }, state.data)
+            }, data ?? state.data)
             renderers.set(layer.id, renderer)
+            appliedData.set(layer.id, data ?? state.data)
+          } else if (renderer?.setData && data && appliedData.get(layer.id) !== data) {
+            renderer.setData(data)
+            appliedData.set(layer.id, data)
           }
           renderer?.setVisible(!!selected[layer.id])
         }
@@ -114,7 +125,7 @@ function AnalyticsCanvas({ definitions, selection, states, style }: MapProps & {
         window.clearTimeout(timeout)
         if (disposed) return
         ready = true
-        sync(latest.current.selection, latest.current.states)
+        sync(latest.current.selection, latest.current.states, latest.current.renderedData)
         if (!failed) setResult({ revision, status: 'ready' })
       })
       const closeWithEscape = (event: KeyboardEvent) => {

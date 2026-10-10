@@ -2,12 +2,18 @@ from fastapi import APIRouter
 
 from app.interfaces.collection_session import CollectionSession
 from app.interfaces.map_analytics.schemas import (
+    BinFeatureCollection,
     LandfillFeatureCollection,
     PopulationFeatureCollection,
 )
-from app.services.map_analytics import landfill_features, population_features
+from app.services.map_analytics import bin_features, landfill_features, population_features
 
 router = APIRouter(prefix="/map-analytics", tags=["Map analytics"])
+
+
+@router.get("/bins", response_model=BinFeatureCollection)
+def bins(session: CollectionSession) -> dict:
+    return bin_features(session)
 
 
 @router.get("/landfills", response_model=LandfillFeatureCollection)

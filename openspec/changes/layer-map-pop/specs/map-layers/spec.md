@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Independent layer selection
-The `Sluoksniai` section SHALL list all registered datasets with labeled checkboxes showing dataset names without descriptive paragraphs. Checking a layer SHALL display it; unchecking SHALL hide it. Multiple layers SHALL be selectable simultaneously without disabling one another. Initially all checkboxes SHALL be unchecked. `Gyventojų tankumas` SHALL be offered alongside existing registered datasets.
+The `Sluoksniai` section SHALL list all registered datasets with labeled checkboxes showing dataset names without descriptive paragraphs. Checking a layer SHALL display it; unchecking SHALL hide it. Multiple layers SHALL be selectable simultaneously without disabling one another. Dataset controls SHALL appear horizontally, wrapping only when available width requires it. Initially all checkboxes SHALL be unchecked. `Sąvartynai`, `Konteineriai` and `Gyventojų tankumas` SHALL be offered together.
 
 #### Scenario: Enable the first layer
 - **WHEN** an administrator checks `Sąvartynai`
@@ -26,6 +26,10 @@ The `Sluoksniai` section SHALL list all registered datasets with labeled checkbo
 - **WHEN** population is enabled while a point dataset is selected
 - **THEN** polygons and the selected point dataset remain visible together
 - **AND** toggling population preserves other dataset selections and any registered dataset filters
+
+#### Scenario: Align dataset controls
+- **WHEN** the dataset controls fit on one row
+- **THEN** all checkbox and label centers align vertically, including beside the taller bin waste-type arrow
 
 ### Requirement: Layer identity and extension contract
 Each layer SHALL have a stable ID, display name, dataset meaning, render kind, color-meaning legend entries and independent visibility state. Extensions SHALL be able to register point or non-point renderers without replacing the map screen or treating polygons/grids as markers. Active IDs and their dataset definitions SHALL be available to later in-app consumers without implementing an analytics assistant.

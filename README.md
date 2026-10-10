@@ -53,7 +53,7 @@ docker compose up --build -d
 ```
 
 This removes all existing database records and recreates dependency volumes;
-CSV files under `backend/data/` remain on disk for your later import. The old
+CSV files under the data directory remain on disk for your later import. The old
 branch used `0005` for resident requests and `0006` for manual collection
 management; main uses those revisions for truck volume and landfills. An old
 branch database cannot be upgraded using those ambiguous version numbers.
@@ -82,6 +82,9 @@ The services are available at:
 - Frontend: <http://localhost:5173>
 - Backend: <http://localhost:8000>
 - FastAPI docs: <http://localhost:8000/docs>
+
+In worktree mode (see [Running several worktrees at once](#running-several-worktrees-at-once))
+the ports are chosen by Docker; run `scripts/dev-info.sh` to print the URLs.
 
 `DATABASE_URL` and positive finite `BIN_SYNC_HTTP_TIMEOUT_SECONDS` are required.
 VASA tile/detail/history URL templates default to the HTTPS endpoints in
@@ -137,6 +140,44 @@ uv run python -m app.interfaces.table_import
 
 These credentials are the local Compose defaults; use the connection details for your database. Native commands, including Alembic and the importer, load the repository-root `.env` using the configuration module's location, independent of the working directory. The shared file can include `POSTGRES_*` settings. Exported variables override dotenv values: the localhost connection above overrides the example's container-only `db` hostname. No exported synchronization variables are needed when the file contains them. Standalone images obtain all required settings from their environment and do not need a copied or mounted dotenv file.
 
+## Running several worktrees at once
+
+Every checkout (git worktree) gets its own containers, network and volumes, because
+Compose names the project after the checkout folder. Only the host ports clash: by
+default each stack asks for 5173, 8000 and 5432. Single-branch developers need
+nothing below.
+
+To run several checkouts side by side, turn on **worktree mode** in each checkout's `.env`:
+
+```bash
+COMPOSE_FILE=docker-compose.yml:docker-compose.worktree.yml
+```
+
+Then `docker compose up --build -d` publishes every service on a free port chosen by
+Docker. To find the URLs, run from the checkout:
+
+```bash
+scripts/dev-info.sh
+```
+
+It prints the project, mode, frontend, backend and API-docs URLs, the PostgreSQL
+`localhost:<port>` (user and database name, never the password) and the data directory
+mounted into the backend. It exits non-zero when the stack is not running.
+
+- **Fixed ports:** `FRONTEND_PORT`, `BACKEND_PORT` and `DB_PORT` set the host port of one
+  service in either mode; unset ones keep 5173/8000/5432 (default mode) or a Docker-chosen
+  port (worktree mode).
+- **Ports change:** Docker-chosen ports are kept while the containers exist but change when
+  they are recreated (`docker compose up` after a config change, `down`). Re-run
+  `scripts/dev-info.sh`, or set the port variables for stable values.
+- **Database from native tools:** use the `localhost:<port>` from `scripts/dev-info.sh`,
+  e.g. `DATABASE_URL=postgresql+psycopg://viptop:viptop@localhost:<port>/viptop`.
+- **Windows:** `COMPOSE_FILE` uses `;` as separator there, or set
+  `COMPOSE_PATH_SEPARATOR=:` first.
+- **Shared exports:** `VIPTOP_DATA_DIR` lets worktrees share one folder of CSV exports; see
+  [Import table CSV exports](#import-table-csv-exports).
+- **Agents:** the `worktree-create` and `worktree-setup` skills do these steps for you.
+
 ## Resident emptying requests
 
 Open `/resident-request/{bin_id}` using the bin's internal `Bin.id`, for example
@@ -183,8 +224,9 @@ for repeatable synthetic migration, API, SQL, failure, and mobile checks.
 
 This is the required way to get collection data for development: load table
 exports shared by a teammate instead of running a slow VASA synchronization.
-Put the CSV files in `backend/data/` (contents git-ignored except `.gitkeep`, and
-excluded from the Docker build) and run:
+Put the CSV files in the data directory: `backend/data/` by default (contents git-ignored
+except `.gitkeep`, and excluded from the Docker build), or the folder named by
+`VIPTOP_DATA_DIR` (see below), then run:
 
 ```bash
 docker compose exec backend uv run python -m app.interfaces.table_import
@@ -192,6 +234,13 @@ docker compose exec backend uv run python -m app.interfaces.table_import
 uv run python -m app.interfaces.table_import --dir /path/to/exports
 ```
 
+- **Data directory:** `--dir` wins; otherwise `VIPTOP_DATA_DIR` (environment or root `.env`;
+  a relative value is resolved from the repository root); otherwise `backend/data/`. In
+  Compose, `VIPTOP_DATA_DIR` selects the host folder mounted as the backend's `/app/data`, so
+  worktrees can share one set of exports, e.g. `VIPTOP_DATA_DIR=../data` in each worktree's
+  `.env`. Create the folder first: Docker makes a missing one empty, owned by root, and the
+  import then finds nothing. After changing it, run `docker compose up -d` to recreate the
+  backend; `scripts/dev-info.sh` shows the folder in use.
 - **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
   files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
 - **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
@@ -215,10 +264,10 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   missing or the import fails.
 
 **For AI agents:** before any task that needs collection data, check that
-`backend/data/` contains `sites_<digits>.csv`, `bins_<digits>.csv` and
+the configured data directory (`VIPTOP_DATA_DIR`, default `backend/data/`) contains `sites_<digits>.csv`, `bins_<digits>.csv` and
 `bin_hist_<digits>.csv`. If any is missing, stop and ask the developer to add the
 exports. Do not run `bin_sync` to obtain the data instead. Likewise, before building the
-bin population, check that `backend/data/population_density_1ha.geojson` exists; if it is
+bin population, check that `population_density_1ha.geojson` exists in that directory; if it is
 missing, stop and ask the developer to add it.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
@@ -226,8 +275,8 @@ See [table import verification](docs/table-import-verification.md) for repeatabl
 ## Bin population (residents per bin)
 
 `bin_population` estimates how many residents each bin serves, from the Vilnius
-population-density grid. Place `population_density_1ha.geojson` in `backend/data/`
-(git-ignored like the CSV exports), import the collection data, then run:
+population-density grid. Place `population_density_1ha.geojson` in the data directory
+(`backend/data/` unless `VIPTOP_DATA_DIR` is set; git-ignored like the CSV exports), import the collection data, then run:
 
 ```bash
 docker compose exec backend uv run python -m app.interfaces.bin_population
@@ -235,7 +284,7 @@ docker compose exec backend uv run python -m app.interfaces.bin_population
 uv run python -m app.interfaces.bin_population --file /path/to/population_density_1ha.geojson
 ```
 
-Options: `--file` (default `backend/data/population_density_1ha.geojson`) and
+Options: `--file` (default `population_density_1ha.geojson` in the data directory) and
 `--suppressed-density` (default 5, between 0 and 10). It takes a few seconds, replaces
 `population_cells` and `bin_population` in one transaction (a failure changes nothing) and
 exits 0 on success, 1 on failure. The summary prints polygon and resident totals, how many
@@ -757,15 +806,37 @@ The large Vilnius map fills the content width. One card underneath contains
 `Sluoksniai` and name-only checkboxes, then `Legenda` and labeled color swatches.
 Long layer lists scroll internally. Clicking the map does not draw a focus
 outline; keyboard interaction retains visible focus.
-Check `Sąvartynai` to load the existing three-facility catalog, explore clustered
-counts, click clusters to zoom in and click individual points for recorded details.
-The layer starts unchecked; successful data is reused until leaving the page.
-Toggles preserve the view. Dataset retry and map recovery are independent.
-The `Legenda` section lists registered color meanings:
-landfill pins and clusters are green. Definitions can supply multiple categories
-and feature-based point colors; the same legend metadata supports future
-non-point renderers. Facility popups show the name as a heading and only operator
-and address rows.
+Check `Sąvartynai` or `Konteineriai` independently to load their recorded locations.
+Both start unchecked and load only on first enable; successful data is reused
+until leaving the page. Toggles preserve the view. Dataset retry and map recovery
+are independent. Facility popups show the name as a heading and only operator
+and address rows. Bin popups show only inventory number, localized waste type
+and capacity in cubic metres; null details display `N/A`.
+
+The `Legenda` section lists all registered color meanings, even for hidden layers:
+black landfill pins/clusters; blue paper/plastic, green glass, brown mixed municipal
+and gray other-waste bins; neutral `Konteinerių grupė` count markers.
+Dataset checkboxes align on the same row and wrap on narrow screens. Click the
+small arrow beside `Konteineriai` to open the `Atliekų rūšys` modal and filter categories.
+All start selected; the other-waste checkbox appears only when that category is
+present. Category choices survive main-layer toggles for the page session and
+reset on a new session. Filters update points and cluster counts without another
+request or camera movement. Selecting no categories displays
+`Nepasirinkta atliekų rūšių.`, distinct from an empty source dataset.
+
+Ordinary clusters expand on click. At zoom 15 and above, a remaining bin group
+opens a scrollable list; choose a bin for its details and use `Atgal į sąrašą`
+to select another. Native bin seeds use an 80-pixel radius below zoom 15 and
+20 pixels at higher zoom. A screen-space pass repeatedly merges intersecting
+circles, including strokes, into exact-count groups until none overlap. It uses
+the actual camera and fractional zoom; identical-coordinate bins stay grouped
+through maximum zoom. The cached native index supplies complete membership for
+each displayed group. Bin circles/counts stay visible during camera movement
+while MapLibre replaces their cluster layout. Pending source updates gate clicks;
+only filter changes temporarily withhold obsolete category membership.
+Filtering, hiding the layer or navigating
+after opening a group closes it and invalidates pending interactions. Group-list
+retry does not reload the dataset. Landfill clustering retains its existing defaults.
 
 `GET /map-analytics/landfills` (browser: `/api/map-analytics/landfills`) returns a
 GeoJSON FeatureCollection ordered by landfill ID. Points use `[longitude,
@@ -796,6 +867,16 @@ empty collection. No new migrations or dependencies are required.
 
 See [population map verification](docs/population-map-verification.md) for the
 isolated runtime, repeatable read-only API comparison and browser walkthrough.
+
+`GET /map-analytics/bins` (browser: `/api/map-analytics/bins`) returns the complete,
+unpaginated stored bin registry as a GeoJSON FeatureCollection in ascending bin
+ID order. Each feature uses the bin ID, Point coordinates `[longitude, latitude]`
+and exactly `inventory_number`, `waste_type`, `capacity_m3` properties. Capacity is
+a JSON number or null; nullable details remain null and source waste-type strings
+remain unchanged. Null, non-finite or out-of-range coordinates omit the feature.
+No displayable bins yields `features: []`. The endpoint uses the existing
+read-only collection session and preserves all collection and landfill APIs.
+The `layer-map-bins` frontend is integrated; browser acceptance remains pending.
 
 Analytics uses the same `VITE_MAP_STYLE_URL` startup/build setting as site maps,
 with no component fallback. The configured style must support the cluster-count

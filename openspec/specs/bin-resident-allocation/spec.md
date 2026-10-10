@@ -14,7 +14,7 @@ The resident allocation, meaning the stored population polygons and the per-bin 
 - **THEN** the stored population polygons and per-bin values are unchanged
 
 ### Requirement: Load population polygons from the density file
-The command SHALL read a GeoJSON FeatureCollection of polygons in longitude/latitude. The default is `backend/data/population_density_1ha.geojson`, and `--file` gives another path. Each feature SHALL be stored as one population polygon whose identifier is the feature's `OBJECTID`, with its density value and its area. A rebuild SHALL replace all previously stored polygons.
+The command SHALL read a GeoJSON FeatureCollection of polygons in longitude/latitude. The default is `population_density_1ha.geojson` in the data directory: `VIPTOP_DATA_DIR` when set (relative values resolved from the repository root), otherwise `backend/data/`. `--file` gives another path. Each feature SHALL be stored as one population polygon whose identifier is the feature's `OBJECTID`, with its density value and its area. A rebuild SHALL replace all previously stored polygons.
 
 #### Scenario: Current Vilnius file
 - **WHEN** the command runs with the current density file
@@ -27,6 +27,14 @@ The command SHALL read a GeoJSON FeatureCollection of polygons in longitude/lati
 #### Scenario: Unreadable feature
 - **WHEN** a feature has no `OBJECTID`, has a geometry that is not a polygon, or has a density value that is not a whole number, `"<11"` or null
 - **THEN** the command changes nothing, names the feature and the problem, and exits with 1
+
+#### Scenario: Shared data directory
+- **WHEN** `VIPTOP_DATA_DIR` names a folder containing `population_density_1ha.geojson` and the command runs without `--file`
+- **THEN** the polygons are read from that folder's file
+
+#### Scenario: Explicit file beats the variable
+- **WHEN** `VIPTOP_DATA_DIR` is set and the command is run with `--file /some/file.geojson`
+- **THEN** the polygons are read from `/some/file.geojson`
 
 ### Requirement: Residents of a polygon
 The residents of a polygon SHALL be its density per hectare multiplied by its area in hectares. A polygon can merge several neighbouring 1 ha cells that share one density value. A suppressed value `"<11"` SHALL count as an assumed density, `--suppressed-density` (default 5, between 0 and 10). A null value SHALL count as 0 residents. Resident numbers are estimates, not counts.

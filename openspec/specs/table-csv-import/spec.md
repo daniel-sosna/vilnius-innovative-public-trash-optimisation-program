@@ -14,7 +14,7 @@ Table import SHALL run only when an operator invokes the import command. It SHAL
 - **THEN** no table contents change until the import command is run
 
 ### Requirement: Discover export files by table name
-The command SHALL read CSV files from `backend/data/` by default, or from a directory given with `--dir`. A file SHALL be matched to a database table when its name is `<table>_<digits>.csv` and `<table>` is a table of the application schema. When several files match one table, the file whose digit suffix sorts highest SHALL be used. Files that match no table SHALL be ignored with a warning.
+The command SHALL read CSV files from a directory given with `--dir`, otherwise from `VIPTOP_DATA_DIR` when set (relative values resolved from the repository root), otherwise from `backend/data/`. Inside the backend container, the default is the mounted data directory. A file SHALL be matched to a database table when its name is `<table>_<digits>.csv` and `<table>` is a table of the application schema. When several files match one table, the file whose digit suffix sorts highest SHALL be used. Files that match no table SHALL be ignored with a warning.
 
 #### Scenario: Default directory with current exports
 - **WHEN** the data directory contains `sites_202610092000.csv`, `bins_202610091935.csv` and `bin_hist_202610091935.csv`
@@ -35,6 +35,18 @@ The command SHALL read CSV files from `backend/data/` by default, or from a dire
 #### Scenario: Custom directory
 - **WHEN** the command is run with `--dir /some/path`
 - **THEN** files are discovered only in `/some/path`
+
+#### Scenario: Shared data directory when run natively
+- **WHEN** the root `.env` sets `VIPTOP_DATA_DIR=../data` and the command runs natively without `--dir`
+- **THEN** files are discovered only in the `data` folder next to the repository root
+
+#### Scenario: Explicit directory beats the variable
+- **WHEN** `VIPTOP_DATA_DIR` is set and the command is run with `--dir /some/path`
+- **THEN** files are discovered only in `/some/path`
+
+#### Scenario: Inside the container
+- **WHEN** Compose mounts the folder named by `VIPTOP_DATA_DIR` as the backend's data directory and the command runs in the backend container without `--dir`
+- **THEN** files are discovered in that mounted folder
 
 ### Requirement: Replace only tables that have a file
 Each selected table's entire contents SHALL be replaced by the rows of its file. Tables without a matching file SHALL keep their contents unchanged.

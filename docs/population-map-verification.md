@@ -244,3 +244,30 @@ CSV importer or population allocation implementation changed. The isolated
 Compose stack remains running for review at the URLs above. Review and archive
 the OpenSpec change separately after acceptance; this implementation does not
 integrate the other worktree's bin map layer.
+
+## Integration with origin/main (2026-10-10)
+
+Merged main at `260c7a1` into the population branch. The earlier results above
+describe the original population implementation; this integration adds main's
+bin renderer, filters, popup lifecycle and black landfill appearance. Shared
+schemas/services/router and registry retain all three datasets. The analytics
+page uses main's horizontal, wrapping checkbox layout unchanged, with aligned
+labels and the waste-type arrow. The population delta's selection requirement
+also retains the row layout and bin availability for later spec synchronization.
+
+After `npm ci` in the isolated frontend container, build and lint passed.
+Population API/storage comparison passed directly and through the proxy, and
+`node scripts/verify-bin-clusters.mjs http://backend:8000` passed with all 21,951
+source bins, disjoint circles and exact membership. OpenSpec strict validation
+and staged whitespace checks passed.
+
+Local Chromium checks passed: three checkbox labels aligned at the same desktop
+row position; no unchecked dataset requests; 320 px document width without
+horizontal overflow; wrapping controls and a usable waste-type modal. Both
+enable orders retained bin priority over population. A real five-bin group over
+known-density polygons opened exactly five entries and allowed individual
+details. Hiding population preserved those bin details. Filtering to mixed
+municipal waste preserved camera/population and triggered no additional reads;
+an individual filtered point opened inventory `13-L-422778`. A 342-bin ordinary
+cluster expanded without a population popup. No browser JavaScript errors were
+observed. Desktop and mobile screenshots were inspected locally.
