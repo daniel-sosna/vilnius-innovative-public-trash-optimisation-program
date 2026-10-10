@@ -3,7 +3,22 @@ from math import isfinite
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.models import Bin, Landfill, PopulationCell
+from app.infrastructure.models import Bin, DistrictBoundary, Landfill, PopulationCell
+
+
+def district_features(session: Session) -> dict:
+    rows = session.execute(
+        select(DistrictBoundary.id, DistrictBoundary.district_name, DistrictBoundary.geometry)
+        .order_by(DistrictBoundary.id)
+    ).mappings()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "id": row["id"], "geometry": row["geometry"],
+             "properties": {"district_name": row["district_name"]}}
+            for row in rows
+        ],
+    }
 
 
 def bin_features(session: Session) -> dict:

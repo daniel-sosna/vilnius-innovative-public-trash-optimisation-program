@@ -243,6 +243,13 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   backend; `scripts/dev-info.sh` shows the folder in use.
 - **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
   files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
+- **District source:** the same selected directory may contain
+  `vilnius_seniuniju_ribos.geojson`. It replaces `district_boundaries` in the CSV
+  transaction, with a committed source/count summary. Missing GeoJSON and no
+  district CSV warns and preserves the catalog; a present invalid/unreadable
+  source fails the entire import. Boundary-only input succeeds. Both this GeoJSON
+  and `district_boundaries_<digits>.csv` together fail before writes and identify
+  both paths. A district CSV alone follows the normal newest-file and ID rules.
 - **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
   (as DBeaver writes it), quoted text. Export after running the same migrations.
 - **Replacement:** only tables that have a file are emptied and reloaded (IDs are kept);
@@ -271,6 +278,62 @@ bin population, check that `population_density_1ha.geojson` exists in that direc
 missing, stop and ask the developer to add it.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
+## District boundaries (Seniūnijos)
+
+Put `vilnius_seniuniju_ribos.geojson` in the configured data directory alongside
+the CSV exports. It is ignored by Git and excluded from Docker images. Native
+commands resolve `VIPTOP_DATA_DIR` from the environment or root `.env`, with
+relative paths resolved from the repository root; the default is `backend/data/`.
+Compose mounts that host folder at `/app/data`, so shared worktree data belongs
+in the shared host folder, not inside an image.
+
+Apply migrations, then explicitly import the catalog:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.district_boundaries
+# native, from backend/ with an accessible DATABASE_URL
+uv run python -m app.interfaces.district_boundaries
+# optional explicit source, in the command's filesystem
+uv run python -m app.interfaces.district_boundaries --file /path/to/districts.geojson
+```
+
+The command validates the entire nonempty FeatureCollection and replaces the
+catalog in one transaction. It preserves source names, diacritics, coordinates
+and all Polygon rings. It rejects duplicate names/OBJECTIDs, unsupported CRS,
+projected or non-finite positions, unclosed and degenerate rings. These are
+structural checks, not full topology validation. No reprojection is performed.
+The supplied snapshot has 21 districts and 8,916 positions; its effective date
+is unknown. Repeat imports replace rather than accumulate rows; generated IDs
+can change. Collection and population data are untouched. Success reports the
+source and district count and exits 0; missing/invalid input or database errors
+exit 1 and preserve the previous catalog. Startup, migrations and map reads
+never import the source automatically.
+
+`GET /map-analytics/district-boundaries` (browser:
+`/api/map-analytics/district-boundaries`) returns every stored Polygon in ascending
+generated ID order, with only `district_name` properties. An empty catalog returns
+an empty successful FeatureCollection; database failures use the existing HTTP
+500 collection-read contract. Reads never access the source file.
+
+Compare every response ID/name/ring with a read-only database snapshot:
+
+```bash
+# native, from backend/, DATABASE_URL must target the same database as these URLs
+uv run python -m app.interfaces.district_boundaries.check \
+  --url http://127.0.0.1:8000/map-analytics/district-boundaries \
+  --url http://127.0.0.1:5173/api/map-analytics/district-boundaries
+# container URLs use service names and internal ports
+docker compose exec -T backend uv run python -m app.interfaces.district_boundaries.check \
+  --url http://backend:8000/map-analytics/district-boundaries \
+  --url http://frontend:5173/api/map-analytics/district-boundaries --host localhost
+```
+
+The checker accepts repeated `--url` and an optional `--host` for a proxy. It
+reports district/ring/position counts, payload bytes and timing; success exits 0,
+mismatches or read failures exit 1 without printing credentials. See
+[district verification](docs/district-boundaries-verification.md) for import,
+source-independence, API and map checks.
 
 ## Bin population (residents per bin)
 
@@ -853,6 +916,14 @@ Points and cluster counts remain above the grid. Clicking an area shows its
 recorded density, full area and approximate resident total in Lithuanian.
 Suppressed source density stays `<11`; its estimate assumption is derived from
 the stored total and area, rather than presented as a measured density.
+
+Check `Seniūnijos` to display the 21 imported district boundaries with stable,
+distinct vibrant translucent colors and outlines, without district name labels. It starts unchecked,
+loads on first enable and reuses the page-session cache. Fills and outlines
+hide together. The overlay adds no legend entries or feature interaction.
+Population remains above district context, with point markers/counts above both,
+independent of enable/load order. District areas and boundaries preserve
+population details and point interactions.
 
 `GET /map-analytics/population-cells` (browser:
 `/api/map-analytics/population-cells`) returns all stored polygons in ascending

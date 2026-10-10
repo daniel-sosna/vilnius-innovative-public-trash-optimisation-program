@@ -28,6 +28,18 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention={"pk": "pk_%(table_name)s"})
 
 
+class DistrictBoundary(Base):
+    __tablename__ = "district_boundaries"
+    __table_args__ = (
+        UniqueConstraint("district_name", name="uq_district_boundaries_name"),
+        UniqueConstraint("source_object_id", name="uq_district_boundaries_source_id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    district_name: Mapped[str] = mapped_column(Text)
+    geometry: Mapped[dict] = mapped_column(JSONB)
+    source_object_id: Mapped[int] = mapped_column(Integer)
+
+
 class Site(Base):
     __tablename__ = "sites"
     __table_args__ = (

@@ -18,6 +18,11 @@ SQL() { docker compose exec -T db psql -U viptop -d viptop -Atc "$1"; }
 Native alternative: run `uv run python -m app.interfaces.table_import` from `backend/` and use
 `psql` with your own connection.
 
+District input now participates in the same transaction. See
+[district verification](district-boundaries-verification.md) for repeatable
+combined, boundary-only, missing-source, malformed-source, CSV failure and
+competing-input checks, including recorded counts and exit codes.
+
 ## 1. Full import and counts
 
 ```bash

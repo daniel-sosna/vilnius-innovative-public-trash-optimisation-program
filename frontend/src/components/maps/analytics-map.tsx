@@ -4,6 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
 import type { LayerData, LayerRenderer, LayerSelection, LayerStates, MapLayerDefinition } from './map-layer'
+import { reconcilePolygonOrder } from './polygon-layer'
 import './analytics-map.css'
 
 setWorkerUrl(workerUrl)
@@ -87,6 +88,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
       canvas.addEventListener('blur', clearPointerFocus, { signal: events.signal })
       const sync = (selected: LayerSelection, loaded: LayerStates, rendered?: Record<string, LayerData | undefined>) => {
         if (!ready || disposed) return
+        let attached = false
         for (const layer of definitions) {
           let renderer = renderers.get(layer.id)
           const state = loaded[layer.id]
@@ -110,6 +112,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
               },
             }, data ?? state.data)
             renderers.set(layer.id, renderer)
+            attached = true
             appliedData.set(layer.id, data ?? state.data)
           } else if (renderer?.setData && data && appliedData.get(layer.id) !== data) {
             renderer.setData(data)
@@ -117,6 +120,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
           }
           renderer?.setVisible(!!selected[layer.id])
         }
+        if (attached) reconcilePolygonOrder(instance, definitions, renderers)
       }
       runtime.current = { map: instance, sync }
       instance.on('error', fail)
