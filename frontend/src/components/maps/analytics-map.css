@@ -1,5 +1,6 @@
 .analytics-map .analytics-popup {
   max-width: min(280px, calc(100vw - 64px)) !important;
+  z-index: 3;
 }
 
 .analytics-map .analytics-popup .maplibregl-popup-content {

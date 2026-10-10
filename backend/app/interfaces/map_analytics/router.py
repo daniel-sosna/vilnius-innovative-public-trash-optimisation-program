@@ -1,8 +1,12 @@
 from fastapi import APIRouter
 
 from app.interfaces.collection_session import CollectionSession
-from app.interfaces.map_analytics.schemas import BinFeatureCollection, LandfillFeatureCollection
-from app.services.map_analytics import bin_features, landfill_features
+from app.interfaces.map_analytics.schemas import (
+    BinFeatureCollection,
+    LandfillFeatureCollection,
+    PopulationFeatureCollection,
+)
+from app.services.map_analytics import bin_features, landfill_features, population_features
 
 router = APIRouter(prefix="/map-analytics", tags=["Map analytics"])
 
@@ -15,3 +19,8 @@ def bins(session: CollectionSession) -> dict:
 @router.get("/landfills", response_model=LandfillFeatureCollection)
 def landfills(session: CollectionSession) -> dict:
     return landfill_features(session)
+
+
+@router.get("/population-cells", response_model=PopulationFeatureCollection)
+def population_cells(session: CollectionSession) -> dict:
+    return population_features(session)

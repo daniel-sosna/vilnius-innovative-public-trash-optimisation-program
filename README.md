@@ -845,6 +845,29 @@ null coordinates omit the feature, while null details remain null (`N/A` in the
 popup). The catalog endpoint `/landfills` retains its existing contract. This
 feature adds no migrations or data imports.
 
+Check `Gyventojų tankumas` to display the stored declared-residence population
+grid as translucent purple polygons. Fixed density bands are `<11`, `11–49`,
+`50–99`, `100–199` and `200+ gyv./ha`; missing density is transparent and cannot
+be clicked. The layer starts unchecked and uses the same lazy page-session cache.
+Points and cluster counts remain above the grid. Clicking an area shows its
+recorded density, full area and approximate resident total in Lithuanian.
+Suppressed source density stays `<11`; its estimate assumption is derived from
+the stored total and area, rather than presented as a measured density.
+
+`GET /map-analytics/population-cells` (browser:
+`/api/map-analytics/population-cells`) returns all stored polygons in ascending
+ID order, preserving merged geometry and every ring/hole. Its only properties
+are nullable `density_per_ha`, boolean `suppressed`, numeric `area_ha` and nullable
+`residents`. Numeric and suppressed estimates retain their stored values;
+missing-density resident placeholders are projected to null without storage
+changes. These are declared-residence estimates, not live headcounts or bin
+catchments. Reads use the collection snapshot, never rebuild data or access
+source files; database failures remain errors and an empty table returns an
+empty collection. No new migrations or dependencies are required.
+
+See [population map verification](docs/population-map-verification.md) for the
+isolated runtime, repeatable read-only API comparison and browser walkthrough.
+
 `GET /map-analytics/bins` (browser: `/api/map-analytics/bins`) returns the complete,
 unpaginated stored bin registry as a GeoJSON FeatureCollection in ascending bin
 ID order. Each feature uses the bin ID, Point coordinates `[longitude, latitude]`
