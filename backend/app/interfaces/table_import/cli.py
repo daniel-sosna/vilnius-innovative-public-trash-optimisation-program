@@ -24,6 +24,8 @@ BIN_DERIVED_TABLES = {
     "bin_days": "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
     "bin_population": "python -m app.interfaces.bin_population",
     "bin_schedule": "python -m app.interfaces.bin_schedule_sync",
+    "collection_stops": "python -m app.interfaces.collection_plan",
+    "stop_bins": "python -m app.interfaces.collection_plan",
 }
 # Tables referencing bins that cannot be refilled; their rows belong to the replaced bins.
 BIN_DEPENDENT_TABLES = ("resident_requests",)
