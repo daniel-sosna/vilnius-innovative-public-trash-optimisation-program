@@ -1,0 +1,27 @@
+from typing import Literal
+
+from pydantic import BaseModel
+
+
+class LandfillProperties(BaseModel):
+    name: str
+    operator: str | None
+    address: str | None
+    coordinate_quality: str | None
+
+
+class PointGeometry(BaseModel):
+    type: Literal["Point"] = "Point"
+    coordinates: tuple[float, float]
+
+
+class LandfillFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    id: int
+    geometry: PointGeometry
+    properties: LandfillProperties
+
+
+class LandfillFeatureCollection(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[LandfillFeature]

@@ -9,6 +9,7 @@ import { VilniusLogo } from '@/components/vilnius-logo'
 const links = [
   { to: '/admin/trucks', label: 'Šiukšliavežės' },
   { to: '/admin/sites', label: 'Šiukšlių surinkimo vietos' },
+  { to: '/admin/map-analytics', label: 'Žemėlapio analitika' },
 ]
 
 export function AdminLayout() {

@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.infrastructure.database import create_database_engine, create_session_factory
 from app.interfaces.bins.router import router as bins_router
 from app.interfaces.landfills.router import router as landfills_router
+from app.interfaces.map_analytics.router import router as map_analytics_router
 from app.interfaces.sites.router import router as sites_router
 from app.interfaces.trucks.router import router as trucks_router
 
@@ -39,5 +40,6 @@ async def validation_error(_request, error: RequestValidationError):
 
 app.include_router(trucks_router)
 app.include_router(landfills_router)
+app.include_router(map_analytics_router)
 app.include_router(sites_router)
 app.include_router(bins_router)

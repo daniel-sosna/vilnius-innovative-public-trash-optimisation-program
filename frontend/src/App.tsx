@@ -7,6 +7,7 @@ import { RoleSelection } from '@/pages/role-selection/role-selection-page'
 import { AdminLayout } from '@/components/layout/admin-layout'
 import { ToastProvider } from '@/components/ui/toast'
 import { ResidentRequestPage } from '@/pages/resident-request/resident-request-page'
+import { MapAnalyticsPage } from '@/pages/map-analytics/map-analytics-page'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="trucks" element={<TrucksPage />} />
           <Route path="sites" element={<SitesPage />} />
           <Route path="sites/:id" element={<SiteDetailPage />} />
+          <Route path="map-analytics" element={<MapAnalyticsPage />} />
         </Route>
         <Route
           path="*"
