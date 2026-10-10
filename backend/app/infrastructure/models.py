@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date as date_, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -81,6 +82,9 @@ class Bin(Base):
     history: Mapped[list["BinHist"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
+    schedule: Mapped[list["BinSchedule"]] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class BinHist(Base):
@@ -98,6 +102,21 @@ class BinHist(Base):
     non_serviced_reason: Mapped[str | None] = mapped_column(Text)
     fill_level: Mapped[int | None] = mapped_column(SmallInteger)
     bin: Mapped[Bin] = relationship(back_populates="history")
+
+
+class BinSchedule(Base):
+    __tablename__ = "bin_schedule"
+    __table_args__ = (
+        UniqueConstraint("bin_id", "date", name="uq_bin_schedule_bin_date"),
+        Index("ix_bin_schedule_date", "date"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_bin_schedule_bin_id", ondelete="CASCADE"),
+    )
+    date: Mapped[date_] = mapped_column(Date)
+    bin: Mapped[Bin] = relationship(back_populates="schedule")
 
 
 class VasaImportRun(Base):

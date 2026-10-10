@@ -24,7 +24,7 @@ VipTop MVP for exploring more efficient public waste-container collection in Vil
 │       ├── repositories/   # Data-access abstractions
 │       ├── services/       # Reusable application services
 │       ├── use_cases/      # Application workflows
-│       ├── interfaces/     # trucks/ HTTP API, bin_sync/ and table_import/ CLIs
+│       ├── interfaces/     # trucks/ HTTP API, bin_sync/, bin_schedule_sync/ and table_import/ CLIs
 │       ├── infrastructure/ # Database engine and ORM persistence
 │       ├── integrations/   # Third-party clients and source mapping
 │       ├── ml/             # Future prediction logic
@@ -128,6 +128,10 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   other tables, such as `trucks`, are untouched. Importing `sites`, `bins` or `bin_hist`
   also clears the saved `bin_sync` runs and progress, so the next sync starts a fresh pass.
   A table referenced by a table without a file (e.g. only `sites`) is rejected.
+  Importing `bins` without a `bin_schedule_<digits>.csv` also empties `bin_schedule` (the
+  output says so), because planned dates belong to the replaced bins; fetch them again with
+  the schedule command. With a `bin_schedule_<digits>.csv`, that table is loaded from the file.
+  An import without `bins` (e.g. only `bin_hist`) leaves `bin_schedule` unchanged.
 - **Safety:** everything runs in one transaction; any failure leaves the database unchanged.
   **The current contents of the imported tables are discarded.**
 - **Exit codes:** 0 on success, 1 if there is nothing to import, the directory is
@@ -364,6 +368,33 @@ A trial exits 2 and never removes missing bins. Matching incomplete runs resume.
 After full success (exit 0), the next invocation starts a fresh refresh. Failures
 exit 1 and retain already committed progress. In Docker, prefix the commands with
 `docker compose exec backend`.
+
+## Collection schedules
+
+`bin_schedule` holds VASA's planned collection dates per bin (one row per bin and
+date). They are VASA's plan, not observed service history. Load collection data
+first (CSV import or `bin_sync`), then run:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.bin_schedule_sync --max-bins 20
+docker compose exec backend uv run python -m app.interfaces.bin_schedule_sync
+# native: run the same command from backend/ without the docker prefix
+```
+
+- **Options:** `--workers N` (default 4) bounds concurrent requests; `--max-bins N`
+  (default 0 = all) processes only the first N bins by ID.
+- **Exit codes:** 0 when every bin was processed without failure; 1 on any failed bin,
+  invalid arguments or configuration, or no stored bins; 2 for a `--max-bins` run
+  without failures.
+- **Snapshot:** VASA only returns the current month. Each successful response replaces
+  that bin's stored dates, so the table holds the latest fetched month only. A failed
+  bin keeps its previous dates and its external ID is listed (first 20) in the summary.
+  Re-run at the start of each month; consumers should filter on `date >= today`.
+- **Empty lists:** VASA returns an empty list both for a bin without a plan and for an
+  unknown ID, so the summary reports the empty count; a sudden jump points to a source problem.
+- **Duration:** a full run takes about 13 minutes for ~22k bins with 4 workers.
+- **Import side effect:** a CSV import that replaces `bins` empties `bin_schedule`; see
+  [Import table CSV exports](#import-table-csv-exports).
 
 ## Migration and verification
 
