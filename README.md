@@ -749,3 +749,43 @@ or navigation back. Refresh retries do not repeat successful mutations. Adding
 or deleting children locks the Site first, keeping concurrent final-child changes
 consistent. Deleted imported records can reappear after a future explicit import;
 manual NULL-ID Bins are excluded from importer cleanup.
+
+## Map analytics
+
+Choose `Žemėlapio analitika` in the admin navbar or open `/admin/map-analytics`.
+The large Vilnius map fills the content width. One card underneath contains
+`Sluoksniai` and name-only checkboxes, then `Legenda` and labeled color swatches.
+Long layer lists scroll internally. Clicking the map does not draw a focus
+outline; keyboard interaction retains visible focus.
+Check `Sąvartynai` to load the existing three-facility catalog, explore clustered
+counts, click clusters to zoom in and click individual points for recorded details.
+The layer starts unchecked; successful data is reused until leaving the page.
+Toggles preserve the view. Dataset retry and map recovery are independent.
+The `Legenda` section lists registered color meanings:
+landfill pins and clusters are green. Definitions can supply multiple categories
+and feature-based point colors; the same legend metadata supports future
+non-point renderers. Facility popups show the name as a heading and only operator
+and address rows.
+
+`GET /map-analytics/landfills` (browser: `/api/map-analytics/landfills`) returns a
+GeoJSON FeatureCollection ordered by landfill ID. Points use `[longitude,
+latitude]` and only `name`, `operator`, `address`, `coordinate_quality` properties;
+null coordinates omit the feature, while null details remain null (`N/A` in the
+popup). The catalog endpoint `/landfills` retains its existing contract. This
+feature adds no migrations or data imports.
+
+Analytics uses the same `VITE_MAP_STYLE_URL` startup/build setting as site maps,
+with no component fallback. The configured style must support the cluster-count
+font (`Noto Sans Regular` by default). Known English seed descriptions are shown
+in Lithuanian without changing stored data; recorded approximate coordinates
+remain approximate. For native development, start this checkout's backend and run:
+
+```bash
+cd frontend
+VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty \
+  VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
+```
+
+See [map analytics verification](docs/map-analytics-verification.md) for read-only
+API commands, the three-facility walkthrough, acceptance status and instructions
+for adding point definitions or future non-point renderers to the common registry.
