@@ -4,7 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
 import type { LayerData, LayerRenderer, LayerSelection, LayerStates, MapLayerDefinition } from './map-layer'
-import { orderAreaLayers } from './layer-order'
+import { reconcilePolygonOrder } from './polygon-layer'
 import './analytics-map.css'
 
 setWorkerUrl(workerUrl)
@@ -120,7 +120,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
           }
           renderer?.setVisible(!!selected[layer.id])
         }
-        if (attached) orderAreaLayers(instance)
+        if (attached) reconcilePolygonOrder(instance, definitions, renderers)
       }
       runtime.current = { map: instance, sync }
       instance.on('error', fail)

@@ -7,10 +7,12 @@ from `backend/`; the Docker equivalent prepends `docker compose exec backend uv 
 
 ## Source and migration
 
-Run `uv run alembic upgrade head`. Revision `0014` creates an empty `service_zones`
+Run `uv run alembic upgrade head`. Revision `0015` creates an empty `service_zones`
 table with `id`, `zone_name`, `zone_number` and JSONB `geometry`. It performs no
-import. On an isolated database, downgrade to `0013`, verify only the zone table
-was removed, then upgrade again. Other table contents must remain unchanged.
+import. On an isolated database at `0015`, downgrade to `0014`, verify only the
+zone table was removed, then upgrade again. At the merged head (`0016`), first
+downgrade to `0015` to remove district boundaries before checking zone rollback.
+Other table contents must remain unchanged.
 
 The supplied source is `backend/data/serv_zones.geojson`. Retain it and copy it as
 `service_zones.geojson` into the configured data directory; for a shared Docker
@@ -172,13 +174,14 @@ must retain their responses through these zone-only operations.
 Open `/admin/map-analytics` with a valid basemap configuration and the imported
 datasets. Use browser Network tools to count `/api/map-analytics/` requests.
 
-1. Start a fresh page session. All four controls must be unchecked, including
+1. Start a fresh page session. All five controls must be unchecked, including
    `Aptarnavimo zonos`; no dataset request occurs until selected. The existing
    `Legenda` stays unchanged and contains no service-zone swatch.
 2. Enable only zones. The first request returns five polygons; compare the names
    with the source table above. At the initial Vilnius view every name is visible
-   inside its shape. Check the shared translucent fill, clear boundaries and
-   text halo. Click a zone, boundary and name: no zone popup or interactive
+   inside its shape. Check the shared translucent fill, bold dark teal boundaries
+   and text halo. Click a zone, boundary and name: no zone
+   popup or interactive
    cursor appears. For a temporary Polygon fixture with an interior ring,
    verify the hole remains unfilled and the label avoids it.
 3. Toggle zones off/on. All fills, outlines and names hide/restore together;
@@ -186,11 +189,12 @@ datasets. Use browser Network tools to count `/api/map-analytics/` requests.
    that the map view stays fixed. Below zoom 9 names hide; closer zooms scale
    the text. Pan across tile edges: native labels may repeat on separate tile
    fragments, but collision handling must avoid unnecessary overlap.
-4. Exercise the 16 subsets of the four controls. Enable zones first, then last;
+4. Exercise the 32 subsets of the five controls. Enable zones first, then last;
    use network throttling to stagger request completion as well. The same
-   relationships must hold: zone fill below population, zone outline/text above
-   population, and point markers/counts above zone visuals. No toggle changes
-   another checkbox or replaces the map/camera.
+   relationships must hold: zone fill below population, bold zone outlines and
+   names above district and population areas, and point markers/counts above
+   zone visuals. District colors and population bands stay readable.
+   No toggle changes another checkbox or replaces the map/camera.
 5. With all layers enabled, click landfill and individual bin markers, expand a
    low-zoom cluster, and open a street-level overlapping-bin group. Open a group
    member and return to its list. Toggle zones around an open unrelated popup:

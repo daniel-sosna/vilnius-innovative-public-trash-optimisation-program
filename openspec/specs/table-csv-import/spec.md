@@ -49,7 +49,7 @@ The command SHALL read CSV files from a directory given with `--dir`, otherwise 
 - **THEN** files are discovered in that mounted folder
 
 ### Requirement: Replace only tables that have a file
-Each selected table's entire contents SHALL be replaced by the rows of its file. Tables without a matching file SHALL keep their contents unchanged. `service_zones.geojson` in the selected directory SHALL additionally select `service_zones` for replacement with the validated zone records, even when no CSV files are selected.
+Each selected table's entire contents SHALL be replaced by the rows of its file. Tables without a matching input SHALL keep their contents unchanged. `vilnius_seniuniju_ribos.geojson` and `service_zones.geojson` in the selected directory SHALL additionally select `district_boundaries` and `service_zones`, respectively, for replacement with validated records, even when no CSV files are selected.
 
 #### Scenario: Trucks survive a collection import
 - **WHEN** files exist for `sites`, `bins` and `bin_hist` but not for `trucks`
@@ -58,6 +58,15 @@ Each selected table's entire contents SHALL be replaced by the rows of its file.
 #### Scenario: Previously stored rows are removed
 - **WHEN** `bins` holds a row whose ID does not appear in the imported bins file
 - **THEN** that row no longer exists after the import
+
+#### Scenario: Replace districts alongside collection exports
+- **WHEN** valid collection CSV exports and the district GeoJSON are present in the selected directory
+- **THEN** selected collection tables and the district catalog are replaced together
+- **AND** unrelated tables retain their existing behavior
+
+#### Scenario: Preserve districts without an input
+- **WHEN** collection exports are imported and neither a district GeoJSON nor a district CSV export is present
+- **THEN** stored district boundaries remain unchanged
 
 #### Scenario: Zone source joins the collection import
 - **WHEN** the selected directory contains collection CSVs and the supplied `service_zones.geojson`
@@ -69,11 +78,20 @@ Each selected table's entire contents SHALL be replaced by the rows of its file.
 - **THEN** the normal import succeeds and replaces only `service_zones`
 
 ### Requirement: All-or-nothing import
-All selected tables SHALL be replaced together, or none SHALL be. Any failure, including malformed CSV, invalid service-zone GeoJSON, unknown columns, constraint violations or a lost connection, SHALL leave every table exactly as it was before the command. Zone replacement SHALL participate in the same transaction as CSV replacement and existing derived-table resets.
+All selected CSV tables, district and service-zone GeoJSON replacements and derived-table resets SHALL be committed together, or none SHALL be. Any failure, including malformed CSV or GeoJSON, unknown columns, constraint violations or a lost connection, SHALL leave every table exactly as it was before the command.
 
 #### Scenario: Bad row in the last file
 - **WHEN** `sites` and `bins` load successfully but a `bin_hist` row violates a constraint
 - **THEN** `sites`, `bins` and `bin_hist` all keep their pre-import contents and the command exits with failure
+
+#### Scenario: Invalid district source alongside valid CSVs
+- **WHEN** CSV inputs are valid but the present district source is invalid
+- **THEN** no CSV or district table changes and the command exits with failure
+
+#### Scenario: CSV failure after valid district validation
+- **WHEN** district input is valid but a selected CSV cannot be imported
+- **THEN** the previous district catalog and every selected CSV table remain unchanged
+
 
 #### Scenario: Invalid zone file with valid CSVs
 - **WHEN** selected CSVs are valid but a present zone GeoJSON is invalid
@@ -140,19 +158,28 @@ When the import replaces `bins` and no `bin_days` file is selected, it SHALL als
 - **THEN** the calendar rows are unchanged
 
 ### Requirement: Clear output and exit codes
-The command SHALL report which file is used for each selected table, including service-zone GeoJSON, and its resulting row count. It SHALL exit with 0 on success. It SHALL exit with 1 when no CSV or zone source selects a table, the directory is missing, or the import fails, with a readable reason that does not disclose database credentials. A missing optional zone source alone SHALL NOT make an otherwise successful import fail.
+The command SHALL report each imported table's source file and resulting row count, including district and service-zone GeoJSON input. It SHALL warn when optional sources are missing without making an otherwise successful import fail. It SHALL exit with 0 on successful CSV and/or GeoJSON import, and with 1 when no input selects a table, the directory is missing, or the import fails, with a readable reason that does not disclose database credentials.
 
 #### Scenario: Successful run summary
 - **WHEN** the three current exports are imported
 - **THEN** the output lists each table with its source file and row count, and the exit code is 0
 
 #### Scenario: Nothing to import
-- **WHEN** the data directory has no matching CSV and no `service_zones.geojson`
+- **WHEN** the data directory has no matching CSV export and neither district nor service-zone GeoJSON
 - **THEN** the command changes nothing, says so, and exits with 1
 
 #### Scenario: Missing directory
 - **WHEN** `--dir` points to a directory that does not exist
 - **THEN** the command changes nothing, reports the path, and exits with 1
+
+#### Scenario: District source without CSV exports
+- **WHEN** the selected directory contains a valid district GeoJSON and no matching CSV exports
+- **THEN** only the district catalog is replaced, its source and count are reported, and the command exits with 0
+
+#### Scenario: Missing optional source during successful CSV import
+- **WHEN** CSV exports import successfully and the district GeoJSON is absent
+- **THEN** output warns that the optional source is missing and the command still exits with 0
+
 
 #### Scenario: Report imported zones
 - **WHEN** the supplied zone file is included in a successful normal import
@@ -183,6 +210,33 @@ When the import replaces `bins` and no `bin_population` file is selected, it SHA
 #### Scenario: History-only import keeps the allocation
 - **WHEN** only `bin_hist_*.csv` is present
 - **THEN** every bin keeps its resident allocation
+
+### Requirement: Discover optional district GeoJSON in the selected directory
+The regular table-import command SHALL discover `vilnius_seniuniju_ribos.geojson` in the same directory selected for CSV exports. A missing optional source SHALL warn and allow CSV import to proceed; an unreadable or invalid present source SHALL fail the import. Stored boundaries SHALL be preserved when neither district input is present.
+
+#### Scenario: Explicit directory selects all import sources
+- **WHEN** `--dir /some/path` selects a directory containing collection exports and the district source
+- **THEN** both kinds of input are discovered there without looking in another directory
+
+#### Scenario: Configured shared directory
+- **WHEN** the default data-directory configuration selects a shared directory
+- **THEN** the regular import looks for the district source in that directory alongside CSV exports
+
+#### Scenario: Missing optional source
+- **WHEN** the selected directory has valid CSV exports but no district GeoJSON or district CSV
+- **THEN** CSV imports proceed, a warning identifies the missing district source, and the stored catalog is preserved
+
+### Requirement: Reject competing district import inputs
+If both the district GeoJSON and a selected `district_boundaries_<digits>.csv` export are present, the regular import SHALL fail before changing data and identify the conflicting paths. With only a district CSV export, existing CSV selection and replacement semantics SHALL apply.
+
+#### Scenario: Two sources for one district table
+- **WHEN** both district input forms are discovered
+- **THEN** the command exits with 1, reports the conflict and changes no tables
+
+#### Scenario: Restore a district table export
+- **WHEN** a valid district CSV export is selected and no district GeoJSON is present
+- **THEN** the district table is replaced from that CSV using the normal export rules
+
 
 ### Requirement: Optional zone source in the selected directory
 The normal command SHALL look for `service_zones.geojson` only in the directory resolved by its existing `--dir`, configured data-directory and container-mount rules. If the GeoJSON is missing, it SHALL warn and preserve stored zones unless a service-zone CSV explicitly selects that table. A present unreadable or invalid GeoJSON SHALL fail the import, rather than being skipped.

@@ -32,6 +32,22 @@ class PolygonGeometry(BaseModel):
     coordinates: list[list[tuple[float, float]]]
 
 
+class DistrictProperties(BaseModel):
+    district_name: str
+
+
+class DistrictFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    id: int
+    geometry: PolygonGeometry
+    properties: DistrictProperties
+
+
+class DistrictFeatureCollection(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[DistrictFeature]
+
+
 class ServiceZoneProperties(BaseModel):
     zone_name: str
     zone_number: int

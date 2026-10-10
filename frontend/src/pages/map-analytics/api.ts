@@ -56,3 +56,16 @@ export async function loadPopulation(signal: AbortSignal): Promise<FeatureCollec
   if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) throw new Error('Invalid map response')
   return data
 }
+
+export type DistrictProperties = { district_name: string }
+
+export async function loadDistricts(signal: AbortSignal): Promise<FeatureCollection<Polygon, DistrictProperties>> {
+  const response = await fetch('/api/map-analytics/district-boundaries', { signal })
+  if (!response.ok) throw new Error('District read failed')
+  const data = await response.json() as FeatureCollection<Polygon, DistrictProperties>
+  if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)
+    || data.features.some(feature => feature.type !== 'Feature' || !Number.isSafeInteger(feature.id)
+      || feature.geometry?.type !== 'Polygon' || !Array.isArray(feature.geometry.coordinates)
+      || typeof feature.properties?.district_name !== 'string')) throw new Error('Invalid district map response')
+  return data
+}

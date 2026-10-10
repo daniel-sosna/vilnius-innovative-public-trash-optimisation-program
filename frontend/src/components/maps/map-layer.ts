@@ -9,6 +9,7 @@ export type LayerLegendEntry = {
 }
 
 export type LayerRenderer = {
+  styleLayerIds?: readonly string[]
   setVisible(visible: boolean): void
   setData?(data: LayerData): void
   dispose(): void
@@ -26,6 +27,8 @@ export type MapLayerDefinition = {
   label: string
   meaning: string
   kind: string
+  polygonOrder?: number
+  polygonOutlineOrder?: number
   legend: readonly LayerLegendEntry[]
   load(signal: AbortSignal): Promise<LayerData>
   attach(context: LayerContext, data: LayerData): LayerRenderer

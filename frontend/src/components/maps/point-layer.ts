@@ -41,7 +41,17 @@ export function pointLayerIds(id: string) {
   }
 }
 
+const registeredPointStyles = new Set<string>()
+
+// Only registered points, clusters and counts own point interactions. Polygon
+// name symbols deliberately do not belong to this set.
+export function isPointStyleLayer(layer: { id: string }): boolean {
+  return registeredPointStyles.has(layer.id)
+}
+
 export function createPointLayer<P extends GeoJsonProperties>(definition: PointDefinition<P>): MapLayerDefinition {
+  const ids = pointLayerIds(definition.id)
+  for (const id of [ids.points, ids.clusters, ids.counts]) registeredPointStyles.add(id)
   return {
     id: definition.id,
     label: definition.label,

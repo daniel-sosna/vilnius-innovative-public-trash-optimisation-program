@@ -62,6 +62,14 @@ chain keeps main's revisions through `0012`, resident requests at `0010`, and
 manual collection management at `0013`. Startup prepares the schema and seeds
 the landfill catalog, without importing collection data.
 
+The district/service-zone/collection-plan merge also resolves three conflicting
+`0014` revisions into one chain: `0014` creates the collection plan, `0015` creates
+service zones, and `0016` creates district boundaries. If a local database has
+already applied any of the old `0014` migrations, discard its disposable database
+with `docker compose down --volumes`, then run `docker compose up --build -d` and
+restore the CSV exports with `python -m app.interfaces.table_import`. Do not stamp
+an old `0014` database to the new head: its schema may contain a different table.
+
 To activate collection browsing after import, with the existing database already
 running, rebuild the application images and refresh the frontend dependency
 volume before recreating the application services:
@@ -243,6 +251,15 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   backend; `scripts/dev-info.sh` shows the folder in use.
 - **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
   files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
+- **District source:** the same selected directory may contain
+  `vilnius_seniuniju_ribos.geojson`. It replaces `district_boundaries` in the CSV
+  transaction, with a committed source/count summary. Missing GeoJSON and no
+  district CSV warns and preserves the catalog; a present invalid/unreadable
+  source fails the entire import. Boundary-only input succeeds. Both this GeoJSON
+  and `district_boundaries_<digits>.csv` together fail before writes and identify
+  both paths. A district CSV alone follows the normal newest-file and ID rules.
+
+
 - **Service zones:** `service_zones.geojson` in the same selected directory also
   replaces `service_zones`, in the same transaction as the CSVs. A zone-only
   directory is supported. If it is absent, the command warns and keeps stored
@@ -279,6 +296,63 @@ bin population, check that `population_density_1ha.geojson` exists in that direc
 missing, stop and ask the developer to add it.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
+## District boundaries (Seniūnijos)
+
+Put `vilnius_seniuniju_ribos.geojson` in the configured data directory alongside
+the CSV exports. It is ignored by Git and excluded from Docker images. Native
+commands resolve `VIPTOP_DATA_DIR` from the environment or root `.env`, with
+relative paths resolved from the repository root; the default is `backend/data/`.
+Compose mounts that host folder at `/app/data`, so shared worktree data belongs
+in the shared host folder, not inside an image.
+
+Apply migrations, then explicitly import the catalog:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.district_boundaries
+# native, from backend/ with an accessible DATABASE_URL
+uv run python -m app.interfaces.district_boundaries
+# optional explicit source, in the command's filesystem
+uv run python -m app.interfaces.district_boundaries --file /path/to/districts.geojson
+```
+
+The command validates the entire nonempty FeatureCollection and replaces the
+catalog in one transaction. It preserves source names, diacritics, coordinates
+and all Polygon rings. It rejects duplicate names/OBJECTIDs, unsupported CRS,
+projected or non-finite positions, unclosed and degenerate rings. These are
+structural checks, not full topology validation. No reprojection is performed.
+The supplied snapshot has 21 districts and 8,916 positions; its effective date
+is unknown. Repeat imports replace rather than accumulate rows; generated IDs
+can change. Collection and population data are untouched. Success reports the
+source and district count and exits 0; missing/invalid input or database errors
+exit 1 and preserve the previous catalog. Startup, migrations and map reads
+never import the source automatically.
+
+`GET /map-analytics/district-boundaries` (browser:
+`/api/map-analytics/district-boundaries`) returns every stored Polygon in ascending
+generated ID order, with only `district_name` properties. An empty catalog returns
+an empty successful FeatureCollection; database failures use the existing HTTP
+500 collection-read contract. Reads never access the source file.
+
+Compare every response ID/name/ring with a read-only database snapshot:
+
+```bash
+# native, from backend/, DATABASE_URL must target the same database as these URLs
+uv run python -m app.interfaces.district_boundaries.check \
+  --url http://127.0.0.1:8000/map-analytics/district-boundaries \
+  --url http://127.0.0.1:5173/api/map-analytics/district-boundaries
+# container URLs use service names and internal ports
+docker compose exec -T backend uv run python -m app.interfaces.district_boundaries.check \
+  --url http://backend:8000/map-analytics/district-boundaries \
+  --url http://frontend:5173/api/map-analytics/district-boundaries --host localhost
+```
+
+The checker accepts repeated `--url` and an optional `--host` for a proxy. It
+reports district/ring/position counts, payload bytes and timing; success exits 0,
+mismatches or read failures exit 1 without printing credentials. See
+[district verification](docs/district-boundaries-verification.md) for import,
+source-independence, API and map checks.
+
 
 ## Service zones
 
@@ -321,7 +395,9 @@ a database failure returns an error. Requests never access or re-import the
 source file. Once imported, zones remain available even when that file is absent.
 
 On **Žemėlapio analitika**, enable **Aptarnavimo zonos** to display uniform
-translucent polygons, clear boundaries and zone names inside their shapes.
+translucent polygons, bold dark teal boundaries and zone names inside their
+shapes. Zone boundaries remain above district and population colors so the
+service zones are easier to distinguish alongside those layers.
 The layer starts unchecked, loads through the API on first enable and reuses
 successful data during the page session. It works with the existing landfill,
 bin and population layers, adds no legend entry or zone popup, and preserves
@@ -952,6 +1028,14 @@ Points and cluster counts remain above the grid. Clicking an area shows its
 recorded density, full area and approximate resident total in Lithuanian.
 Suppressed source density stays `<11`; its estimate assumption is derived from
 the stored total and area, rather than presented as a measured density.
+
+Check `Seniūnijos` to display the 21 imported district boundaries with stable,
+distinct vibrant translucent colors and outlines, without district name labels. It starts unchecked,
+loads on first enable and reuses the page-session cache. Fills and outlines
+hide together. The overlay adds no legend entries or feature interaction.
+Population remains above district context, with point markers/counts above both,
+independent of enable/load order. District areas and boundaries preserve
+population details and point interactions.
 
 `GET /map-analytics/population-cells` (browser:
 `/api/map-analytics/population-cells`) returns all stored polygons in ascending
