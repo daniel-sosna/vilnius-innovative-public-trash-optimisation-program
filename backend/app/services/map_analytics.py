@@ -3,7 +3,26 @@ from math import isfinite
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.models import Bin, Landfill, PopulationCell
+from app.infrastructure.models import Bin, Landfill, PopulationCell, ServiceZone
+
+
+def service_zone_features(session: Session) -> dict:
+    rows = session.execute(
+        select(ServiceZone.id, ServiceZone.geometry, ServiceZone.zone_name, ServiceZone.zone_number)
+        .order_by(ServiceZone.id)
+    ).mappings()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": row["id"],
+                "geometry": row["geometry"],
+                "properties": {"zone_name": row["zone_name"], "zone_number": row["zone_number"]},
+            }
+            for row in rows
+        ],
+    }
 
 
 def bin_features(session: Session) -> dict:

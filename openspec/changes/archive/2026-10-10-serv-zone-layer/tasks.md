@@ -1,0 +1,36 @@
+# Tasks
+
+## 1. Service-zone storage and dedicated import
+
+- [x] 1.1 Add the `ServiceZone` model and migration after head `0013` with generated ID, nonblank name, unique integer zone number and Polygon geometry in JSONB; verify upgrade creates an empty table with only the intended columns, downgrade removes only that table, and upgrade/downgrade do not import source data, using an isolated database.
+- [x] 1.2 Provision the supplied `backend/data/serv_zones.geojson` under canonical name `service_zones.geojson` in the resolved data directory, retaining the original; verify the configured Docker mount/native path sees the same five CRS84 Polygon features and expected names/numbers, and source data remains outside frontend assets and versioned executable code.
+- [x] 1.3 Add the dedicated package's complete-file parser and connection-level replacement writer; verify a repeatable manual invocation accepts the supplied source and polygons with holes, preserves rings, rejects duplicate numbers, missing properties, booleans as numbers, invalid rings/coordinates and unsupported CRS before writes, and never hardcodes five features.
+- [x] 1.4 Add `python -m app.interfaces.service_zones` with `--file`, existing `data_dir()`/database settings, transaction, lock timeout and clear 0/1 exit behavior; verify two successful imports leave exactly five unique zones, source updates remove obsolete rows, empty valid input clears zones, and missing/invalid input or a failed write preserves previous rows and unrelated datasets.
+- [x] 1.5 Add dedicated import setup, native/Docker commands, property mapping, canonical/shared source location and repeatable validation/re-import/rollback instructions to README and `docs/service-zones-verification.md`; verify documented commands resolve the intended directory and report the expected counts and exit codes without credentials.
+
+## 2. Normal manual import integration
+
+- [x] 2.1 Extend `table_import` to discover the optional canonical GeoJSON in its selected directory, validate it before writes, and invoke the shared writer inside the existing CSV transaction; verify CSV-plus-zone and GeoJSON-only imports succeed with correct counts while existing CSV discovery, sequence adjustment and derived-table resets retain their behavior.
+- [x] 2.2 Implement missing-zone warnings, preserve zones when their source is absent, and reject simultaneous zone CSV/GeoJSON targets before writes; verify `--dir` remains authoritative, CSV-only imports succeed with the warning, explicit zone CSV restoration still works alone, and competing files report failure without table changes.
+- [x] 2.3 Verify combined-import atomicity in an isolated database with valid CSVs plus malformed zone GeoJSON and valid zone GeoJSON plus a constraint-violating CSV; compare all affected tables before/after to confirm zones, collection records and derived resets roll back together, then record the repeatable commands and observed results in `docs/service-zones-verification.md`.
+- [x] 2.4 Update README's regular-import contract and source-conflict/missing-source guidance; verify its documented normal command imports zones from the configured mount, its partial-import example preserves stored zones, and the existing bin-population/bin-day refill guidance remains accurate.
+
+## 3. Database-backed map API
+
+- [x] 3.1 Add the ordered service-zone query, typed GeoJSON response and `GET /map-analytics/service-zones` route using `CollectionSession`; verify the direct endpoint and frontend proxy return the same five features with exact stored geometry, names and integer numbers, unique ordered IDs and only the specified properties.
+- [x] 3.2 Add a repeatable read-only database/API comparison command to `docs/service-zones-verification.md`, following existing map verification conventions; verify it reports pass/fail with meaningful exit codes for ordered IDs, every ring and exact properties through both backend and proxy URLs.
+- [x] 3.3 Verify successful empty-table responses and failed database reads in an isolated environment, then make the source unavailable and change it without importing; confirm runtime responses still reflect stored rows, no runtime file fallback occurs, existing map endpoints retain their responses, and document the endpoint and observed results in README and the verification record.
+
+## 4. Service-zone map renderer and layer compatibility
+
+- [x] 4.1 Add the typed API loader and register the stable `service-zones` polygon definition with `Aptarnavimo zonos` and an empty legend list; verify a new session has four unchecked options, requests zones only on first enable through the API, and preserves the existing layout and legend.
+- [x] 4.2 Attach the non-clustered API-fed GeoJSON source with fill, outline and native text layers using centralized style values and `zone_name`; verify all five polygons share one translucent fill color, boundaries are clear, holes are preserved, labels use Lithuanian source names and no React DOM labels or zone interaction handlers are added.
+- [x] 4.3 Add precise recognition of the shared point-renderer layer roles and minimal area/text ordering after attachment; verify both zone-first and zone-last loading place zone fill behind population, retain readable zone boundaries/names, keep all point markers/counts above zone visuals, and allow population details beneath zone labels.
+- [x] 4.4 Implement grouped visibility and safe renderer disposal with the existing session lifecycle; verify toggling hides/restores all three visuals, successful data is reused, pending reads are shared, disabled results stay hidden, and camera, bin filters, other layers and unrelated popups remain unchanged.
+- [x] 4.5 Tune native polygon text placement, halo, collision handling and zoom styles on the supplied irregular polygons; verify each name is readable inside its zone at the initial Vilnius view, close/low zooms hide or scale gracefully, tile edges do not cause unnecessary overlap, and both desktop and 320-pixel layouts remain usable.
+- [x] 4.6 Add the layer's browser walkthrough to `docs/service-zones-verification.md` and usage text to README; verify documented checks cover no zone popups/click capture, unchanged point/group/population interactions, Lithuanian loading/error/empty/retry feedback, enable orders and cached toggles, then run `npm run build` and `npm run lint` in `frontend/` and record outcomes.
+
+## 5. End-to-end acceptance
+
+- [x] 5.1 Verify the complete real-system path from canonical source through both supported import entry points, PostgreSQL, API/proxy and native map visuals; before checks needing collection data confirm the configured `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv` exist, use CSV import only, and record the commands, counts and runtime source-independence result.
+- [x] 5.2 Exercise every subset of the four layer selections, zone-first/zone-last and staggered completion, point and population clicks, bin filtering/groups, pan/zoom, narrow layout, disabled-during-load, retry and re-enable; verify zone visuals never change unrelated state or recreate the map and record acceptance evidence or remaining issues in `docs/service-zones-verification.md`.

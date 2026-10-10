@@ -243,6 +243,13 @@ uv run python -m app.interfaces.table_import --dir /path/to/exports
   backend; `scripts/dev-info.sh` shows the folder in use.
 - **File names:** `<table>_<digits>.csv`, e.g. `bins_202610091935.csv`. With several
   files for one table, the highest number wins. Other `.csv` files are ignored with a warning.
+- **Service zones:** `service_zones.geojson` in the same selected directory also
+  replaces `service_zones`, in the same transaction as the CSVs. A zone-only
+  directory is supported. If it is absent, the command warns and keeps stored
+  zones unless a `service_zones_<digits>.csv` explicitly selects that table.
+  A present invalid/unreadable GeoJSON fails the entire import. If both source
+  formats target zones, the command fails before writes; keep only the intended
+  source in the selected directory. It never searches another directory as a fallback.
 - **Export settings:** UTF-8, a header row with column names, unquoted `NULL` for null
   (as DBeaver writes it), quoted text. Export after running the same migrations.
 - **Replacement:** only tables that have a file are emptied and reloaded (IDs are kept);
@@ -272,6 +279,54 @@ bin population, check that `population_density_1ha.geojson` exists in that direc
 missing, stop and ask the developer to add it.
 
 See [table import verification](docs/table-import-verification.md) for repeatable checks.
+
+## Service zones
+
+Place the supplied zone GeoJSON in the configured data directory as
+`service_zones.geojson`. The supplied local file is named `serv_zones.geojson`;
+copy it under the canonical name and retain the original. By default the directory
+is `backend/data/`; when `VIPTOP_DATA_DIR` is set, use that shared host folder,
+which Compose mounts at `/app/data`. Data files remain Git-ignored and are not
+included in frontend assets or backend images.
+
+Apply migrations, then explicitly import zones:
+
+```bash
+docker compose exec backend uv run alembic upgrade head
+docker compose exec backend uv run python -m app.interfaces.service_zones
+# Native, from backend/, with DATABASE_URL configured for the reachable database:
+uv run alembic upgrade head
+uv run python -m app.interfaces.service_zones
+# Override the default input:
+uv run python -m app.interfaces.service_zones --file /path/to/service_zones.geojson
+```
+
+The dedicated command validates the whole FeatureCollection, then replaces only
+`service_zones` in one transaction. `ZONA` becomes `zone_name`, `ZONOS_NR` becomes
+integer `zone_number`, and Polygon geometry retains every ring. It accepts standard
+longitude/latitude GeoJSON and the supplied CRS84 declaration. Re-importing the
+same source creates no duplicates. A valid empty collection clears the table.
+Missing/invalid input or a database failure leaves stored zones unchanged and
+exits with 1; success reports the source and row count and exits with 0. Startup
+and migrations never import zones automatically.
+
+See [service-zone verification](docs/service-zones-verification.md) for repeatable
+checks, expected source names and numbers, and rollback guidance.
+
+`GET /map-analytics/service-zones` (frontend proxy:
+`/api/map-analytics/service-zones`) returns all stored zones as a GeoJSON
+FeatureCollection, ordered by ID, with Polygon geometry and only `zone_name`
+and integer `zone_number` properties. An empty table returns an empty collection;
+a database failure returns an error. Requests never access or re-import the
+source file. Once imported, zones remain available even when that file is absent.
+
+On **Žemėlapio analitika**, enable **Aptarnavimo zonos** to display uniform
+translucent polygons, clear boundaries and zone names inside their shapes.
+The layer starts unchecked, loads through the API on first enable and reuses
+successful data during the page session. It works with the existing landfill,
+bin and population layers, adds no legend entry or zone popup, and preserves
+the map view and other layers when toggled. Labels adapt to zoom and can be
+hidden at unsuitable scales or by collisions.
 
 ## Bin population (residents per bin)
 
