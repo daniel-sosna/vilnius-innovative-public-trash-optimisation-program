@@ -7,7 +7,7 @@ Allow administrators to browse imported collection sites, inspect their location
 ## Requirements
 
 ### Requirement: Collection browsing preserves operational data and import
-The browsing feature SHALL be read-only. Implementation and verification SHALL preserve the existing schema, imported records, PostgreSQL volume and running import. Separate verification containers SHALL NOT restart, reload, recreate or shut down existing containers. This change SHALL NOT create or run migrations, import data, or reset tables.
+Collection GET requests SHALL remain read-only and preserve stored operational data and import progress. Explicit management actions SHALL create/delete records only under the collection-site-management contract. The required manual-management migration SHALL preserve existing data and PostgreSQL storage. Browsing, management and application startup SHALL NOT invoke import or reset tables; an independently invoked importer SHALL remain independent.
 
 #### Scenario: Browse during import
 - **WHEN** an administrator requests sites, statistics, bins or history while import is progressing
@@ -15,14 +15,18 @@ The browsing feature SHALL be read-only. Implementation and verification SHALL p
 - **AND** the importer continues independently
 
 #### Scenario: Activate after completed import
-- **WHEN** the user confirms import is complete and requests use of the real Compose setup
-- **THEN** implementation can be transferred to the main checkout and application services rebuilt/recreated with the existing database and storage retained
-- **AND** temporary verification overrides are removed, without new migrations or automatic import
+- **WHEN** the completed one-time import is followed by activation of collection management through the real Compose setup
+- **THEN** the required migration and rebuilt application preserve existing records and database storage
+- **AND** no automatic import or table reset occurs
 
 #### Scenario: Start separate verification servers
-- **WHEN** separate frontend/backend containers are started for verification
-- **THEN** existing containers and PostgreSQL storage remain running and unchanged
-- **AND** verification startup performs no migrations or import
+- **WHEN** separate frontend/backend servers are started for browsing verification
+- **THEN** verification GET requests do not mutate the registry or import checkpoints
+- **AND** startup performs no import or storage reset
+
+#### Scenario: Browse after a manual mutation
+- **WHEN** an administrator explicitly creates or deletes collection records and then requests the list, details or statistics
+- **THEN** the reads reflect committed records without themselves creating, deleting or editing data
 
 ### Requirement: Admin collection navigation
 The admin navbar SHALL include `Šiukšlių surinkimo vietos`, opening `/admin/sites`. A site SHALL open at `/admin/sites/{id}`. Navigation SHALL follow the existing responsive admin behavior and remain usable by keyboard and touch.
@@ -108,7 +112,7 @@ Global and site capacity SHALL sum stored `capacity_m3` values, ignoring NULLs w
 - **THEN** the first displays `N/A` and the second displays a numeric zero with `m³`
 
 ### Requirement: Informational site location
-Site details SHALL show a marker at the stored Site longitude and latitude, with visible street names and surrounding streets. The map SHALL allow panning and zooming by drag, wheel, touch, keyboard and labeled zoom-in/zoom-out controls. Its style SHALL be configurable using frontend `VITE_MAP_STYLE_URL`, initially `https://tiles.openfreemap.org/styles/liberty`. The derived-average coordinate meaning SHALL remain documented, without the on-screen averaged-coordinate sentence.
+Site details SHALL show a marker at the stored Site longitude and latitude, with visible street names and surrounding streets. The map SHALL allow panning and zooming by drag, wheel, touch, keyboard and labeled zoom-in/zoom-out controls. Its style SHALL use configurable `VITE_MAP_STYLE_URL`, initially `https://tiles.openfreemap.org/styles/liberty`. Documentation SHALL distinguish imported derived coordinates from manual selected coordinates; viewing SHALL NOT edit either location.
 
 #### Scenario: View the site map
 - **WHEN** a site with valid coordinates is opened
@@ -123,6 +127,11 @@ Site details SHALL show a marker at the stored Site longitude and latitude, with
 - **WHEN** map configuration, coordinates or external map resources are unavailable
 - **THEN** the map area shows a clear Lithuanian unavailable/error state, using `N/A` for missing coordinate values
 - **AND** site statistics and bins remain usable
+
+#### Scenario: Keep detail locations informational
+- **WHEN** an administrator pans, zooms or clicks an existing Site's detail map
+- **THEN** the displayed Site marker and stored Site coordinates remain unchanged
+- **AND** location selection is available only in the new-Site modal
 
 ### Requirement: First-bin site location fields
 `GET /sites/{id}` SHALL return site identity, address, coordinates and the location fields `sub_district`, `street`, `house_number` and `postal_code` from the child with the lowest internal `Bin.id`. All four fields SHALL come from that same child. NULLs SHALL NOT be replaced by values from another child. Postal codes and house numbers SHALL retain their text formatting.
@@ -193,7 +202,7 @@ The history endpoint SHALL accept page and page size, both defaulting to 1 and 2
 - **AND** history scrolls horizontally on narrow screens and vertically for long pages
 
 ### Requirement: Explicit NULL and numeric fill presentation
-Every displayed database NULL SHALL appear as `N/A` in lists, metrics, site details, dialog headers and history. Values 0 and false SHALL remain meaningful values. History fill level SHALL display its stored integer 0–3 directly, without category labels, inferred percentages or predictions. API nulls SHALL remain nulls rather than becoming display strings.
+Every displayed database NULL SHALL appear as `N/A` in lists, metrics, site details, dialog headers and history. Editable form fields SHALL use normal empty inputs instead. Values 0 and false SHALL remain meaningful values. History fill level SHALL display its stored integer 0–3 directly, without category labels, inferred percentages or predictions. API nulls SHALL remain nulls rather than becoming display strings.
 
 #### Scenario: Render nullable bin and history values
 - **WHEN** inventory number, capacity, failure reason or fill level is NULL
@@ -203,6 +212,10 @@ Every displayed database NULL SHALL appear as `N/A` in lists, metrics, site deta
 - **WHEN** attempts have fill levels 0, 1, 2, 3 and NULL
 - **THEN** the corresponding displayed values are 0, 1, 2, 3 and `N/A`
 - **AND** an unsuccessful boolean status displays its Lithuanian unsuccessful status rather than `N/A`
+
+#### Scenario: Enter an optional missing postal code
+- **WHEN** an administrator leaves the new-Site postal-code field empty
+- **THEN** the input remains empty, creation stores NULL, and subsequent Site detail display shows `N/A`
 
 ### Requirement: Lithuanian responsive and recoverable browsing
 Application-controlled text, statuses and known waste-type display labels SHALL be Lithuanian, with `N/A` as the requested missing-value token. Screens and dialogs SHALL follow Trucks styling and remain usable on mobile. Each data area SHALL handle loading and API failure with retry; stale responses SHALL NOT replace a newer selection. Dialogs SHALL support keyboard operation, closing and focus restoration.
@@ -234,3 +247,11 @@ Trucks, SHALL display pagination only when a known total exceeds page size.
 - **WHEN** a list is empty, contains only one page, or its total is not yet known
 - **THEN** its pagination controls are hidden
 - **AND** pagination appears when a successful response reports multiple pages
+
+### Requirement: Compact Site list addresses
+Site list rows SHALL display only the street name and house number from the registered display address, omitting appended sub-district and postal code. Existing unknown-address fallbacks SHALL remain readable. Full stored addresses, search matching and detail/API address values SHALL remain intact.
+
+#### Scenario: Browse a manually created Site
+- **WHEN** a Site has address `Didlaukio g. 53A, Verkių sen., 08303`
+- **THEN** its list row shows `Didlaukio g. 53A`
+- **AND** its details and deletion confirmation retain the full address

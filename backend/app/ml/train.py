@@ -9,4 +9,3 @@ def arguments(parser):
 if __name__ == '__main__':
     from .evaluation import train
     run_cli("Fit configured models using approved search parameters and train-only preprocessing.", train, extra=arguments)
-

@@ -139,10 +139,10 @@ def provenance(config):
 
 
 def require_sources(config):
-    data = ROOT / 'backend/data'
+    data = source_path(config, 'registry').parent
     for table in ['sites', 'bins', 'bin_hist']:
         if not any(p.stem[len(table) + 1:].isdigit() for p in data.glob(f'{table}_*.csv')):
-            raise ValueError(f'Add the required {table}_<digits>.csv export to backend/data; do not run bin_sync')
+            raise ValueError(f'Add the required {table}_<digits>.csv export to {data}; do not run bin_sync')
     for name in ['daily', 'registry', 'district_aliases']:
         if not source_path(config, name).is_file():
             raise ValueError(f'Missing {name} input: {config["paths"][name]}')

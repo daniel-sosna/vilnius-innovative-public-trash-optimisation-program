@@ -271,7 +271,7 @@ def charts_and_report(args, verification, sensitivity):
               '- The first success anchors unknown state. Missing/invalid inputs still receive NULL training labels and QR values under the existing policy. Full-registry non-NULL model predictions require a separate inference pipeline.',
               '- Calibrating on synthetic visits changes the relationship between source demand and occupancy. A model trained here learns that assumed relationship and requires validation on real worker observations.','',
               '## Reproduction and inspection','',
-              'See docs/fill-qr-generation.md. manifest.json, calibration.json and verification.json record provenance and checks; reproducibility.json records the full repeat run. manual_review.md records concrete trajectory audits; visual_review.json records final chart/PDF inspection. Diagnostic arrays contain 12 named rows listed in the manifest; only fill_level and qr_alerts are added to the CSV.','']
+              'See docs/data/fill-qr.md. manifest.json, calibration.json and verification.json record provenance and checks; reproducibility.json records the full repeat run. manual_review.md records concrete trajectory audits; visual_review.json records final chart/PDF inspection. Diagnostic arrays contain 12 named rows listed in the manifest; only fill_level and qr_alerts are added to the CSV.','']
     manual=['# Current trajectory audit','',
             'Values below use the current bounded scenario. Assigned/excess source demand are m³ pressure diagnostics, not fullness percentages.']
     from datetime import timedelta

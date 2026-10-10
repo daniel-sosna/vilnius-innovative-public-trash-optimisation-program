@@ -1,4 +1,4 @@
-"""Offline synthetic fill/QR generator. See docs/fill-qr-generation.md."""
+"""Offline synthetic fill/QR generator. See docs/data/fill-qr.md."""
 from __future__ import annotations
 
 import argparse

@@ -28,6 +28,37 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention={"pk": "pk_%(table_name)s"})
 
 
+class DistrictBoundary(Base):
+    __tablename__ = "district_boundaries"
+    __table_args__ = (
+        UniqueConstraint("district_name", name="uq_district_boundaries_name"),
+        UniqueConstraint("source_object_id", name="uq_district_boundaries_source_id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    district_name: Mapped[str] = mapped_column(Text)
+    geometry: Mapped[dict] = mapped_column(JSONB)
+    source_object_id: Mapped[int] = mapped_column(Integer)
+
+
+class ServiceZone(Base):
+    __tablename__ = "service_zones"
+    __table_args__ = (
+        UniqueConstraint("zone_number", name="uq_service_zones_zone_number"),
+        CheckConstraint("btrim(zone_name) <> ''", name="ck_service_zones_name"),
+        CheckConstraint(
+            "jsonb_typeof(geometry) = 'object' AND "
+            "geometry->>'type' IS NOT DISTINCT FROM 'Polygon' AND "
+            "jsonb_typeof(geometry->'coordinates') IS NOT DISTINCT FROM 'array'",
+            name="ck_service_zones_geometry",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    zone_name: Mapped[str] = mapped_column(Text)
+    zone_number: Mapped[int] = mapped_column(Integer)
+    geometry: Mapped[dict] = mapped_column(JSONB)
+
+
 class Site(Base):
     __tablename__ = "sites"
     __table_args__ = (
@@ -60,9 +91,9 @@ class Bin(Base):
     )
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     site_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("sites.id", name="fk_bins_site_id", ondelete="RESTRICT")
+        BigInteger, ForeignKey("sites.id", name="fk_bins_site_id", ondelete="CASCADE")
     )
-    external_id: Mapped[int] = mapped_column(BigInteger)
+    external_id: Mapped[int | None] = mapped_column(BigInteger)
     inventory_number: Mapped[str | None] = mapped_column(Text)
     waste_type: Mapped[str] = mapped_column(Text)
     capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
@@ -130,7 +161,7 @@ class BinHist(Base):
 class BinDay(Base):
     """Derived bin x calendar-day grid, rebuilt by `python -m app.interfaces.bin_days`.
 
-    Every column is documented in docs/bin-days-columns.md; update it when columns change.
+    Every column is documented in docs/data/bin-days-columns.md; update it when columns change.
     """
 
     __tablename__ = "bin_days"
@@ -342,3 +373,56 @@ class Truck(Base):
     )
     available: Mapped[bool] = mapped_column(Boolean)
     deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+
+
+class CollectionStop(Base):
+    __tablename__ = "collection_stops"
+    __table_args__ = (
+        UniqueConstraint(
+            "date",
+            "waste_carrier",
+            "site_id",
+            name="uq_collection_stops_date_carrier_site",
+            postgresql_nulls_not_distinct=True,
+        ),
+        Index("ix_collection_stops_date", "date"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date)
+    # NULL is the unassigned group (bins without a waste carrier).
+    waste_carrier: Mapped[str | None] = mapped_column(Text)
+    site_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("sites.id", name="fk_collection_stops_site_id", ondelete="CASCADE"),
+    )
+    # Totals over all the carrier's bins at the site (not only the due ones), fixed at
+    # planning time and not recalculated afterwards.
+    overall_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
+    # Predicted (mock) volume of waste: capacity times the share each fill level stands for.
+    overall_predicted_fill_m3: Mapped[Decimal] = mapped_column(Numeric)
+
+
+class StopBin(Base):
+    __tablename__ = "stop_bins"
+    __table_args__ = (
+        CheckConstraint(
+            "predicted_fill BETWEEN 0 AND 4", name="ck_stop_bins_predicted_fill_range"
+        ),
+        Index("ix_stop_bins_bin_id", "bin_id"),
+    )
+
+    stop_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("collection_stops.id", name="fk_stop_bins_stop_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_stop_bins_bin_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    # Predicted (currently mock, synthetic) fill level: 0 to 4.
+    predicted_fill: Mapped[int] = mapped_column(SmallInteger)
+    # True when bin is due for collection today.
+    due: Mapped[bool] = mapped_column(Boolean)

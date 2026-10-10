@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 import joblib
@@ -187,7 +188,7 @@ print(json.dumps({'passed':True,'cases':observed,'probability_equality':True,'cs
 '''
         (isolated / 'verify.py').write_text(script, encoding='utf-8')
         env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
-        completed = subprocess.run([str(ROOT / 'backend/data/ml/.venv/Scripts/python.exe'), '-I', '-B', str(isolated / 'verify.py')],
+        completed = subprocess.run([sys.executable, '-I', '-B', str(isolated / 'verify.py')],
                                    cwd=isolated, env=env, capture_output=True, text=True, timeout=120)
         if completed.returncode:
             raise ValueError('Isolated product verification failed: ' + completed.stderr[-2500:])

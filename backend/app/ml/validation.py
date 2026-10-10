@@ -48,7 +48,7 @@ def summarize_coverage(config):
                'registry_sites': int(coverage.site_id.nunique()),
                'registry_only_bins': int((~coverage.has_daily_history).sum()),
                'quality_issue_counts_nonexclusive': {c: int(coverage[c].sum()) for c in ['missing_object_group', 'ambiguous_district', 'invalid_capacity', 'contradictory_site_districts']}}
-    generator_manifest = config['_root'] / 'backend/data/validation/fill_qr/manifest.json'
+    generator_manifest = source_path(config, 'daily').parent / 'validation/fill_qr/manifest.json'
     if generator_manifest.exists():
         manifest = read_json(generator_manifest)
         summary['generator_manifest_sha256'] = digest(generator_manifest)

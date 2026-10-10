@@ -1,0 +1,13 @@
+# Worktree mode: publish every service on a free host port chosen by Docker,
+# unless its port variable is set. Enable with this line in .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.worktree.yml
+services:
+  frontend:
+    ports: !override
+      - "${FRONTEND_PORT:+${FRONTEND_PORT}:}5173"
+  backend:
+    ports: !override
+      - "${BACKEND_PORT:+${BACKEND_PORT}:}8000"
+  db:
+    ports: !override
+      - "${DB_PORT:+${DB_PORT}:}5432"

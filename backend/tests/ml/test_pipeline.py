@@ -133,7 +133,7 @@ class FixtureIntegration(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(dir=ROOT/'backend/data/ml')
         self.folder=Path(self.temp.name)
         self.config=load_config(ROOT/'backend/configs/ml.yaml'); c=self.config
-        c['paths'].update(daily=str(self.folder/'daily.csv'),registry=str(self.folder/'registry.csv'),population=str(self.folder/'population.csv'),output=str(self.folder/'output'))
+        c['paths'].update(daily=str(self.folder/'daily.csv'),registry=str(self.folder/'bins_1.csv'),population=str(self.folder/'population.csv'),output=str(self.folder/'output'))
         c['expected'].update(rows=240,daily_bins=2,registry_bins=3,start='2025-01-01',end='2025-04-30')
         c['splits']={'calibration':['2025-01-01','2025-02-09'],'train':['2025-02-10','2025-03-21'],'validation':['2025-03-22','2025-04-10'],'test':['2025-04-11','2025-04-30']}
         c['final_train']=['2025-02-10','2025-04-10']; c['demo_today']=['2025-04-10','2025-04-29']
@@ -144,6 +144,8 @@ class FixtureIntegration(unittest.TestCase):
         self.registry=self.raw.groupby('bin_id').first().reset_index()[['bin_id','site_id','waste_type','capacity_m3','sub_district','object_group']].rename(columns={'bin_id':'id'})
         cold=self.registry.iloc[[0]].copy(); cold['id']=3; cold['site_id']=3; cold['capacity_m3']=0
         self.registry=pd.concat([self.registry,cold],ignore_index=True); self.registry.to_csv(c['paths']['registry'],index=False)
+        pd.DataFrame({'id':[1,2,3]}).to_csv(self.folder/'sites_1.csv',index=False)
+        pd.DataFrame(columns=['id','bin_id','date','fill_level']).to_csv(self.folder/'bin_hist_1.csv',index=False)
         self.population=pd.DataFrame({'bin_id':[1,2,3],'population_cell_id':[1,1,1],'resident_factor':[0.,0.,0.]}); self.population.to_csv(c['paths']['population'],index=False)
     def tearDown(self):
         self.assertTrue(self.folder.resolve().is_relative_to((ROOT/'backend/data/ml').resolve()))

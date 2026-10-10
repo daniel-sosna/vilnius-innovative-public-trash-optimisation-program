@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { getSiteStats, type SiteStats, type WasteTypeCount } from './api'
 import { formatCapacity, formatValue, wasteLabel } from './format'
 
-type Result = { key: number; data: SiteStats | null; error: boolean }
+type Result = { key: string; data: SiteStats | null; error: boolean }
 const wasteColors: Record<string, string> = {
   'Mixed municipal waste': '#92400e',
   'Paper/plastic waste': '#2563eb',
@@ -39,11 +39,11 @@ function WasteDonut({ groups, totalBins }: { groups: WasteTypeCount[]; totalBins
   }))
 
   return (
-    <div className="flex items-end justify-between gap-4">
+    <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0 space-y-4">
         <p className="break-words text-3xl font-semibold tabular-nums">{formatValue(totalBins)}</p>
       </div>
-      <div className="flex flex-center items-center justify-between gap-4">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <ul className="space-y-2 text-sm">
           {segments.map((segment) => (
             <li key={segment.waste_type} className="flex items-start gap-2">
@@ -91,24 +91,25 @@ function WasteDonut({ groups, totalBins }: { groups: WasteTypeCount[]; totalBins
   )
 }
 
-export function SiteOverview() {
+export function SiteOverview({ revision = 0 }: { revision?: number }) {
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState<Result | null>(null)
-  const current = result?.key === retry ? result : null
+  const key = JSON.stringify([retry, revision])
+  const current = result?.key === key ? result : null
 
   useEffect(() => {
     const controller = new AbortController()
     getSiteStats(controller.signal)
       .then((data) => {
         if (!controller.signal.aborted)
-          setResult({ key: retry, data, error: false })
+          setResult({ key, data, error: false })
       })
       .catch(() => {
         if (!controller.signal.aborted)
-          setResult({ key: retry, data: null, error: true })
+          setResult({ key, data: null, error: true })
       })
     return () => controller.abort()
-  }, [retry])
+  }, [key])
 
   const data = current?.data
   return (

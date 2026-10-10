@@ -35,13 +35,17 @@ def synchronize_schedules(
     workers: int = 4,
     max_bins: int = 0,
 ) -> ScheduleSummary:
-    query = select(B.c.id, B.c.external_id).order_by(B.c.id)
+    query = (
+        select(B.c.id, B.c.external_id)
+        .where(B.c.external_id.is_not(None))
+        .order_by(B.c.id)
+    )
     if max_bins:
         query = query.limit(max_bins)
     with sessions() as session:
         bins = [tuple(row) for row in session.execute(query)]
     if not bins:
-        raise NoBinsError("no bins are stored; import collection data first")
+        raise NoBinsError("no VASA bins are stored; import collection data first")
 
     client = VasaClient(settings)
     summary = ScheduleSummary()

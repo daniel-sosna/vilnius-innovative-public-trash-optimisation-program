@@ -80,6 +80,25 @@ context: |
     with their rationale, without unnecessary bureaucracy.
   - Keep the system understandable to both humans and AI coding agents.
 
+  Documentation (applies to all work, inside or outside OpenSpec):
+  - README.md is only the entry point: short description, Quick Start, data
+    pipeline table, features table, project structure and an index of docs/.
+    Keep it under 150 lines. Add a row or link there, never a feature section.
+  - Put detail in the topic file under docs/ (development.md, data-model.md,
+    data/<command>.md). Extend the existing file for a topic before creating a
+    new one; list every new file in the README index.
+  - Behaviour is specified in openspec/specs/. Do not restate UI behaviour, API
+    contracts or validation rules in docs; link the spec. Document only what
+    the specs and code do not tell a reader: how to run things, configuration,
+    options, side effects, durations and assumptions.
+  - Describe the current state only: no change history, migration narratives,
+    dates, "now", "previously", "no longer" or "historical". Replace outdated
+    text instead of appending to it.
+  - State each fact once and link to it elsewhere. Be concise: short
+    sentences, bullets and tables; no overexplaining.
+  - Manual verification steps and evidence belong to the change
+    (openspec/changes/<name>/), never to docs/.
+
 rules:
   proposal:
     - Keep scope realistic for a one-week hackathon.
@@ -98,6 +117,7 @@ rules:
     - Order and scope tasks to build toward an end-to-end vertical slice.
     - Include reproducibility steps for data processing, model training or experiments when relevant.
     - Where useful, include a task for a repeatable verification command or script for non-UI logic.
+    - A documentation task names the docs/ file it updates and what it adds or replaces; never "add a README section". Touch README only when the Quick Start, pipeline table, features table, structure or docs index changes.
 
 operations:
   apply:

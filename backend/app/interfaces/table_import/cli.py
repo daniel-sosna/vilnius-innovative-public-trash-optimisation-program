@@ -9,13 +9,16 @@ from psycopg.errors import FeatureNotSupported
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
-from app.core.config import Settings
+from app.core.config import Settings, data_dir
 from app.infrastructure.database import SYNC_LOCK_TIMEOUT_MS, create_database_engine
 from app.infrastructure.models import Base
+from app.interfaces.district_boundaries.catalog import (
+    SOURCE_FILE_NAME, DistrictRecord, parse_districts, replace_catalog,
+)
+from app.interfaces.service_zones.importer import ZONE_FILE_NAME, parse_zones, replace_zones
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path(__file__).resolve().parents[3] / "data"
 COLLECTION_TABLES = {"sites", "bins", "bin_hist"}
 SYNC_STATE_TABLES = ("vasa_import_runs", "vasa_import_progress")
 # Tables derived from bins, emptied when bins are replaced without their own file,
@@ -24,6 +27,8 @@ BIN_DERIVED_TABLES = {
     "bin_days": "python -m app.interfaces.bin_days --start YYYY-MM-DD --end YYYY-MM-DD",
     "bin_population": "python -m app.interfaces.bin_population",
     "bin_schedule": "python -m app.interfaces.bin_schedule_sync",
+    "collection_stops": "python -m app.interfaces.collection_plan",
+    "stop_bins": "python -m app.interfaces.collection_plan",
 }
 # Tables referencing bins that cannot be refilled; their rows belong to the replaced bins.
 BIN_DEPENDENT_TABLES = ("resident_requests",)
@@ -59,6 +64,20 @@ def read_columns(path: Path) -> list[str]:
     return header
 
 
+def discover_district_source(directory: Path, files: dict[str, Path]) -> Path | None:
+    source = directory / SOURCE_FILE_NAME
+    # A broken symlink is a present but unreadable source, not an optional absence.
+    present = source.exists() or source.is_symlink()
+    csv_source = files.get("district_boundaries")
+    if present and csv_source is not None:
+        raise ValueError(f"Competing district inputs: {csv_source} and {source}")
+    if present:
+        return source
+    if csv_source is None:
+        logger.warning("Optional district source %s is missing; stored boundaries preserved", source)
+    return None
+
+
 def emptied_derived_tables(files: dict[str, Path]) -> list[str]:
     if "bins" not in files:
         return []
@@ -69,7 +88,17 @@ def emptied_derived_tables(files: dict[str, Path]) -> list[str]:
     ]
 
 
-def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
+def load_tables(
+    engine,
+    files: dict[str, Path],
+    districts: list[DistrictRecord] | None = None,
+    *,
+    zones: list[dict] | None = None,
+) -> dict[str, int]:
+    if districts is not None and "district_boundaries" in files:
+        raise ValueError("Competing district CSV and GeoJSON replacements")
+    if zones is not None and "service_zones" in files:
+        raise ValueError("Competing service-zone CSV and GeoJSON replacements")
     columns = {table: read_columns(path) for table, path in files.items()}
     truncated = list(files)
     if COLLECTION_TABLES & files.keys():
@@ -79,11 +108,12 @@ def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
     with engine.begin() as connection:
         connection.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
         cursor = connection.connection.dbapi_connection.cursor()
-        cursor.execute(
-            sql.SQL("TRUNCATE {}").format(
-                sql.SQL(", ").join(sql.Identifier(name) for name in truncated)
+        if truncated:
+            cursor.execute(
+                sql.SQL("TRUNCATE {}").format(
+                    sql.SQL(", ").join(sql.Identifier(name) for name in truncated)
+                )
             )
-        )
         for table, path in files.items():
             statement = sql.SQL(
                 "COPY {} ({}) FROM STDIN WITH (FORMAT csv, HEADER true, NULL 'NULL')"
@@ -94,6 +124,8 @@ def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
             with cursor.copy(statement) as copy, path.open("rb") as file:
                 while chunk := file.read(COPY_CHUNK_BYTES):
                     copy.write(chunk)
+        if zones is not None:
+            counts["service_zones"] = replace_zones(connection, zones)
         for table in files:
             cursor.execute(
                 sql.SQL(
@@ -106,6 +138,9 @@ def load_tables(engine, files: dict[str, Path]) -> dict[str, int]:
                 sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(table))
             )
             counts[table] = cursor.fetchone()[0]
+        cursor.close()
+        if districts is not None:
+            counts["district_boundaries"] = replace_catalog(connection, districts)
     return counts
 
 
@@ -116,13 +151,13 @@ def main() -> int:
     engine = None
     try:
         parser = argparse.ArgumentParser(
-            description="Replace database tables with CSV exports named <table>_<digits>.csv (newest wins)."
+            description="Replace database tables with CSV exports (newest wins) and optional district/service-zone GeoJSON."
         )
         parser.add_argument(
             "--dir",
             type=Path,
-            default=DEFAULT_DIR,
-            help=f"Directory with CSV exports (default: {DEFAULT_DIR})",
+            default=data_dir(),
+            help="Directory with CSV exports and district/service-zone GeoJSON (default: VIPTOP_DATA_DIR, else backend/data)",
         )
         try:
             args = parser.parse_args()
@@ -132,15 +167,35 @@ def main() -> int:
             logger.error("Table import failed: directory %s does not exist", args.dir)
             return 1
         files = discover_files(args.dir)
-        if not files:
+        district_source = discover_district_source(args.dir, files)
+        districts = parse_districts(district_source) if district_source is not None else None
+        zone_path = args.dir / ZONE_FILE_NAME
+        zones = None
+        if zone_path.exists() or zone_path.is_symlink():
+            if "service_zones" in files:
+                raise ValueError(
+                    f"Competing service-zone sources: {files['service_zones'].name} and {ZONE_FILE_NAME}; "
+                    "keep only the intended source in the selected directory"
+                )
+            zones = parse_zones(zone_path)
+        else:
+            logger.warning(
+                "%s is missing in %s; zones are preserved unless selected by a CSV export",
+                ZONE_FILE_NAME, args.dir,
+            )
+        if not files and districts is None and zones is None:
             logger.error(
-                "Nothing to import: no <table>_<digits>.csv files in %s", args.dir
+                "Nothing to import: no <table>_<digits>.csv or district/service-zone GeoJSON in %s", args.dir
             )
             return 1
         engine = create_database_engine(Settings())
-        counts = load_tables(engine, files)
+        counts = load_tables(engine, files, districts, zones=zones)
         for table, path in files.items():
             logger.info("%s <- %s: %d rows", table, path.name, counts[table])
+        if district_source is not None:
+            logger.info("district_boundaries <- %s: %d districts", district_source, counts["district_boundaries"])
+        if zones is not None:
+            logger.info("service_zones <- %s: %d rows", zone_path.name, counts["service_zones"])
         for table in emptied_derived_tables(files):
             if table in BIN_DERIVED_TABLES:
                 logger.info(

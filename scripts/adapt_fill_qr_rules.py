@@ -239,7 +239,8 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     source = args.source.read_text(encoding='utf-8')
     updated = adapt(source)
-    change_log = Path(__file__).resolve().parents[1] / 'docs/fill-qr-rule-changes.md'
+    change_log = (Path(__file__).resolve().parents[1] /
+                  'openspec/changes/archive/2026-10-11-calibrate-fill-generation/fill-qr-rule-changes.md')
     shutil.copy2(change_log, args.output_dir / 'CHANGELOG.md')
     import csv
     from fill_qr import ALIASES
