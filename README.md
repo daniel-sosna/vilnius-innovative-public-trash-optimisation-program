@@ -205,11 +205,13 @@ See [table import verification](docs/table-import-verification.md) for repeatabl
 ## Bin-day calendar
 
 `bin_days` holds one row per bin per calendar day. It is the input for the future
-synthetic fill-level generator. It is derived only from `bins` and the requested dates:
-it holds no service history, outcomes or fill levels. The generator reads `bin_hist`
-itself and, when one bin has several events on the same day, uses the last one.
+synthetic fill-level generator. It is derived from `bins`, the stored planned dates in
+`bin_schedule`, the requested dates, the Lithuanian public holidays and the simulation
+parameters. It does not read `bin_hist`, and it holds no observed outcomes or fill levels.
+The generator reads `bin_hist` itself and, when one bin has several events on the same day,
+uses the last one. The generator should reset fill on `collected` and `retry_collected`.
 
-Build it after importing the collection data:
+Build it after importing the collection data (including `bin_schedule`):
 
 ```bash
 docker compose exec backend uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
@@ -217,7 +219,13 @@ docker compose exec backend uv run python -m app.interfaces.bin_days --start 202
 uv run python -m app.interfaces.bin_days --start 2026-09-09 --end 2026-10-09
 ```
 
-The current exports give 31 days × 21,804 bins = 675,924 rows. The command takes about 30 s.
+The current exports give 31 days × 21,695 bins = 672,545 rows. Options (all optional):
+`--seed` (42), `--p-first` (0.028), `--p-retry1` (0.40), `--p-retry2` (0.70) and
+`--holiday-factor` (2). Probabilities must be in [0, 1] and the factor at least 0. The
+summary prints the seed, the parameters and the number of rows per status. The simulation
+runs in plain Python, so long ranges take a while: 31 days take about 20 s and one year
+(2026-10-10..2027-10-09, about 7.9M rows) about 4 minutes. The five-year maximum would take
+roughly 20 minutes.
 
 | Column | Meaning |
 |---|---|
@@ -227,9 +235,19 @@ The current exports give 31 days × 21,804 bins = 675,924 rows. The command take
 | `month` | 1–12 |
 | `season` | Meteorological: 1 winter (Dec–Feb), 2 spring, 3 summer, 4 autumn (Sep–Nov) |
 | `bin_id`, `site_id`, `waste_type`, `capacity_m3`, `sub_district`, `object_group` | Copied from `bins`; `capacity_m3` and `object_group` may be NULL |
+| `collection_status` | **Synthetic.** Outcome of the day's own attempt, see below |
+| `holidays_since_last_collection` | **Synthetic.** Holidays from the day after the latest successful collection through the day before the row's date; counted from the simulation start if there is none |
+| `collections_last_28d` | **Synthetic.** Days with a successful collection from date − 28 to date − 1 |
+| `missed_collections_28d` | **Synthetic.** Days with status `missed` from date − 28 to date − 1 |
 
-- **Which bins:** every bin with a `sub_district` gets a row for every date, whatever its
-  history. Bins without one are skipped and counted in the summary.
+`collection_status` values: `none` (no attempt), `collected` (first attempt succeeded),
+`retry_collected` (a retry succeeded), `failed` (attempt failed, a retry follows the next
+day) and `missed` (attempt failed, no retry follows). An occurrence counts as missed only
+once all its attempts failed, on the day that became final.
+
+- **Which bins:** a bin gets a row for every date when it has a `sub_district` and at least
+  one stored planned date. Others are skipped and counted in the summary as excluded
+  without sub-district or without schedule.
 - **Replacement:** each run replaces the whole table in one transaction, and a failure leaves
   it unchanged. Both dates are required, and ranges longer than five years (1,827 days) are
   rejected. Exit codes: 0 on success, 1 on invalid arguments or failure.
@@ -238,8 +256,26 @@ The current exports give 31 days × 21,804 bins = 675,924 rows. The command take
   - Bins have no install or removal dates, so every included bin is assumed to exist on
     every day.
   - ISO weeks near New Year can belong to the neighbouring year (2027-01-01 is week 53).
+  - The stored schedule (the latest monthly snapshot) repeats unchanged over the whole
+    range. Its cycle is the shortest of 1, 7, 14, 21 or 28 days that reproduces the stored
+    dates; a single stored date means every 28 days, and irregular dates fall back to 28.
+  - A collection is attempted on every planned day. A failed attempt is retried on the next
+    day and, if that fails, once more on the day after. A planned day cancels a pending retry.
+  - The failure probabilities are assumptions, not fitted values. For reference, 3.4% of
+    `bin_hist` events are non-serviced (including reasons that are not carrier failures),
+    and 23% of next-day events after a non-service are non-serviced too. Holidays multiply
+    the probability by the factor, capped at 0.95. With the defaults a planned collection is
+    missed with probability 0.028 × 0.40 × 0.70 ≈ 0.78%. The observed share is higher: about
+    1.0% for non-daily bins (holidays raise it) and 1.8% overall, because a daily bin has
+    no retry, so any failure is a miss (2.8%).
+  - Holidays do not move collections. They only raise failure probability.
+  - The simulation starts 35 days before `--start` so the first rows have full 28-day
+    features. Output depends on the arguments, so changing `--start` changes the draws.
+  - Each bin has its own random stream (`seed` and `bin_id`), so the same arguments give
+    identical output regardless of other bins.
 - **Keeping it in sync:** a deleted bin loses its rows. A CSV import that replaces `bins`
-  empties the table, so rerun the command afterwards.
+  empties the table, so rerun the command afterwards. Refreshing `bin_schedule` does not
+  change existing rows until the next rebuild.
 
 See [bin-day calendar verification](docs/bin-day-calendar-verification.md) for repeatable checks.
 

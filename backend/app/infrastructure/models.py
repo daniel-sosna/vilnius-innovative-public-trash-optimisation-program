@@ -135,6 +135,22 @@ class BinDay(Base):
         ),
         CheckConstraint("month BETWEEN 1 AND 12", name="ck_bin_days_month"),
         CheckConstraint("season BETWEEN 1 AND 4", name="ck_bin_days_season"),
+        CheckConstraint(
+            "collection_status IN ('none', 'collected', 'retry_collected', 'failed', 'missed')",
+            name="ck_bin_days_collection_status",
+        ),
+        CheckConstraint(
+            "holidays_since_last_collection >= 0",
+            name="ck_bin_days_holidays_since_last_collection",
+        ),
+        CheckConstraint(
+            "collections_last_28d BETWEEN 0 AND 28",
+            name="ck_bin_days_collections_last_28d",
+        ),
+        CheckConstraint(
+            "missed_collections_28d BETWEEN 0 AND 28",
+            name="ck_bin_days_missed_collections_28d",
+        ),
     )
     bin_id: Mapped[int] = mapped_column(
         BigInteger,
@@ -151,6 +167,11 @@ class BinDay(Base):
     capacity_m3: Mapped[Decimal | None] = mapped_column(Numeric)
     sub_district: Mapped[str] = mapped_column(Text)
     object_group: Mapped[str | None] = mapped_column(Text)
+    # Synthetic columns, simulated from the schedule (not observations).
+    collection_status: Mapped[str] = mapped_column(Text)
+    holidays_since_last_collection: Mapped[int] = mapped_column(SmallInteger)
+    collections_last_28d: Mapped[int] = mapped_column(SmallInteger)
+    missed_collections_28d: Mapped[int] = mapped_column(SmallInteger)
 
 
 class BinSchedule(Base):
