@@ -7,7 +7,7 @@ operator's `.env`. Root dotenv is loaded regardless of working directory;
 environment overrides it. VASA HTTPS templates default to `.env.example`;
 `BIN_SYNC_HTTP_TIMEOUT_SECONDS` is positive finite and required.
 
-## Current schema and manual invocation (revision 0004)
+## Current schema and manual invocation (revision 0007)
 
 ```bash
 uv sync --locked
@@ -63,6 +63,17 @@ NULL means unknown, not empty. Source reasons preserve NULL and empty text.
 Refresh must not overwrite fill observations. The event key can collapse
 separate attempts sharing bin/timestamp/status; opposite statuses coexist.
 Site coordinates are arithmetic means over every member, not entrances.
+
+Revision `0005` changes only Trucks and requires an empty legacy truck table,
+including retired rows. It retains Site/Bin/BinHist/import data. See
+[Truck verification](truck-management-verification.md) for the volume/carrier
+transition, guarded rollback and current synthetic truck inserts. Revision
+`0006` seeds the supplied landfill catalog and adds a nullable Truck reference,
+preserving collection/import records and existing trucks as unassigned. Revision
+`0007` permits NULL in every landfill column except generated ID and name,
+preserving source values and references. The legacy
+procedures below are explicitly pinned to revisions `0001`–`0003`; their
+site-count truck inserts must not be run against the current head.
 
 ## Controlled response and resume procedure
 

@@ -1,13 +1,13 @@
 """Add the derived bin-day calendar.
 
-Revision ID: 0005
-Revises: 0004
+Revision ID: 0008
+Revises: 0007
 """
 
 from alembic import op
 
-revision: str = "0005"
-down_revision: str = "0004"
+revision: str = "0008"
+down_revision: str = "0007"
 branch_labels: None = None
 depends_on: None = None
 

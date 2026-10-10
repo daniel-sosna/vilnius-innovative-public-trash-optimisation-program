@@ -3,6 +3,25 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class LatestBinService(BaseModel):
+    date: datetime
+    was_serviced: bool
+
+
+class PublicBin(BaseModel):
+    id: int
+    address: str
+    inventory_number: str | None
+    waste_type: str
+    latitude: float
+    longitude: float
+    latest_service: LatestBinService | None
+
+
+class ResidentRequestSuccess(BaseModel):
+    success: bool
+
+
 class HistoryEntry(BaseModel):
     id: int
     date: datetime

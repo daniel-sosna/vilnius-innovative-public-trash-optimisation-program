@@ -5,12 +5,18 @@ import { SitesPage } from '@/pages/sites/sites-page'
 import { SiteDetailPage } from '@/pages/sites/site-detail-page'
 import { RoleSelection } from '@/pages/role-selection/role-selection-page'
 import { AdminLayout } from '@/components/layout/admin-layout'
+import { ToastProvider } from '@/components/ui/toast'
+import { ResidentRequestPage } from '@/pages/resident-request/resident-request-page'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<RoleSelection />} />
+        <Route
+          path="/resident-request/:bin_id"
+          element={<ToastProvider><ResidentRequestPage /></ToastProvider>}
+        />
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="trucks" element={<TrucksPage />} />
           <Route path="sites" element={<SitesPage />} />

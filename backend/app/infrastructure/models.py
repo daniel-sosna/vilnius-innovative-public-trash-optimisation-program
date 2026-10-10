@@ -2,6 +2,7 @@ from datetime import date as date_, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -85,6 +86,25 @@ class Bin(Base):
     schedule: Mapped[list["BinSchedule"]] = relationship(
         back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
     )
+    resident_requests: Mapped[list["ResidentRequest"]] = relationship(
+        back_populates="bin", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class ResidentRequest(Base):
+    __tablename__ = "resident_requests"
+    __table_args__ = (Index("ix_resident_requests_bin_id", "bin_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    bin_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("bins.id", name="fk_resident_requests_bin_id", ondelete="CASCADE"),
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=text("(statement_timestamp() AT TIME ZONE 'Europe/Vilnius')"),
+    )
+    bin: Mapped[Bin] = relationship(back_populates="resident_requests")
 
 
 class BinHist(Base):
@@ -186,11 +206,47 @@ class VasaImportProgress(Base):
     details: Mapped[dict] = mapped_column(JSONB)
 
 
+class Landfill(Base):
+    __tablename__ = "landfills"
+    __table_args__ = (
+        UniqueConstraint("source_id", name="uq_landfills_source_id"),
+        CheckConstraint(
+            "latitude BETWEEN -90 AND 90", name="ck_landfills_latitude_range"
+        ),
+        CheckConstraint(
+            "longitude BETWEEN -180 AND 180", name="ck_landfills_longitude_range"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer, Identity(always=True, start=1), primary_key=True
+    )
+    source_id: Mapped[str | None] = mapped_column(Text)
+    dataset_name: Mapped[str | None] = mapped_column(Text)
+    dataset_description: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[float | None] = mapped_column(Double)
+    longitude: Mapped[float | None] = mapped_column(Double)
+    name: Mapped[str] = mapped_column(Text)
+    operator: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
+    facility_role: Mapped[str | None] = mapped_column(Text)
+    waste_streams: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    status: Mapped[str | None] = mapped_column(Text)
+    coordinate_quality: Mapped[str | None] = mapped_column(Text)
+    coordinate_source: Mapped[str | None] = mapped_column(Text)
+    facility_source: Mapped[str | None] = mapped_column(Text)
+    municipal_arrangement_source: Mapped[str | None] = mapped_column(Text)
+    current_status_source: Mapped[str | None] = mapped_column(Text)
+    verified_at: Mapped[date_ | None] = mapped_column(Date)
+
+
 class Truck(Base):
     __tablename__ = "trucks"
     __table_args__ = (
         CheckConstraint(
-            "max_bins_per_trip BETWEEN 1 AND 99", name="ck_trucks_capacity_range"
+            "max_volume_m3 > 0 AND max_volume_m3 NOT IN "
+            "('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric)",
+            name="ck_trucks_positive_finite_volume",
         ),
         CheckConstraint(
             r"btrim(name, U&'\0009\000a\000b\000c\000d\001c\001d\001e\001f\0020\0085\00a0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200a\2028\2029\202f\205f\3000') <> ''",
@@ -203,6 +259,11 @@ class Truck(Base):
 
     id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
     name: Mapped[str] = mapped_column(Text)
-    max_bins_per_trip: Mapped[int] = mapped_column(Integer)
+    max_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
+    waste_carrier: Mapped[str] = mapped_column(Text)
+    landfill_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("landfills.id", name="fk_trucks_landfill_id", ondelete="RESTRICT"),
+    )
     available: Mapped[bool] = mapped_column(Boolean)
     deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

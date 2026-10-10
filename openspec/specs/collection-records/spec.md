@@ -23,19 +23,19 @@ The system SHALL persist Site records with `id`, `site_key`, `address`, `latitud
 - **AND** it does not share a site with other unknown-address bins
 
 ### Requirement: Truck records
-The system SHALL persist Truck records with only `id`, `name`, `max_bins_per_trip`, `available` and `deleted`, all required. Name SHALL be nonempty after trimming. Capacity SHALL be an integer 1–99 counting collection sites per trip. Availability SHALL be a boolean that future route generation can consume. Deletion SHALL be a boolean defaulting to false. A deleted truck SHALL always be unavailable.
+The system SHALL persist Truck records with only `id`, `name`, `max_volume_m3`, `waste_carrier`, `landfill_id`, `available` and `deleted`. All fields except the transitional landfill reference SHALL be required. ID SHALL be generated. Name SHALL be nonempty after trimming. Maximum volume SHALL be positive finite numeric cubic metres, permitting fractions without a 99 limit. Carrier SHALL be normal text. Availability SHALL be boolean for future route generation. Deletion SHALL be boolean defaulting to false; deleted trucks SHALL always be unavailable.
 
 #### Scenario: Persist truck capacity and availability
-- **WHEN** a truck named "Truck 3" is stored with capacity 35 and availability true
-- **THEN** the stored truck exposes a capacity of 35 sites per trip and availability true
+- **WHEN** a truck named `Šiukšliavežė 3` is stored with maximum volume 18.5, carrier `Ecoservice` and availability true
+- **THEN** the truck retains its generated ID, maximum volume 18.5 m³, carrier and availability, and has no `max_bins_per_trip` field
 
 #### Scenario: Reject unusable truck capacity
-- **WHEN** a truck write supplies zero, a negative value, or a missing value for capacity
+- **WHEN** a truck write supplies zero, a negative, missing or nonfinite maximum volume
 - **THEN** the write is rejected
 
 #### Scenario: Enforce the upper capacity bound
-- **WHEN** a truck write supplies capacity greater than 99
-- **THEN** the write is rejected without changing the truck's existing values
+- **WHEN** an otherwise valid truck write supplies maximum volume 120
+- **THEN** it is stored as 120 m³ because the former site-count upper bound no longer applies to volume
 
 #### Scenario: Reject an empty truck name
 - **WHEN** a truck write supplies an empty or whitespace-only name
@@ -234,7 +234,7 @@ Site, Bin, and BinHist SHALL each have an independently generated BIGINT primary
 - **THEN** each receives a generated identity and the Bin retains its VASA external ID separately
 
 ### Requirement: Collection deletion rules
-Storage SHALL reject deleting a Site that still has bins. Removing a Bin during successful bounded refresh cleanup SHALL also remove its BinHist records. Truck soft deletion SHALL retain the truck row and SHALL NOT change sites, bins, or bin history.
+Storage SHALL reject deleting a Site that still has bins. Removing a Bin during successful bounded refresh cleanup SHALL also remove its BinHist records. Every Bin deletion SHALL cascade deletion to its resident requests. Truck soft deletion SHALL retain the truck row and SHALL NOT change sites, bins, bin history, or resident requests.
 
 #### Scenario: Preserve a referenced site
 - **WHEN** direct deletion is requested for a Site with surviving bins
@@ -242,9 +242,155 @@ Storage SHALL reject deleting a Site that still has bins. Removing a Bin during 
 
 #### Scenario: Remove a bin and its history together
 - **WHEN** successful bounded refresh cleanup removes a missing Bin
-- **THEN** that Bin and all its history are removed together
+- **THEN** that Bin, all its history, and all its resident requests are removed together
 - **AND** its Site is removed only if no member bins remain
 
 #### Scenario: Soft delete a truck
 - **WHEN** a truck is retired through the management API
 - **THEN** its row remains deleted and unavailable and all sites, bins, and history remain unchanged
+
+### Requirement: Open-ended truck carrier storage
+Truck carrier storage SHALL accept normal text beyond the four companies offered by the current UI. The database SHALL NOT use an enum, CHECK constraint, foreign-key catalog or other constraint to limit possible carrier names. A carrier SHALL be required, with nonblank mutation validation belonging to the application.
+
+#### Scenario: Store a future carrier
+- **WHEN** an otherwise valid truck is persisted with carrier `Kitas vežėjas`
+- **THEN** storage accepts and retains that text without changing the schema or an allowed-values catalog
+
+#### Scenario: Inspect carrier storage
+- **WHEN** the truck schema is inspected
+- **THEN** carrier uses an ordinary required text column without any database constraint restricting possible names
+
+### Requirement: Guard the truck volume schema transition
+The volume/carrier upgrade SHALL require an empty legacy truck table, including retired records. It SHALL remove site-count capacity, prepare required volume/carrier storage and preserve collection data and truck identity generation. If any legacy truck exists, preparation SHALL fail with actionable IDs and an explanation without changing its data or publishing a partial upgrade.
+
+#### Scenario: Upgrade the confirmed empty fleet
+- **WHEN** initialized collection storage has no trucks and the volume/carrier upgrade runs
+- **THEN** required volume/carrier storage replaces site-count capacity and existing sites, bins, history and import bookkeeping retain their values and references
+
+#### Scenario: Detect unexpected legacy trucks
+- **WHEN** the legacy table contains an available, unavailable or retired truck at upgrade time
+- **THEN** preparation fails identifying affected truck IDs and explaining that site counts cannot be converted to volume and carriers are unknown
+- **AND** the old schema and records remain intact until the incompatibility is deliberately resolved
+
+#### Scenario: Prepare fresh storage
+- **WHEN** storage is initialized from empty through the documented startup path
+- **THEN** the final Truck model has the seven specified fields, with a nullable landfill reference and no external data is fetched
+
+#### Scenario: Repeat preparation after creating trucks
+- **WHEN** schema preparation runs again after this upgrade and volume-based trucks have been created
+- **THEN** their values and retirement flags remain unchanged without rerunning the legacy empty-table guard
+
+### Requirement: Seed the supplied landfill catalog
+The system SHALL seed `landfills` with the three supplied GeoJSON features, generated integer IDs starting at 1, original IDs retained separately and separate latitude/longitude. It SHALL preserve every property and collection name/description, excluding all `type` fields. Missing properties SHALL remain null. Supplied provenance SHALL not imply independent operational verification.
+
+#### Scenario: Preserve every supplied facility
+- **WHEN** fresh storage is prepared from the supplied catalog snapshot
+- **THEN** three records have generated IDs 1–3 in file order, original source IDs, all exact property/array values and collection metadata, with longitude/latitude mapped correctly and no type fields
+- **AND** the next generated landfill ID is 4
+
+#### Scenario: Preserve absent source properties
+- **WHEN** a feature omits `current_status_source` or `municipal_arrangement_source`
+- **THEN** the corresponding stored column is null without fabricated content
+
+#### Scenario: Repeat preparation without external access
+- **WHEN** startup migration runs again without the original Downloads file or network access
+- **THEN** the seeded catalog remains unchanged and no duplicates or external requests occur
+
+### Requirement: Optional landfill details
+Landfill storage SHALL require only generated `id` and `name`; all source metadata, coordinates and other facility detail columns SHALL permit null. Relaxing required details SHALL preserve supplied values and Truck references. Nonnull source IDs SHALL remain unique and supplied coordinates SHALL remain within geographic ranges. Rollback to required detail fields SHALL refuse incomplete rows without filling or discarding their data.
+
+#### Scenario: Store a named facility with unknown details
+- **WHEN** a facility is stored with only its name
+- **THEN** it receives a generated integer ID and every detail column is null
+
+#### Scenario: Preserve the supplied catalog while relaxing fields
+- **WHEN** revision 0006 storage is upgraded for nullable landfill details
+- **THEN** all seeded values and Truck references remain unchanged
+
+#### Scenario: Refuse lossy nullable-field rollback
+- **WHEN** rollback would require a detail field that is null in a stored facility
+- **THEN** preparation fails identifying affected facility IDs without changing schema, records or migration version
+
+### Requirement: Preserve existing trucks during landfill preparation
+Landfill preparation SHALL add a nullable Truck reference without inventing assignments or changing existing Truck, collection or import data. A nonnull reference SHALL identify an existing landfill. A referenced landfill SHALL not be deleted. Rollback SHALL refuse to discard any assignment, including a retired truck's assignment, without changing storage.
+
+#### Scenario: Upgrade a populated volume-based fleet
+- **WHEN** the landfill migration runs with active and retired trucks at the volume schema
+- **THEN** their fields and collection/import records remain unchanged, and their landfill references are null
+
+#### Scenario: Enforce a landfill reference
+- **WHEN** a stored Truck references a nonexistent landfill or deletion targets a referenced landfill
+- **THEN** storage rejects the operation and preserves the existing records
+
+#### Scenario: Guard assignment rollback
+- **WHEN** landfill rollback is attempted with any assigned active or retired truck
+- **THEN** it fails identifying affected trucks before changing schema or records
+
+#### Scenario: Roll back unassigned storage
+- **WHEN** landfill rollback runs with only unassigned trucks
+- **THEN** landfill storage and references are removed while original Truck and collection/import values remain unchanged
+- **THEN** its row remains deleted and unavailable and all sites, bins, history, and resident requests remain unchanged
+
+#### Scenario: Cascade a direct bin deletion
+- **WHEN** a Bin with resident requests is deleted directly
+- **THEN** its resident requests are removed in the same transaction without requiring application-side cleanup
+- **AND** requests belonging to other surviving bins remain unchanged
+
+#### Scenario: Roll back a bin deletion
+- **WHEN** a transaction deleting a Bin and its resident requests fails or is rolled back
+- **THEN** the Bin and its requests remain stored together
+
+### Requirement: Minimal resident-request records
+The system SHALL persist `ResidentRequest` records in `resident_requests` with only generated BIGINT primary key `id`, required BIGINT `bin_id` referencing internal `bins.id`, and required timezone-naive `timestamp`. Each Bin SHALL expose its resident requests, and each request SHALL reference its Bin. Records SHALL contain no user identity, IP address, device information, security metadata, or derived values.
+
+#### Scenario: Persist a resident report
+- **WHEN** a valid request is created for an existing bin
+- **THEN** it receives an independently generated ID and stores only that ID, the bin's internal ID, and its submission timestamp
+- **AND** it remains retrievable after restarting the backend while its bin exists
+
+#### Scenario: Reject a missing or nonexistent parent
+- **WHEN** a resident-request write omits `bin_id` or references a bin that does not exist
+- **THEN** storage rejects the write without creating a detached record
+
+#### Scenario: Preserve separate requests at the same local time
+- **WHEN** two valid requests target the same bin with identical timestamps
+- **THEN** both can be stored under different generated IDs
+
+#### Scenario: Refresh a surviving bin
+- **WHEN** synchronization updates a bin's metadata or site membership while preserving its internal identity
+- **THEN** the bin's existing resident requests retain their IDs, references, and timestamps
+
+### Requirement: Vilnius local submission timestamps
+Resident-request timestamps SHALL be generated on the server from the current Europe/Vilnius local clock and stored as `TIMESTAMP WITHOUT TIME ZONE`. They SHALL contain no timezone or offset and SHALL NOT depend on the resident device's clock or the server/database default timezone. Missing timestamps SHALL be rejected. Request creation SHALL preserve existing service-history timestamp values.
+
+#### Scenario: Use Vilnius time with a UTC server
+- **WHEN** a request is submitted when Vilnius local time is `2026-10-09 15:30:00` and the server and database sessions use UTC
+- **THEN** its stored timestamp represents `2026-10-09 15:30:00`, with permitted fractional seconds and no timezone or offset
+- **AND** the device's timezone does not affect the result
+
+#### Scenario: Use the timezone's current seasonal clock
+- **WHEN** requests are submitted during the summer and winter clock periods
+- **THEN** each timestamp records the Europe/Vilnius local time applicable at submission, without assuming a fixed UTC offset
+
+#### Scenario: Reject an absent timestamp
+- **WHEN** a resident-request write supplies no usable timestamp and no server-generated value
+- **THEN** storage rejects the write
+
+### Requirement: Additive resident-request schema upgrade
+The versioned schema upgrade SHALL add resident-request storage without deleting, replacing, reseeding, or changing existing collection records, trucks, identities, or import checkpoints. Schema preparation SHALL preserve saved requests on repeated startup and SHALL NOT import external data. Removing only this feature's schema SHALL leave existing collection storage intact.
+
+#### Scenario: Upgrade initialized collection storage
+- **WHEN** the upgrade runs against storage already at revision `0004`
+- **THEN** resident-request storage becomes available and all existing sites, bins, bin history, trucks, and import progress retain their values and identities
+
+#### Scenario: Repeat schema preparation
+- **WHEN** startup prepares a schema that already contains resident requests
+- **THEN** the requests and other records remain unchanged and no import or cleanup starts
+
+#### Scenario: Prepare a fresh database
+- **WHEN** the documented backend startup prepares empty storage through the current schema
+- **THEN** resident-request storage is ready before the backend serves requests, alongside existing collection storage
+
+#### Scenario: Remove the feature schema
+- **WHEN** the resident-request upgrade alone is rolled back
+- **THEN** resident-request storage is removed, and existing collection tables, records, and identities remain intact
