@@ -25,3 +25,27 @@ class LandfillFeature(BaseModel):
 class LandfillFeatureCollection(BaseModel):
     type: Literal["FeatureCollection"] = "FeatureCollection"
     features: list[LandfillFeature]
+
+
+class PolygonGeometry(BaseModel):
+    type: Literal["Polygon"] = "Polygon"
+    coordinates: list[list[tuple[float, float]]]
+
+
+class PopulationProperties(BaseModel):
+    density_per_ha: int | None
+    suppressed: bool
+    area_ha: float
+    residents: float | None
+
+
+class PopulationFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    id: int
+    geometry: PolygonGeometry
+    properties: PopulationProperties
+
+
+class PopulationFeatureCollection(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[PopulationFeature]
