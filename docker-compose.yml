@@ -14,7 +14,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://viptop:viptop@db:5432/viptop}
@@ -23,10 +24,15 @@ services:
       VASA_HISTORY_URL_TEMPLATE: ${VASA_HISTORY_URL_TEMPLATE}
       VASA_SCHEDULE_URL_TEMPLATE: ${VASA_SCHEDULE_URL_TEMPLATE:-https://atliekuaiksteles.vasa.lt/vasa-api/api/v1/dumpsters-schedule/{external_id}}
       BIN_SYNC_HTTP_TIMEOUT_SECONDS: ${BIN_SYNC_HTTP_TIMEOUT_SECONDS}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
+      - ./docs/agent-skills.md:/app/agent-domain/agent-skills.md:ro
+      - ./docs/data-model.md:/app/agent-domain/data-model.md:ro
+      - ./docs/data/bin-days-columns.md:/app/agent-domain/bin-days-columns.md:ro
       - ${VIPTOP_DATA_DIR:-./backend/data}:/app/data
       - backend_venv:/app/.venv
     depends_on:

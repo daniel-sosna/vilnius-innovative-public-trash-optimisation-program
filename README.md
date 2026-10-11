@@ -1,6 +1,6 @@
 # VipTop Waste Collection Optimisation
 
-VipTop is a hackathon MVP for more efficient public waste-container collection in Vilnius. It stores collection sites, bins and service history; builds resident estimates, a simulated bin-day calendar and a daily collection plan; and has a Lithuanian admin UI and public resident request page. Offline fill prediction provides a trained standalone package; the database collection plan uses a mock predictor. Route optimisation is not implemented.
+VipTop is a hackathon MVP for more efficient public waste-container collection in Vilnius. It stores collection sites, bins and service history; builds resident estimates, a simulated bin-day calendar and a daily collection plan; and has a Lithuanian admin UI and public resident request page. Offline fill prediction provides a trained standalone package; the database collection plan runs it for September 2026. Route optimisation is not implemented.
 
 React, TypeScript, Vite, Tailwind CSS and shadcn/ui · Python 3.12, FastAPI, SQLAlchemy and Alembic · PostgreSQL · Docker Compose
 
@@ -35,7 +35,7 @@ Run these in order after an import. Importing `bins` empties every derived table
 | 1 | `table_import` | `sites`, `bins`, `bin_hist` (optionally `bin_schedule`, `resident_requests`) from CSV, plus district boundaries and service zones from GeoJSON | [import](docs/data/import.md) |
 | 2 | `bin_population` | Estimated residents per bin | [bin population](docs/data/bin-population.md) |
 | 3 | `bin_days --start ... --end ...` | Bin-day calendar with simulated collections | [bin days](docs/data/bin-days.md) |
-| 4 | `collection_plan` | Sites to serve per carrier for a date (mock prediction) | [collection plan](docs/data/collection-plan.md) |
+| 4 | `collection_plan` | Sites to serve per carrier for a date (model prediction, September 2026) | [collection plan](docs/data/collection-plan.md) |
 
 The offline CSV workflow uses separate optional dependencies and does not need a database:
 
@@ -62,7 +62,7 @@ Other commands:
 | Role selection | `/` | – |
 | Truck management | `/admin/trucks` | [truck-management](openspec/specs/truck-management/spec.md) |
 | Collection sites, details, adding and deleting sites and bins | `/admin/sites`, `/admin/sites/{id}` | [collection-site-browsing](openspec/specs/collection-site-browsing/spec.md), [collection-site-management](openspec/specs/collection-site-management/spec.md) |
-| Map analytics (landfills, bins, population density, districts, service zones, monthly container adequacy) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [container adequacy](openspec/specs/container-adequacy-analysis/spec.md) |
+| Map analytics (landfills, bins, population density, districts, service zones, monthly container adequacy, area AI analysis) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [container adequacy](openspec/specs/container-adequacy-analysis/spec.md), [area agent](openspec/specs/area-analytics-agent/spec.md), [analytics tools](openspec/specs/analytics-tools/spec.md) |
 | Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
 | Standalone next-day fill prediction | Offline Python package | [daily-fill-prediction](openspec/specs/daily-fill-prediction/spec.md) |
 
@@ -88,7 +88,7 @@ The admin screens have no authentication.
 │       ├── services/       # Application logic
 │       ├── infrastructure/ # Database engine and ORM models
 │       ├── integrations/   # VASA client
-│       ├── ml/             # Offline ML stages and the collection-plan mock
+│       ├── ml/             # Offline ML stages and the collection-plan prediction
 │       └── optimization/   # Route optimisation (empty)
 ├── scripts/                # dev-info.sh and offline data utilities
 ├── docs/                   # Reference documentation
@@ -98,6 +98,7 @@ The admin screens have no authentication.
 ## Documentation
 
 - [Development](docs/development.md): configuration, running without Docker, migrations, several worktrees at once
+- [Agent guidance](docs/agent-skills.md): analytical procedure and runtime domain references
 - [Data model](docs/data-model.md): tables and what their data means
 - Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
 - Offline data/ML: [fill/QR generation](docs/data/fill-qr.md), [fill prediction](docs/data/fill-prediction.md), [container adequacy](docs/data/container-adequacy.md)

@@ -7,7 +7,7 @@ Provide independently selectable map datasets with consistent point clustering a
 ## Requirements
 
 ### Requirement: Independent layer selection
-The `Sluoksniai` section SHALL list all registered datasets with labeled checkboxes showing dataset names without descriptive paragraphs. Checking a layer SHALL display it; unchecking SHALL hide it. Multiple layers SHALL be selectable simultaneously without disabling one another. Dataset controls SHALL appear horizontally, wrapping only when available width requires it. Initially all checkboxes SHALL be unchecked. `Sąvartynai`, `Konteineriai`, `Gyventojų tankumas`, `Seniūnijos` and `Aptarnavimo zonos` SHALL be offered together.
+The `Sluoksniai` section SHALL list all registered datasets with labeled checkboxes showing dataset names without descriptive paragraphs. Checking a layer SHALL display it; unchecking SHALL hide it. Multiple layers SHALL be selectable simultaneously without disabling one another. Dataset controls SHALL be vertically arranged in the shared sidebar, with subordinate filters under their dataset. Initially all checkboxes SHALL be unchecked. `Sąvartynai`, `Konteineriai`, `Gyventojų tankumas`, `Seniūnijos` and `Aptarnavimo zonos` SHALL be offered together.
 
 #### Scenario: Enable the first layer
 - **WHEN** an administrator checks `Sąvartynai`
@@ -32,8 +32,8 @@ The `Sluoksniai` section SHALL list all registered datasets with labeled checkbo
 - **AND** toggling population preserves other dataset selections and any registered dataset filters
 
 #### Scenario: Align dataset controls
-- **WHEN** the dataset controls fit on one row
-- **THEN** all checkbox and label centers align vertically, including beside the taller bin waste-type arrow
+- **WHEN** the dataset controls appear in the layers sidebar
+- **THEN** checkboxes and labels form a scannable vertical list, with bin waste filters indented beneath their parent
 
 #### Scenario: Select the district overlay with every current dataset
 - **WHEN** all five shipped layer checkboxes are selected
@@ -42,7 +42,7 @@ The `Sluoksniai` section SHALL list all registered datasets with labeled checkbo
 
 #### Scenario: Preserve the existing screen
 - **WHEN** the new district option is displayed
-- **THEN** the current map-first layout, shared controls card and existing legends remain in place
+- **THEN** the full-screen map, shared overlay sidebar and existing legends remain available
 - **AND** the added control remains reachable at 320-pixel widths
 
 
@@ -159,51 +159,51 @@ Each layer SHALL have a stable ID, display name, dataset meaning, render kind, d
 - **AND** its polygons are not included in point clustering
 
 ### Requirement: Extensible color legend
-Each registered dataset SHALL define its color meanings where a legend is applicable; the district and service-zone context overlays SHALL provide no legend entries. The screen SHALL display all registered legend entries in a labeled `Legenda` section after the layer checkboxes in the shared card underneath the map. Color swatches SHALL have accompanying text, and the legend SHALL support multiple entries per dataset without assuming point geometry. Landfill pins and clusters SHALL be black, matching the `Sąvartynai` legend entry. Bin entries SHALL identify category and group colors.
+Each registered dataset SHALL define its color meanings where a legend is applicable; the district and service-zone context overlays SHALL provide no legend entries. The screen SHALL display legend entries only for selected datasets in a labeled `Legenda` section after the layer checkboxes in the layers mode of the shared sidebar, vertically arranged. When no layer is selected, the section SHALL display `Nepasirinktas sluoksnis`. Color swatches SHALL have accompanying text, and the legend SHALL support multiple entries per dataset without assuming point geometry. Landfill pins and clusters SHALL be black, matching the `Sąvartynai` legend entry. Bin entries SHALL identify category and group colors.
 
 #### Scenario: Identify landfill color
-- **WHEN** the analytics screen opens
-- **THEN** a black swatch labeled `Sąvartynai` appears under the map
+- **WHEN** the landfill layer is selected
+- **THEN** a black swatch labeled `Sąvartynai` appears in the shared sidebar legend
 - **AND** enabled landfill pins and clusters use that black color
 
 #### Scenario: Extend color meanings
-- **WHEN** a dataset supplies multiple color categories or a non-point renderer with legend entries
+- **WHEN** a selected dataset supplies multiple color categories or a non-point renderer with legend entries
 - **THEN** its color meanings appear through the common legend
 - **AND** a point definition can color individual features by recorded properties without replacing the map page
 - **AND** the bin categories are included without adding district or other future datasets
 
 #### Scenario: Distinguish bin categories from counts
-- **WHEN** the administrator views the legend
+- **WHEN** the administrator selects bins and views the legend
 - **THEN** labeled blue, green and brown swatches identify the known bin waste categories
 - **AND** gray identifies `Kitos atliekų rūšys` and a separately labeled neutral swatch identifies `Konteinerių grupė`
 
 #### Scenario: Preserve legends when adding districts
 - **WHEN** Seniūnijos is registered or toggled
 - **THEN** no district swatches or new analytics legend section are added
-- **AND** all existing landfill, bin and population legend entries remain available
+- **AND** legend entries for selected landfill, bin and population layers remain available
 
 
 #### Scenario: Preserve the legend when zones are registered
 - **WHEN** the page opens or service zones are toggled
-- **THEN** existing landfill, bin and population legend entries remain unchanged
-- **AND** no service-zone legend, metric scale or additional analytics panel is added
+- **THEN** legend entries for selected landfill, bin and population layers remain unchanged
+- **AND** no service-zone legend, metric scale or separate zone-specific panel is added
 
 ### Requirement: Bin waste-type modal controls
-`Konteineriai` SHALL have a small arrow button beside its main checkbox that opens waste-type controls in a modal. Categories SHALL be independently selectable and selected by default. Opening or closing the modal SHALL NOT change selections or layer visibility. The dialog SHALL support keyboard focus trapping, Escape dismissal and focus restoration to its trigger.
+`Konteineriai` SHALL expose independently selectable waste categories beneath its main checkbox in the shared layers sidebar. Categories SHALL be selected by default. Closing, reopening or switching sidebar modes SHALL NOT change category selections or layer visibility. Filters SHALL be operable by keyboard and touch without a separate category modal.
 
 #### Scenario: Enable all known types
-- **WHEN** the bin layer is first enabled and its waste-type modal is opened
+- **WHEN** the bin layer is first enabled and its waste-type sidebar controls are visible
 - **THEN** `Popieriaus ir plastiko atliekos`, `Stiklo atliekos` and `Mišrios komunalinės atliekos` are selected and all loaded bins of those categories are eligible for display
 
 #### Scenario: Use the modal independently
-- **WHEN** the administrator closes or reopens the modal
+- **WHEN** the administrator closes, reopens or switches the sidebar
 - **THEN** its category selections and the main layer selection remain unchanged
-- **AND** its arrow control is separate from the main checkbox and usable by keyboard
+- **AND** its category controls are subordinate to the main checkbox and usable by keyboard
 
 #### Scenario: Use compact controls on a narrow screen
-- **WHEN** the analytics page is viewed at 320 pixels wide with the modal open
-- **THEN** the modal controls remain readable and operable with internal scrolling when needed
-- **AND** the card stays below the map, with the legend reachable
+- **WHEN** the analytics page is viewed at 320 pixels wide with the layers sidebar open
+- **THEN** the sidebar category controls remain readable and operable with internal scrolling when needed
+- **AND** the map keeps its full available size behind the panel, with the legend reachable through internal scrolling
 
 ### Requirement: Session-preserved bin category selection
 Bin category selections SHALL survive disabling and re-enabling `Konteineriai` during the page session, including when every category is deselected. A new page session SHALL initialize all categories as selected. Hiding the layer SHALL NOT reset category choices or refetch successfully cached data.
@@ -244,7 +244,7 @@ Changing a bin waste-category selection SHALL update visible individual bins, cl
 - **AND** no dataset request or basemap reload occurs
 
 ### Requirement: Bin waste-category colors and fallback
-Individual bin markers SHALL be blue for `Paper/plastic waste`, green for `Glass waste` and brown for `Mixed municipal waste`. Other strings SHALL use gray and the category label `Kitos atliekų rūšys`. A single category mapping SHALL keep bin marker colors, modal labels and legend meanings consistent. Bin count markers SHALL use a uniform neutral color rather than imply one waste type.
+Individual bin markers SHALL be blue for `Paper/plastic waste`, green for `Glass waste` and brown for `Mixed municipal waste`. Other strings SHALL use gray and the category label `Kitos atliekų rūšys`. A single category mapping SHALL keep bin marker colors, sidebar labels and legend meanings consistent. Bin count markers SHALL use a uniform neutral color rather than imply one waste type.
 
 #### Scenario: Render the observed source categories
 - **WHEN** individual bins with the three known stored waste types are visible
@@ -310,16 +310,24 @@ Displayed polygons SHALL use purple shades from light to dark for `<11`, `11–4
 - **THEN** its colour represents `<11`, without presenting the assumption as exact source density
 
 ### Requirement: Population density legend
-The shared `Legenda` SHALL include five labelled purple swatches identifying population density bands in `gyv./ha`, plus a transparent missing-data entry. Colours SHALL match displayed polygons and coexist with existing dataset entries, including while population is unchecked.
+The shared `Legenda` SHALL include five labelled purple swatches identifying population density bands in `gyv./ha`, plus a transparent missing-data entry. Colours SHALL match displayed polygons and coexist with existing dataset entries, only while population is selected.
 
 #### Scenario: Read the density scale
-- **WHEN** an administrator views the legend
+- **WHEN** an administrator selects population and views the legend
 - **THEN** entries identify `Gyventojų tankumas`, all five density bands and `gyv./ha`
 - **AND** `Duomenų nėra (skaidru)` identifies transparent missing data alongside other dataset legends
 
 #### Scenario: Narrow screen
 - **WHEN** the page is viewed at 320 pixels wide
-- **THEN** legend labels wrap inside the existing card without horizontal page scrolling
+- **THEN** legend labels wrap inside the shared sidebar without horizontal page scrolling
+
+#### Scenario: Hide unselected legend entries
+- **WHEN** an administrator unchecks a layer
+- **THEN** that layer's legend items disappear while selected layers' items remain
+
+#### Scenario: No layers selected
+- **WHEN** no layer is selected
+- **THEN** the legend displays `Nepasirinktas sluoksnis` without swatches
 
 ### Requirement: Population layer session lifecycle
 Population SHALL use the existing independent layer lifecycle for loading, caching, loading/error/empty feedback and retry. Visibility changes and load completion SHALL preserve the camera and other datasets. Hiding SHALL close the population-owned popup. In-flight results SHALL NOT display or reopen a disabled layer.
@@ -538,3 +546,73 @@ Zones SHALL provide background geographic context with fill below population are
 - **WHEN** any combination of the five datasets is enabled at 320-pixel width
 - **THEN** the existing map and controls remain usable without page-wide horizontal scrolling
 - **AND** zone selection adds only its checkbox and normal lifecycle feedback to the existing screen
+
+### Requirement: Adequacy polygon layer and legend
+Residential adequacy SHALL render the selected month's population-area geometry for one waste type as translucent category polygons, preserving holes and stable feature identities. The shared legend SHALL distinguish priority shortage, potential shortage, elevated level-4 evidence without elevated pressure, ordinary assessment, insufficient evidence and unavailable assessment. Category colors SHALL be stable across months.
+
+#### Scenario: Compare two months
+- **WHEN** the administrator switches between saved months using the same reference snapshot
+- **THEN** geometry identities and category color meanings remain stable
+- **AND** the renderer does not recalculate thresholds for the visible viewport
+
+#### Scenario: Unknown population remainder
+- **WHEN** an analysis file includes a polygon with unknown population
+- **THEN** it has no filled analysis area and cannot capture clicks
+- **AND** unavailable assessment remains explained by the legend
+
+### Requirement: Independent analysis selection
+The analysis layer SHALL start unchecked. Its month and waste-type selection SHALL be independent of the existing bin-category controls and survive hiding/re-enabling within a page session. Changing type SHALL filter the loaded monthly file without another result request; changing month SHALL fetch or reuse that month's saved result without affecting other layer selections.
+
+#### Scenario: Choose glass analysis with mixed bins visible
+- **WHEN** an administrator selects glass analysis while the bin layer shows mixed waste
+- **THEN** the analysis displays glass metrics and the bin layer preserves its existing category selection
+
+#### Scenario: Hide and restore analysis
+- **WHEN** analysis is disabled and re-enabled after choosing a month/type
+- **THEN** that month/type is restored using valid cached data
+- **AND** disabling closes only the analysis-owned popup
+
+### Requirement: Analysis loading follows selected artifact identity
+Analysis SHALL share pending reads and cache successful results by artifact ID and revision. Switching month or revision SHALL hide stale geometry and close the analysis popup while preserving camera, map instance and unrelated filters. Late responses SHALL not display a superseded selection or revive a disabled layer. Retry SHALL affect only the selected failed analysis read.
+
+#### Scenario: Switch months during loading
+- **WHEN** July is requested and August is selected before July completes
+- **THEN** July's response cannot appear as August's analysis
+- **AND** only the currently selected ready artifact is rendered
+
+#### Scenario: Disable during loading
+- **WHEN** the layer is disabled before the selected result arrives
+- **THEN** the response may be cached but does not show polygons or reopen a popup
+
+#### Scenario: Independent loading failure
+- **WHEN** the selected result cannot be read
+- **THEN** analysis displays the existing Lithuanian error and retry controls
+- **AND** no previous month's geometry is shown under the failed month's label
+
+### Requirement: Analysis ordering and interaction priority
+Analysis fills SHALL appear above population shading and below point markers, point counts and service-zone outlines/names, independently of load order. Point interactions SHALL take precedence. Away from points, the topmost interactive polygon SHALL own the click, so an analysis popup is not immediately replaced by a population popup. Context-only layers SHALL remain non-interactive.
+
+#### Scenario: All existing layers and analysis enabled
+- **WHEN** analysis, bins, population, districts, service zones and landfills are enabled
+- **THEN** analysis categories, point markers and service-zone boundaries remain usable
+- **AND** no analysis polygon participates in point clustering
+
+#### Scenario: Click analysis over population
+- **WHEN** an analysis polygon is activated above population shading away from markers
+- **THEN** only the analysis popup opens
+- **AND** hiding analysis restores existing population interaction
+
+#### Scenario: Click bin above analysis
+- **WHEN** a bin marker or count group is activated above analysis
+- **THEN** only its existing bin interaction occurs
+
+### Requirement: Responsive analysis controls preserve map state
+Month/type controls and the analysis legend SHALL remain within the existing shared overlay sidebar, keyboard-operable and usable at 320 pixels without page-wide horizontal scrolling. Selecting, refreshing or hiding analysis SHALL preserve map center, zoom, bearing, pitch and unrelated layer state.
+
+#### Scenario: Change month after navigating
+- **WHEN** an administrator pans and zooms, then changes the analysis month
+- **THEN** the same map instance and camera remain active while the selected analysis changes
+
+#### Scenario: Narrow-screen selection
+- **WHEN** analysis controls are opened at 320-pixel width
+- **THEN** labels wrap or scroll within the existing layout and the map and color legend remain reachable

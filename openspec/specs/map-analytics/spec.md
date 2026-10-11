@@ -18,21 +18,21 @@ The shared admin navbar SHALL include `Žemėlapio analitika`, opening `/admin/m
 - **THEN** the screen loads without requiring prior navigation
 
 ### Requirement: Large interactive Vilnius map
-The screen SHALL be dominated by a map initially centered on Vilnius. Users SHALL be able to pan and zoom with mouse, touch and keyboard, use labeled zoom controls, and activate displayed features. One card underneath the map SHALL contain the `Sluoksniai` heading and layer checkboxes, followed by the `Legenda` heading and labeled color swatches. Its layer list SHALL scroll internally when necessary. The card SHALL remain usable at 320-pixel widths without obscuring the map.
+The screen SHALL fill the available viewport width and height below the existing admin navigation with a map initially centered on Vilnius. Users SHALL be able to pan and zoom with mouse, touch and keyboard, use labeled zoom controls, and activate displayed features outside area selection. The map SHALL have no surrounding dashboard card, permanent side column, large visible heading or content-width padding. Controls SHALL use a shared overlay sidebar with internal scrolling, usable at 320-pixel widths.
 
 #### Scenario: Explore the city
 - **WHEN** the screen opens on desktop
-- **THEN** the map occupies most of the available content area and supports pan, zoom and feature interaction
-- **AND** the map fills the content width and the shared layer/legend card appears underneath it
+- **THEN** the map occupies all available viewport space below the admin navigation and supports pan, zoom and feature interaction
+- **AND** its layer/legend controls are reachable through a floating button and overlay sidebar
 
 #### Scenario: Scroll a long layer list
-- **WHEN** registered layers exceed the available list height
-- **THEN** the list scrolls within the card while both headings and the legend remain reachable and the map height stays fixed
+- **WHEN** registered layers exceed the available sidebar height
+- **THEN** the sidebar scrolls internally while both headings and the legend remain reachable and the map retains its available viewport size
 
 #### Scenario: Use a narrow screen
 - **WHEN** the screen is viewed at 320 pixels wide
 - **THEN** navigation, layer controls, map controls and popup content remain reachable without page-wide horizontal scrolling
-- **AND** the shared card stays below the map with both sections visible
+- **AND** the sidebar becomes a responsive panel over the map rather than permanently reducing the map to a small content area
 
 #### Scenario: Focus through pointer and keyboard interaction
 - **WHEN** an administrator clicks or touches the map canvas
@@ -328,3 +328,109 @@ Service-zone map reads SHALL query PostgreSQL and SHALL NOT read, re-import or f
 #### Scenario: Database read fails
 - **WHEN** PostgreSQL cannot supply the service-zone dataset
 - **THEN** the request reports a failed read and does not substitute file data or an empty success
+### Requirement: Separate floating controls share one sidebar
+The map SHALL expose separate floating layers/legend and AI buttons with accessible Lithuanian labels and clear active states. Either button SHALL open or switch the same sidebar container to its corresponding mode. No more than one shared sidebar SHALL be open at a time.
+
+#### Scenario: Switch from layers to AI
+- **WHEN** the layers sidebar is open and the AI button is activated
+- **THEN** the existing sidebar switches to AI content without opening another panel
+
+#### Scenario: Switch from AI to layers
+- **WHEN** the AI sidebar is open and the layers button is activated
+- **THEN** the same sidebar displays layer controls followed by the legend
+
+### Requirement: Closing and switching overlays preserves map state
+Closing or switching the sidebar SHALL preserve the map instance, center, zoom, bearing, pitch, active layers, filters and cached data. It SHALL not clear confirmed AI selection or analysis state. Explicit map-failure recovery remains permitted to recreate the map.
+
+#### Scenario: Close after exploring
+- **WHEN** the administrator pans, zooms, filters bins and then closes either sidebar mode
+- **THEN** the full map view retains its camera, datasets, filters and any confirmed analytical area
+- **AND** no basemap recreation or layer refetch is caused by closing
+
+### Requirement: Responsive accessible sidebar and floating controls
+Desktop SHALL use a fixed-width overlay sidebar; mobile SHALL use a bounded responsive panel with internal scrolling. Close controls, Escape dismissal and focus restoration SHALL be available. Floating buttons, map zoom, attribution and selection actions SHALL remain reachable without overlapping each other or the admin navigation.
+
+#### Scenario: Close with a keyboard
+- **WHEN** the administrator presses Escape while using an open sidebar outside selection mode
+- **THEN** the sidebar closes and focus returns to its floating trigger
+
+#### Scenario: Operate on a phone
+- **WHEN** the sidebar is opened at 320-pixel width
+- **THEN** its actions and content fit the viewport with internal scrolling and an accessible close control
+- **AND** closing restores the map area without changing its camera
+
+#### Scenario: Admin navigation changes height
+- **WHEN** mobile navigation is expanded or viewport dimensions change
+- **THEN** the map and panel adapt to the space below the navigation without covering it or causing page-wide horizontal scrolling
+
+### Requirement: Opaque floating controls
+The AI and layer controls SHALL have opaque backgrounds in active, inactive and hover states so map details do not show through them.
+
+#### Scenario: Controls above map data
+- **WHEN** either floating control appears above map features
+- **THEN** its background remains opaque and its icon is readable
+
+### Requirement: Saved adequacy analysis catalog
+`GET /map-analytics/adequacy-analyses` SHALL list validated imported analyses in descending period order with opaque ID, month, period bounds, completion status, schema/method versions, revision and fill provenance. The initial catalog SHALL list completed-month artifacts only. An empty imported-analysis table SHALL return an empty catalog; database read errors SHALL report a failed read.
+
+#### Scenario: Newly generated month
+- **WHEN** a valid complete monthly GeoJSON is explicitly imported into the database
+- **THEN** the next catalog request includes it without a frontend rebuild
+
+#### Scenario: No saved results
+- **WHEN** no analyses have been imported
+- **THEN** the catalog succeeds with an empty analysis list
+
+#### Scenario: Invalid published result
+- **WHEN** the database is unavailable
+- **THEN** discovery reports a failed read rather than an empty-success substitute
+- **AND** generated files that have not been imported are not considered published results
+
+### Requirement: Read saved adequacy GeoJSON
+`GET /map-analytics/adequacy-analyses/{analysis_id}` SHALL return the selected imported GeoJSON collection with its analysis metadata and feature properties. Retrieval SHALL be constrained to imported catalog identities. Unknown IDs SHALL return 404; database failures SHALL return a failed read. Reads SHALL never regenerate analysis or require source CSV access.
+
+#### Scenario: Source data unavailable after generation
+- **WHEN** a result is imported but its GeoJSON file and original registry/fill CSVs are unavailable
+- **THEN** catalog discovery and result retrieval still succeed without rebuilding data
+
+#### Scenario: Invalid analysis identifier
+- **WHEN** a request contains an unknown ID or attempts to address a filesystem path
+- **THEN** it cannot access filesystem paths or unrelated database records
+
+### Requirement: Shared-sidebar analysis selection
+The analytics screen SHALL add `Konteinerių pakankamumas` and its month/type controls to the existing `Sluoksniai` / `Legenda` overlay sidebar, with month/type controls beneath the analysis checkbox. Available months SHALL come from the catalog and use Lithuanian labels with years. One month and one supported waste type SHALL be active at a time. Controls SHALL follow existing styling, accessibility and 320-pixel responsiveness.
+
+#### Scenario: Select an available month
+- **WHEN** an administrator first enables analysis with saved completed months available
+- **THEN** the latest completed month and mixed waste are initially selected
+- **AND** the month control offers only catalog entries and the color legend remains in the shared sidebar
+
+#### Scenario: No analyses or failed catalog
+- **WHEN** the analysis catalog is empty or fails
+- **THEN** the controls distinguish `Duomenų nėra.` from `Nepavyko įkelti sluoksnio.` with `Bandyti dar kartą` for failure
+- **AND** the basemap and other layers remain usable
+
+### Requirement: Explain residential adequacy details
+Analysis popups SHALL use short Lithuanian titles, seven metric rows (month, type, residents, point bins, pressure/reference, distance, level-4 counts/frequency) and one concise conclusion. Unknowns SHALL display `N/A`; point metrics SHALL be labeled. Diagnostics and provenance SHALL remain in GeoJSON. Popups SHALL omit synthetic-data notices and lengthy methodology.
+
+#### Scenario: Inspect priority area
+- **WHEN** an administrator opens a priority shortage candidate
+- **THEN** the compact popup shows pressure/reference and level-4 source counts
+- **AND** its conclusion recommends checking capacity or frequency without claiming measured causality
+
+#### Scenario: Inspect sparse evidence
+- **WHEN** an area has elevated pressure but insufficient fill assessments
+- **THEN** the popup retains the pressure explanation and identifies insufficient fill evidence
+- **AND** it does not display an invented zero level-4 frequency
+
+### Requirement: Refresh saved analysis availability
+The analysis controls SHALL provide a catalog refresh using existing button styling. Refresh SHALL discover newly imported months and revisions without generating data or recreating the map. The selected month SHALL remain selected if available; if its revision changes, its cached dataset SHALL be invalidated. Initial monthly delivery SHALL NOT add a selected-today control.
+
+#### Scenario: Add a new month while the screen is open
+- **WHEN** an operator imports another completed month and the administrator refreshes the analysis list
+- **THEN** the new month becomes selectable while the existing selected month and camera are preserved
+
+#### Scenario: Explicit regeneration of selected month
+- **WHEN** catalog refresh reports a new revision for the selected month
+- **THEN** the next displayed analysis uses that revision rather than stale session data
+- **AND** completed-month regeneration is not triggered by the refresh itself
