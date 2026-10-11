@@ -399,7 +399,7 @@ class CollectionStop(Base):
     # Totals over all the carrier's bins at the site (not only the due ones), fixed at
     # planning time and not recalculated afterwards.
     overall_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
-    # Predicted (mock) volume of waste: capacity times the share each fill level stands for.
+    # Predicted volume of waste: capacity times the share each fill level stands for.
     overall_predicted_fill_m3: Mapped[Decimal] = mapped_column(Numeric)
 
 
@@ -422,7 +422,7 @@ class StopBin(Base):
         ForeignKey("bins.id", name="fk_stop_bins_bin_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    # Predicted (currently mock, synthetic) fill level: 0 to 4.
+    # Predicted fill level (trained model, from synthetic history): 0 to 4.
     predicted_fill: Mapped[int] = mapped_column(SmallInteger)
     # True when bin is due for collection today.
     due: Mapped[bool] = mapped_column(Boolean)

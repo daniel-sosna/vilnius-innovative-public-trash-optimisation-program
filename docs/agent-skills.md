@@ -266,7 +266,7 @@ Keep the following categories distinct:
 - current registry data;
 - stored plans;
 - synthetic outcomes;
-- mock predictions;
+- model predictions (trained on synthetic history);
 - estimates.
 
 Never combine them as though they represented the same kind of evidence.

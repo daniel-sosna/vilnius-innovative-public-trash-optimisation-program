@@ -179,11 +179,11 @@ Provider authentication, connection, rate-limit and server failures SHALL produc
 - **THEN** the failed dataset is not described as an empty successful query and unsupported conclusions are withheld
 
 ### Requirement: Optional synthetic investigation remains distinct
-Synthetic bin-day outcomes and stored mock predictions SHALL be available to the agent without being required in every run. Their results and analytical claims SHALL remain distinct from recorded service attempts, observed fill values and population estimates. Analysis SHALL not generate new predictions or plans.
+Synthetic bin-day outcomes and stored model predictions SHALL be available to the agent without being required in every run. Their results and analytical claims SHALL remain distinct from recorded service attempts, observed fill values and population estimates. Analysis SHALL not generate new predictions or plans.
 
 #### Scenario: Use synthetic data for context
-- **WHEN** the agent requests stored synthetic collection outcomes or mock predicted fill
-- **THEN** the response identifies those sources as synthetic or mock prediction and does not use them as evidence of actual service quality
+- **WHEN** the agent requests stored synthetic collection outcomes or predicted fill
+- **THEN** the response identifies those sources as synthetic or model-predicted (from synthetic history) and does not use them as evidence of actual service quality
 
 ### Requirement: Bounded execution observability
 Backend logging SHALL identify run start/completion, tool names, tool failures and provider failures with duration and request counts. Logs SHALL omit secrets, raw provider exceptions containing sensitive payloads and large tool-result bodies.

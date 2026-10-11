@@ -83,7 +83,7 @@ export function MapAnalyticsPage() {
               : tool.includes('population') ? 'Tikrinamas gyventojų tankis ir teritorijos aprėptis…'
               : tool.includes('request') ? 'Nagrinėjami gyventojų pranešimai…'
               : tool.includes('service') || tool.includes('fill') ? 'Nagrinėjama aptarnavimo istorija ir užpildymas…'
-              : tool.includes('mock') || tool.includes('synthetic') ? 'Tikrinami sintetiniai duomenys ir prognozės…'
+              : tool.includes('plan') || tool.includes('synthetic') ? 'Tikrinami sintetiniai duomenys ir prognozės…'
               : tool === 'get_area_overview' ? 'Renkama pasirinkto ploto duomenų apžvalga…'
               : 'Tikrinami papildomi pasirinkto ploto duomenys…'
             setProgress(message)

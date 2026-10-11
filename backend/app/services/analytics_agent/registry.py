@@ -59,8 +59,8 @@ TOOLS = [
     Tool('list_scheduled_collections', c.Schedule, q.schedule_list, 'Bounded stored planned collection dates, deterministic date/ID order; explicit future dates allowed, distinct from attempts.', 'stored plans', True),
     Tool('get_synthetic_day_summary', c.Synthetic, q.synthetic_summary, 'Stored bin_days status/row/distinct-bin counts; denominator synthetic rows, copied registry and estimated allocation snapshots, not recorded service quality.', 'synthetic outcomes'),
     Tool('get_synthetic_day_trend', c.SyntheticTrend, partial(q.trend, synthetic=True), 'Day/week/month synthetic outcome counts and distinct bins, maximum 366 buckets; rates/statuses stay separate from observed attempts.', 'synthetic outcomes'),
-    Tool('get_mock_plan_summary', c.Mock, q.mock_summary, 'Selected stored entries with mock predicted 0–4 distribution and current capacity. Whole represented stops counted once; snapshots include outside bins and are separate from selected subtotals.', 'stored mock predictions', True),
-    Tool('list_mock_plan_entries', c.Events, q.mock_list, 'Selected stored stop-bin entries, mock 0–4 prediction/due and labelled whole-stop planning snapshots; explicit future periods, no generation.', 'stored mock predictions', True),
+    Tool('get_plan_summary', c.PlanSummary, q.plan_summary, 'Selected stored entries with model-predicted 0–4 distribution and current capacity. Whole represented stops counted once; snapshots include outside bins and are separate from selected subtotals.', 'stored model predictions (synthetic history)', True),
+    Tool('list_plan_entries', c.Events, q.plan_list, 'Selected stored stop-bin entries, model-predicted 0–4 level/due and labelled whole-stop planning snapshots; explicit future periods, no generation.', 'stored model predictions (synthetic history)', True),
     Tool('get_landfill', c.FacilityId, q.facility_detail, 'Recorded facility ID detail, nullable coordinates, coordinate quality and source verification; may be outside bbox contextual scope.'),
     Tool('list_landfills', c.Page, q.facility_list, 'Valid-coordinate facilities in bbox, deterministic bounded pagination and source coordinate quality.'),
     Tool('get_nearest_landfills', c.Proximity, q.proximity, 'Maximum ten facilities by haversine distance in metres from explicit coordinate pair or bbox centre. Outside-area results allowed; approximate non-road distance with source quality.'),
@@ -92,10 +92,10 @@ def definitions():
 def catalogue():
     return {'common_semantics': {
         'scope': 'Trusted bbox is automatic. NULL scope means area; explicit global includes area and all eligible stored bins. Detail IDs are internal and area-validated; facilities/fleet are contextual.',
-        'time': 'NULL period means last 30 Europe/Vilnius dates including partial today, capped at captured run start for observations. Explicit start/end dates use exclusive end. all_history has no lower bound. Future only schedules/mock plans.',
+        'time': 'NULL period means last 30 Europe/Vilnius dates including partial today, capped at captured run start for observations. Explicit start/end dates use exclusive end. all_history has no lower bound. Future only schedules/stored plans.',
         'pagination': 'NULL limit/offset means 50/0; maximum 100 records/IDs, 366 trend buckets; deterministic next_offset and has_more. Output-size trimming is explicit.',
         'NULL': 'Unknown/missing/unavailable stays NULL; numeric special capacity values excluded; zero counts do not establish full source coverage. Failed reads have status error.',
-        'units': 'Capacity uses unverified source m³ assumption; observed fill ordinal 0–3, mock prediction 0–4; population estimates and per-stream allocations are not unique residents.',
+        'units': 'Capacity uses unverified source m³ assumption; observed fill ordinal 0–3, model-predicted fill 0–4 (from synthetic history); population estimates and per-stream allocations are not unique residents.',
         'result': c.Result.model_json_schema(),
     }, 'tools': [{'name': tool.name, 'description': tool.description, 'evidence_type': tool.evidence, 'input': strict_schema(tool.inputs), 'result_type': tool.result_type.__name__} for tool in TOOLS]}
 
