@@ -11,7 +11,7 @@ const links = [
   { to: '/admin/trucks', label: 'Šiukšliavežės' },
   { to: '/admin/sites', label: 'Šiukšlių surinkimo vietos' },
   { to: '/admin/map-analytics', label: 'Žemėlapio analitika' },
-  { to: '/admin/demo', label: 'Demo' },
+  { to: '/admin/routes', label: 'Maršrutai' },
 ]
 
 export function AdminLayout() {

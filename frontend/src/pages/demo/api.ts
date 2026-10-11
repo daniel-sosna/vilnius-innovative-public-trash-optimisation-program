@@ -3,7 +3,8 @@ export type Prediction = { project_date: string; forecast_date: string; evaluate
 export type Coordinate = { latitude: number; longitude: number }
 export type DemoStop = Coordinate & { site_id: number; bin_ids: number[] }
 export type DemoRoute = { truck_id: number; truck_name: string; route_id: string; path: Coordinate[]; stops: DemoStop[]; color: string; stopCount: number; binCount: number }
-type NavigationDTO = { forecast_date: string; source: 'osrm'; routes: Omit<DemoRoute, 'color' | 'stopCount' | 'binCount'>[] }
+export type UnservedStop = DemoStop & { reason: string }
+type NavigationDTO = { run_id: string; forecast_date: string; source: 'pyvrp-osrm'; routes: Omit<DemoRoute, 'color' | 'stopCount' | 'binCount'>[]; unserved: UnservedStop[] }
 export const routeColors = ['#2563eb', '#b45309', '#7c3aed'] as const
 
 async function post<T>(path: string, body: unknown, signal: AbortSignal, deadline: number, method: 'GET' | 'POST' = 'POST'): Promise<T> {
@@ -31,18 +32,21 @@ async function post<T>(path: string, body: unknown, signal: AbortSignal, deadlin
 }
 
 export const getPrediction = (project_date: string, signal: AbortSignal) => post<Prediction>('predictions', { project_date }, signal, 15 * 60 * 1000)
-export type DrivingRoute = { source: 'osrm'; path: Coordinate[]; stops: Coordinate[]; legs: { path: Coordinate[]; distance_m: number }[] }
-export async function getDrivingRoute(signal: AbortSignal): Promise<DrivingRoute> {
-  const route = await post<DrivingRoute>('driving-route', undefined, signal, 60000, 'GET')
+export type DrivingRoute = { source: 'osrm'; path: Coordinate[]; stops: Coordinate[]; legs: { path: Coordinate[]; distance_m: number; stop_index: number | null }[] }
+export async function getDrivingRoute(runId: string, truckId: number, signal: AbortSignal): Promise<DrivingRoute> {
+  const route = await post<DrivingRoute>(`driving-route?run_id=${encodeURIComponent(runId)}&truck_id=${truckId}`, undefined, signal, 60000, 'GET')
   const validPoint = (point: Coordinate) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Math.abs(point.latitude) <= 90 && Math.abs(point.longitude) <= 180
-  if (route.source !== 'osrm' || !route.path.length || !route.legs.length || route.stops.length !== route.legs.length || !route.path.every(validPoint) || !route.stops.every(validPoint) || route.legs.some(leg => !leg.path.length || !leg.path.every(validPoint) || !Number.isFinite(leg.distance_m) || leg.distance_m < 0)) throw new Error('Nepavyko gauti tinkamo šiukšliavežės kelio maršruto.')
+  if (route.source !== 'osrm' || !route.path.length || !route.legs.length || !route.path.every(validPoint) || !route.stops.every(validPoint) || route.legs.some(leg => !leg.path.length || !leg.path.every(validPoint) || !Number.isFinite(leg.distance_m) || leg.distance_m < 0 || (leg.stop_index !== null && (!Number.isInteger(leg.stop_index) || leg.stop_index < 0 || leg.stop_index >= route.stops.length)))) throw new Error('Nepavyko gauti tinkamo šiukšliavežės kelio maršruto.')
   return route
 }
-export async function getNavigation(forecast_date: string, bin_ids: number[], signal: AbortSignal): Promise<DemoRoute[]> {
-  const dto = await post<NavigationDTO>('navigation', { forecast_date, bin_ids }, signal, 15 * 60 * 1000)
-  if (dto.source !== 'osrm' || dto.forecast_date !== forecast_date || !dto.routes.length) throw new Error('Netinkamas maršrutų atsakymas.')
+export async function getNavigation(forecast_date: string, bins: PredictedBin[], signal: AbortSignal): Promise<{ runId: string; routes: DemoRoute[]; unserved: UnservedStop[] }> {
+  const bin_ids = bins.map(bin => bin.bin_id)
+  const fill_levels = Object.fromEntries(bins.map(bin => [bin.bin_id, bin.fill_level]))
+  const dto = await post<NavigationDTO>('navigation', { forecast_date, bin_ids, fill_levels }, signal, 15 * 60 * 1000)
+  if (!/^[a-f0-9]{32}$/.test(dto.run_id) || dto.source !== 'pyvrp-osrm' || dto.forecast_date !== forecast_date || !Array.isArray(dto.routes) || !Array.isArray(dto.unserved)) throw new Error('Netinkamas maršrutų atsakymas.')
   if (dto.routes.some(route => !route.path.length || !route.stops.length || route.path.some(point => !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180))) throw new Error('Maršrutuose nėra tinkamų koordinačių arba sustojimų.')
-  const assigned = dto.routes.flatMap(route => route.stops.flatMap(stop => stop.bin_ids))
-  if (assigned.length !== bin_ids.length || new Set(assigned).size !== assigned.length || assigned.some(id => !bin_ids.includes(id))) throw new Error('Maršrutų konteinerių priskyrimas neatitinka prognozės.')
-  return dto.routes.map((route, index) => ({ ...route, color: `hsl(${(index * 137.508) % 360} 65% 42%)`, stopCount: route.stops.length, binCount: route.stops.reduce((count, stop) => count + stop.bin_ids.length, 0) }))
+  const accounted = [...dto.routes.flatMap(route => route.stops.flatMap(stop => stop.bin_ids)), ...dto.unserved.flatMap(stop => stop.bin_ids)]
+  const input = new Set(bin_ids)
+  if (accounted.length !== bin_ids.length || new Set(accounted).size !== accounted.length || accounted.some(id => !input.has(id))) throw new Error('Maršrutų konteinerių priskyrimas neatitinka prognozės.')
+  return { runId: dto.run_id, routes: dto.routes.map((route, index) => ({ ...route, color: `hsl(${(index * 137.508) % 360} 65% 42%)`, stopCount: route.stops.length, binCount: route.stops.reduce((count, stop) => count + stop.bin_ids.length, 0) })), unserved: dto.unserved }
 }

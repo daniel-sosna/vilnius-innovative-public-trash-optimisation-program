@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { GeoJSONSource, Marker, type Map as LibreMap } from 'maplibre-gl'
 import type { FeatureCollection, Point } from 'geojson'
 import { AnalyticsMap } from '@/components/maps/analytics-map'
 import { createPointLayer } from '@/components/maps/point-layer'
-import { truckRequest, type Truck } from '@/pages/trucks/api'
 import { getDrivingRoute, type DrivingRoute } from './api'
 import { emptyCollection, prefix } from './geometry'
 import { routeSourceId, routesLayer } from './layers'
@@ -35,35 +34,35 @@ function truckIcon(): HTMLElement {
 
 export function TruckDemoPage() {
   const { truck_id = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const runId = searchParams.get('run_id') ?? ''
+  const contextKey = `${runId}:${truck_id}`
   const [lookup, setLookup] = useState<{ id: string; route?: DrivingRoute; error?: string }>({ id: '' })
   const [map, setMap] = useState<LibreMap | null>(null)
   const [mapError, setMapError] = useState(false)
   const [collection, setCollection] = useState<{ route: DrivingRoute | null; count: number }>({ route: null, count: 0 })
-  const route = lookup.id === truck_id ? lookup.route : undefined
-  const error = lookup.id === truck_id ? lookup.error : undefined
+  const route = lookup.id === contextKey ? lookup.route : undefined
+  const error = lookup.id === contextKey ? lookup.error : undefined
   const collected = collection.route === route ? collection.count : 0
   useEffect(() => {
     const controller = new AbortController()
     async function load() {
       if (!/^[1-9]\d*$/.test(truck_id) || !Number.isSafeInteger(Number(truck_id))) {
-        setLookup({ id: truck_id, error: 'Netinkamas šiukšliavežės numeris.' }); return
+        setLookup({ id: contextKey, error: 'Netinkamas šiukšliavežės numeris.' }); return
+      }
+      if (!/^[a-f0-9]{32}$/.test(runId)) {
+        setLookup({ id: contextKey, error: 'Pasirinkite šiukšliavežę apskaičiuoto plano lentelėje Maršrutų puslapyje.' }); return
       }
       try {
-        await truckRequest<Truck>(`/${truck_id}`, { signal: controller.signal })
-      } catch {
-        if (!controller.signal.aborted) setLookup({ id: truck_id, error: 'Šiukšliavežė nerasta arba serveris nepasiekiamas.' })
-        return
-      }
-      try {
-        const road = await getDrivingRoute(controller.signal)
-        if (!controller.signal.aborted) setLookup({ id: truck_id, route: road })
+        const road = await getDrivingRoute(runId, Number(truck_id), controller.signal)
+        if (!controller.signal.aborted) setLookup({ id: contextKey, route: road })
       } catch (failure) {
-        if (!controller.signal.aborted) setLookup({ id: truck_id, error: failure instanceof Error ? failure.message : 'Nepavyko gauti kelio maršruto. Atnaujinkite puslapį.' })
+        if (!controller.signal.aborted) setLookup({ id: contextKey, error: failure instanceof Error ? failure.message : 'Nepavyko gauti kelio maršruto. Atnaujinkite puslapį.' })
       }
     }
     void load()
     return () => controller.abort()
-  }, [truck_id])
+  }, [truck_id, runId, contextKey])
   const onMapState = useCallback((status: 'loading' | 'ready' | 'error', instance: LibreMap | null) => {
     setMap(instance); setMapError(status === 'error')
   }, [])
@@ -80,7 +79,7 @@ export function TruckDemoPage() {
       const pause = reducedMotion ? 500 : pauseTimes[index % pauseTimes.length]
       const start = accumulated
       accumulated += move + pause
-      return { start, move, pause, end: accumulated, path: leg.path.map(position) }
+      return { start, move, pause, end: accumulated, path: leg.path.map(position), stopIndex: leg.stop_index }
     })
     const begin = performance.now()
     let lastCollected = -1
@@ -117,7 +116,7 @@ export function TruckDemoPage() {
           void source.setData(data).catch(() => { /* Shared map error feedback owns failures. */ })
         }
       }
-      const count = index < 0 ? timeline.length : legIndex + (local >= leg.move + leg.pause * 0.75 ? 1 : 0)
+      const count = index < 0 ? route.stops.length : timeline.slice(0, legIndex).filter(previous => previous.stopIndex !== null).length + (leg.stopIndex !== null && local >= leg.move + leg.pause * 0.75 ? 1 : 0)
       if (count !== lastCollected) {
         lastCollected = count
         setCollection({ route, count })

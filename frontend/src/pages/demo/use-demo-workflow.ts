@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LngLatBounds, type Map as LibreMap } from 'maplibre-gl'
-import type { FeatureCollection } from 'geojson'
 import { useProjectDate } from '@/lib/project-date/context'
-import { getNavigation, getPrediction, type DemoRoute, type PredictedBin, type Prediction } from './api'
-import { emptyCollection, routeFeatures } from './geometry'
+import { getNavigation, getPrediction, type DemoRoute, type PredictedBin, type Prediction, type UnservedStop } from './api'
 
-export type Stage = 'idle' | 'predicting' | 'bin_animation' | 'predicted' | 'routing' | 'route_animation' | 'completed' | 'empty' | 'error'
-type State = { date: string; stage: Stage; prediction: Prediction | null; binRevealOrder: PredictedBin[]; visibleBinCount: number; routes: DemoRoute[]; routeData: FeatureCollection; error?: string; failedStage?: Stage; key?: number; awaitingPaint?: boolean }
-type Run = { owner: symbol; key: number; controller: AbortController; phase: Stage; frame?: number; timer?: number; revealTimer?: number; visibleBinCount?: number; revealStep?: number }
-const initial = (date: string): State => ({ date, stage: 'idle', prediction: null, binRevealOrder: [], visibleBinCount: 0, routes: [], routeData: emptyCollection })
+export type Stage = 'idle' | 'predicting' | 'bin_animation' | 'predicted' | 'routing' | 'completed' | 'empty' | 'error'
+type State = { date: string; stage: Stage; prediction: Prediction | null; binRevealOrder: PredictedBin[]; visibleBinCount: number; routes: DemoRoute[]; unserved: UnservedStop[]; runId?: string; error?: string; failedStage?: Stage; key?: number }
+type Run = { owner: symbol; key: number; controller: AbortController; phase: Stage; timer?: number; revealTimer?: number; visibleBinCount?: number; revealStep?: number }
+const initial = (date: string): State => ({ date, stage: 'idle', prediction: null, binRevealOrder: [], visibleBinCount: 0, routes: [], unserved: [] })
 
 export function useDemoWorkflow() {
   const { projectDate, acquire, release, locked } = useProjectDate()
@@ -17,7 +15,6 @@ export function useDemoWorkflow() {
   const map = useRef<LibreMap | null>(null), mapStatus = useRef('loading')
   const stop = useCallback((run: Run) => {
     run.controller.abort()
-    if (run.frame !== undefined) cancelAnimationFrame(run.frame)
     window.clearTimeout(run.timer)
     window.clearTimeout(run.revealTimer)
     release(run.owner)
@@ -25,7 +22,7 @@ export function useDemoWorkflow() {
   }, [release])
   const fail = useCallback((run: Run, message: string) => {
     if (current.current !== run) return
-    setState(previous => ({ ...previous, stage: 'error', failedStage: run.phase, routes: [], routeData: emptyCollection, awaitingPaint: false, error: message }))
+    setState(previous => ({ ...previous, stage: 'error', failedStage: run.phase, routes: [], unserved: [], error: message }))
     stop(run)
   }, [stop])
   const onMapState = useCallback((status: 'loading' | 'ready' | 'error', instance: LibreMap | null) => {
@@ -74,9 +71,6 @@ export function useDemoWorkflow() {
   const onPresented = useCallback(async (key: number) => {
     const run = current.current
     if (!run || run.key !== key) return
-    if (run.phase === 'route_animation' && state.awaitingPaint) {
-      setState(previous => ({ ...previous, stage: 'completed', awaitingPaint: false })); stop(run); return
-    }
     if (run.phase === 'bin_animation' && state.prediction) {
       // Ignore acknowledgements from a previous source update or an already scheduled batch.
       if (run.visibleBinCount !== state.visibleBinCount || run.revealTimer !== undefined) return
@@ -106,26 +100,12 @@ export function useDemoWorkflow() {
     setState(previous => ({ ...previous, stage: 'routing' }))
     try {
       const prediction = state.prediction
-      const routes = await getNavigation(prediction.forecast_date, prediction.bins.filter(bin => bin.latitude !== null && bin.longitude !== null).map(bin => bin.bin_id), run.controller.signal)
+      const { runId, routes, unserved } = await getNavigation(prediction.forecast_date, prediction.bins.filter(bin => bin.latitude !== null && bin.longitude !== null), run.controller.signal)
       if (current.current !== run) return
-      if (!map.current) throw new Error('Žemėlapis nepasiekiamas maršrutams piešti.')
-      run.phase = 'route_animation'
-      setState(previous => ({ ...previous, stage: 'route_animation', routes, routeData: routeFeatures(routes, 0) }))
-      const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 4000
-      const began = performance.now()
-      run.timer = window.setTimeout(() => fail(run, 'Maršrutų piešimas nebaigtas. Bandykite dar kartą.'), 20000)
-      const draw = (now: number) => {
-        if (current.current !== run) return
-        try {
-          const progress = Math.min(1, (now - began) / duration)
-          setState(previous => ({ ...previous, routeData: routeFeatures(routes, progress), awaitingPaint: progress >= 1 }))
-          if (progress < 1) { run.frame = requestAnimationFrame(draw); return }
-          // AnalyticsMap acknowledges the final source update after React commits it.
-        } catch { fail(run, 'Maršrutų piešimas nepavyko. Bandykite dar kartą.') }
-      }
-      run.frame = requestAnimationFrame(draw)
+      setState(previous => ({ ...previous, stage: 'completed', routes, unserved, runId }))
+      stop(run)
     } catch (error) { if (current.current === run) fail(run, error instanceof Error ? error.message : 'Maršrutų skaičiavimas nepavyko.') }
-  }, [state.prediction, state.binRevealOrder, state.visibleBinCount, state.awaitingPaint, fail, stop])
+  }, [state.prediction, state.binRevealOrder, state.visibleBinCount, fail, stop])
 
   // A terminal result from another date is never rendered or automatically rerun.
   const shown = state.date === projectDate ? state : initial(projectDate)

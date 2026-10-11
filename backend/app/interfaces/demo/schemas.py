@@ -1,7 +1,8 @@
 from datetime import date
+from uuid import uuid4
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
 
 
 def calendar_day(value: str, start: str, end: str) -> str:
@@ -49,6 +50,13 @@ class NavigationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     forecast_date: str
     bin_ids: list[Annotated[StrictInt, Field(gt=0)]] = Field(min_length=1, max_length=100000)
+    fill_levels: dict[int, Literal[3, 4]]
+
+    @model_validator(mode="after")
+    def prediction_coverage(self):
+        if set(self.fill_levels) != set(self.bin_ids):
+            raise ValueError("Fill levels must cover exactly the selected bin IDs")
+        return self
 
     @field_validator("forecast_date")
     @classmethod
@@ -73,23 +81,31 @@ class Stop(Coordinate):
     bin_ids: list[int]
 
 
+class DrivingLeg(BaseModel):
+    path: list[Coordinate]
+    distance_m: float
+    stop_index: int | None = None
+
+
 class DemoRoute(BaseModel):
     truck_id: int
     truck_name: str
     route_id: str
     path: list[Coordinate]
     stops: list[Stop]
+    legs: list[DrivingLeg]
+
+
+class UnservedStop(Stop):
+    reason: str
 
 
 class NavigationResponse(BaseModel):
+    run_id: str = Field(default_factory=lambda: uuid4().hex)
     forecast_date: str
-    source: Literal["osrm"] = "osrm"
+    source: Literal["pyvrp-osrm"] = "pyvrp-osrm"
     routes: list[DemoRoute]
-
-
-class DrivingLeg(BaseModel):
-    path: list[Coordinate]
-    distance_m: float
+    unserved: list[UnservedStop] = Field(default_factory=list)
 
 
 class DrivingRouteResponse(BaseModel):

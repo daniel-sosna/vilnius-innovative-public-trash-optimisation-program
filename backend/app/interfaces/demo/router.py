@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.interfaces.demo.schemas import PredictionRequest, PredictionResponse, NavigationRequest, NavigationResponse
@@ -39,9 +39,9 @@ def predictions(body: PredictionRequest, request: Request):
 
 @router.post("/navigation", response_model=NavigationResponse)
 def navigation(body: NavigationRequest, request: Request):
-    return execute(lambda: navigate(body.forecast_date, body.bin_ids, request.app.state.sessions))
+    return execute(lambda: navigate(body.forecast_date, body.bin_ids, request.app.state.sessions, body.fill_levels))
 
 
 @router.get("/driving-route", response_model=DrivingRouteResponse)
-def driving():
-    return execute(driving_route)
+def driving(run_id: str = Query(min_length=32, max_length=32), truck_id: int = Query(gt=0)):
+    return execute(lambda: driving_route(run_id, truck_id))

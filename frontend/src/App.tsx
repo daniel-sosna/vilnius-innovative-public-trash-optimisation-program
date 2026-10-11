@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { TrucksPage } from '@/pages/trucks/trucks-page'
 import { SitesPage } from '@/pages/sites/sites-page'
@@ -26,8 +26,10 @@ export default function App() {
           <Route path="sites" element={<SitesPage />} />
           <Route path="sites/:id" element={<SiteDetailPage />} />
           <Route path="map-analytics" element={<MapAnalyticsPage />} />
-          <Route path="demo" element={<DemoPage />} />
+          <Route path="demo" element={<Navigate to="/admin/routes" replace />} />
           <Route path="demo/truck/:truck_id" element={<TruckDemoPage />} />
+          <Route path="routes" element={<DemoPage />} />
+          <Route path="routes/truck/:truck_id" element={<TruckDemoPage />} />
         </Route>
         <Route
           path="*"

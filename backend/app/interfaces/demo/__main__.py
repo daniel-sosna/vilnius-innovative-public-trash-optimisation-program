@@ -42,14 +42,15 @@ def main() -> int:
             if not ids:
                 summary["navigation"] = "No mappable due bins; navigation skipped"
             else:
-                navigation = navigate(result.forecast_date, ids, sessions)
+                navigation = navigate(result.forecast_date, ids, sessions, {item.bin_id: item.fill_level for item in result.bins if item.latitude is not None and item.longitude is not None})
                 assigned = [bin_id for route in navigation.routes for stop in route.stops for bin_id in stop.bin_ids]
-                if len(assigned) != len(ids) or set(assigned) != set(ids):
+                unserved = [bin_id for stop in navigation.unserved for bin_id in stop.bin_ids]
+                if len(assigned + unserved) != len(ids) or set(assigned + unserved) != set(ids):
                     raise ValueError("Navigation coverage failed")
                 summary["navigation"] = {
                     "source": navigation.source, "assigned_trucks": len(navigation.routes),
                     "stops": sum(len(route.stops) for route in navigation.routes),
-                    "assigned_bins": len(assigned), "coverage": "exactly once",
+                    "assigned_bins": len(assigned), "unserved_bins": len(unserved), "coverage": "assigned or unserved exactly once",
                 }
         summary["duration_seconds"] = round(perf_counter() - start, 2)
         print(json.dumps(summary, ensure_ascii=False))

@@ -11,6 +11,7 @@ from app.infrastructure.database import create_database_engine, create_session_f
 from app.interfaces.bins.router import router as bins_router
 from app.interfaces.landfills.router import router as landfills_router
 from app.interfaces.map_analytics.router import router as map_analytics_router
+from app.interfaces.route_plans.router import router as route_plans_router
 from app.interfaces.sites.router import router as sites_router
 from app.interfaces.trucks.router import router as trucks_router
 from app.interfaces.demo.router import router as demo_router
@@ -48,3 +49,4 @@ app.include_router(map_analytics_router)
 app.include_router(sites_router)
 app.include_router(bins_router)
 app.include_router(demo_router)
+app.include_router(route_plans_router)
