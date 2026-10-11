@@ -14,6 +14,7 @@ const links = [
 
 export function AdminLayout() {
   const location = useLocation()
+  const mapRoute = location.pathname === '/admin/map-analytics'
   const navigationId = useId()
   const toggle = useRef<HTMLButtonElement>(null)
   const [menu, setMenu] = useState({ key: location.key, open: false })
@@ -30,9 +31,9 @@ export function AdminLayout() {
 
   return (
     <ToastProvider>
-      <div className="min-h-dvh">
+      <div className={mapRoute ? "flex h-dvh min-w-0 flex-col overflow-hidden" : "min-h-dvh"}>
         <header
-          className="border-b bg-card"
+          className="shrink-0 border-b bg-card"
           onKeyDown={(event) => {
             if (event.key === 'Escape' && open) {
               event.preventDefault()
@@ -92,7 +93,7 @@ export function AdminLayout() {
             </Link>
           </div>
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        <main className={mapRoute ? "flex min-h-0 min-w-0 flex-1" : "mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8"}>
           <Outlet />
         </main>
       </div>

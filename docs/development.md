@@ -95,3 +95,51 @@ It exits non-zero when the stack is not running.
 - **Shared exports:** point every worktree's `VIPTOP_DATA_DIR` at one folder, e.g. `../data`.
 - **Windows:** `COMPOSE_FILE` uses `;` as its separator. Alternatively, set `COMPOSE_PATH_SEPARATOR=:`.
 - **Agents:** the `worktree-create` and `worktree-setup` skills (`.ai/skills/`) do these steps.
+
+## Area analyst configuration and diagnostics
+
+Set `OPENAI_API_KEY` and `OPENAI_MODEL` in the repository-root `.env` for the
+backend. Choose a model that supports Responses function calling. Keep the key
+out of `VITE_` variables, source files and logs. Empty values leave ordinary map
+reads available. Recreate the backend after configuration changes:
+
+```bash
+docker compose up -d --force-recreate backend
+```
+
+The image packages `docs/agent-skills.md`, `docs/data-model.md` and
+`docs/data/bin-days-columns.md`. Development mounts these files read-only at
+`/app/agent-domain`; edit their canonical sources without rebuilding. Native
+runs resolve the same sources from the repository root. Runtime dictionaries
+include only sections delimited by `agent-runtime` comments; example export
+statistics and rows are excluded. Tool documentation comes from the registry.
+
+Run local diagnostics without an OpenAI key:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --catalogue
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --guide
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --tool get_service_summary --arguments '{"scope":"area","grouping":"waste_carrier","period":null}'
+```
+
+Local mode uses short rollback-only database snapshots and never calls a
+provider. `--full` prints bounded JSON evidence. Native execution uses the
+[backend setup](#native-backend) and `uv run python -m` with the same module.
+
+Live execution is explicit:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --live
+```
+
+A live run has ceilings of 60 seconds, five model requests, twelve executed
+tools, four tools per response, 16 KiB per tool result and 64 KiB of results per
+run. Investigation ends by 45 seconds, reserving 15 seconds for synthesis.
+The diagnostic reports request counts, durations, tool names and result bytes
+without keys or raw provider exceptions. Exit codes are 0 for successful local
+reads/complete live analysis, 1 for failed diagnostics, 2 for missing live
+configuration and 3 for incomplete live analysis.
+
+Behaviour and contracts: [area analyst](../openspec/specs/area-analytics-agent/spec.md),
+[analytics tools](../openspec/specs/analytics-tools/spec.md).

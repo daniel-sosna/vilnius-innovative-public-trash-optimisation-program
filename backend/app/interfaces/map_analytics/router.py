@@ -1,4 +1,12 @@
-from fastapi import APIRouter
+import asyncio
+import json
+from contextlib import suppress
+from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Request
+from app.core.config import Settings
+from app.integrations.openai import ResponsesProvider, ProviderFailure
+from app.services.analytics_agent.contracts import AnalyzeRequest, AnalysisResponse, RunContext
+from app.services.analytics_agent.run import analyze
 
 from app.interfaces.collection_session import CollectionSession
 from app.interfaces.map_analytics.schemas import (
@@ -38,3 +46,48 @@ def landfills(session: CollectionSession) -> dict:
 @router.get("/population-cells", response_model=PopulationFeatureCollection)
 def population_cells(session: CollectionSession) -> dict:
     return population_features(session)
+
+
+@router.post("/agent/analyze", response_model=AnalysisResponse)
+async def analyze_area(body: AnalyzeRequest, request: Request):
+    settings = Settings()
+    key = settings.openai_api_key.get_secret_value().strip() if settings.openai_api_key else ''
+    model = (settings.openai_model or '').strip()
+    if not key or not model:
+        raise HTTPException(status_code=503, detail={'code': 'analysis_configuration', 'message': 'Analysis requires backend OpenAI key and model configuration.'})
+    context = RunContext(body.bbox)
+    if 'text/event-stream' in request.headers.get('accept', ''):
+        async def events():
+            queue = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+            def progress(event):
+                try:
+                    running_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    running_loop = None
+                if running_loop is loop:
+                    queue.put_nowait(('progress', event))
+                else:
+                    loop.call_soon_threadsafe(queue.put_nowait, ('progress', event))
+            async def execute():
+                try:
+                    result = await analyze(request.app.state.analytics_sessions, body.bbox, ResponsesProvider(key, model), context, progress)
+                    await queue.put(('result', result.model_dump(mode='json')))
+                except Exception:
+                    await queue.put(('error', {'message': 'Analizės atlikti nepavyko. Bandykite dar kartą.'}))
+            task = asyncio.create_task(execute())
+            try:
+                while True:
+                    event, data = await queue.get()
+                    yield f'event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n'
+                    if event in ('result', 'error'):
+                        break
+            finally:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
+        return StreamingResponse(events(), media_type='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+    try:
+        return await analyze(request.app.state.analytics_sessions, body.bbox, ResponsesProvider(key, model), context)
+    except ProviderFailure:
+        raise HTTPException(status_code=502, detail={'code': 'provider_failed', 'message': 'Analysis provider request failed. Retry explicitly.'}) from None
