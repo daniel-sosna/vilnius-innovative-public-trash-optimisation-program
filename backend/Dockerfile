@@ -11,6 +11,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-install-project
 
 COPY app ./app
+COPY viptop_fill ./viptop_fill
 COPY alembic ./alembic
 COPY alembic.ini start.sh ./
 

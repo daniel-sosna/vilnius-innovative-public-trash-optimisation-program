@@ -1,6 +1,6 @@
 # VipTop Waste Collection Optimisation
 
-VipTop is a hackathon MVP for more efficient public waste-container collection in Vilnius. It stores collection sites, bins and service history; builds resident estimates, a simulated bin-day calendar and a daily collection plan; and has a Lithuanian admin UI and public resident request page. Offline fill prediction provides a trained standalone package; the database collection plan uses a mock predictor. Route optimisation is not implemented.
+VipTop is a hackathon MVP for more efficient public waste-container collection in Vilnius. It stores collection sites, bins and service history; builds resident estimates, a simulated bin-day calendar and a daily collection plan; and has a Lithuanian admin UI and public resident request page. Offline fill prediction provides a trained standalone package; the database collection plan runs it for September 2026. Route optimisation is not implemented.
 
 React, TypeScript, Vite, Tailwind CSS and shadcn/ui · Python 3.12, FastAPI, SQLAlchemy and Alembic · PostgreSQL · Docker Compose
 
@@ -35,7 +35,7 @@ Run these in order after an import. Importing `bins` empties every derived table
 | 1 | `table_import` | `sites`, `bins`, `bin_hist` (optionally `bin_schedule`, `resident_requests`) from CSV, plus district boundaries and service zones from GeoJSON | [import](docs/data/import.md) |
 | 2 | `bin_population` | Estimated residents per bin | [bin population](docs/data/bin-population.md) |
 | 3 | `bin_days --start ... --end ...` | Bin-day calendar with simulated collections | [bin days](docs/data/bin-days.md) |
-| 4 | `collection_plan` | Sites to serve per carrier for a date (mock prediction) | [collection plan](docs/data/collection-plan.md) |
+| 4 | `collection_plan` | Sites to serve per carrier for a date (model prediction, September 2026) | [collection plan](docs/data/collection-plan.md) |
 
 The offline CSV workflow uses separate optional dependencies and does not need a database:
 
@@ -86,7 +86,7 @@ The admin screens have no authentication.
 │       ├── services/       # Application logic
 │       ├── infrastructure/ # Database engine and ORM models
 │       ├── integrations/   # VASA client
-│       ├── ml/             # Offline ML stages and the collection-plan mock
+│       ├── ml/             # Offline ML stages and the collection-plan prediction
 │       └── optimization/   # Route optimisation (empty)
 ├── scripts/                # dev-info.sh and offline data utilities
 ├── docs/                   # Reference documentation
