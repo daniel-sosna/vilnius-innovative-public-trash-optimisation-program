@@ -193,7 +193,7 @@ def failure_reasons(session, ctx, args):
 
 
 def fill_columns():
-    return [func.count().label('attempts'), func.count(BinHist.fill_level).label('observed'), func.count().filter(BinHist.fill_level.is_(None)).label('missing'), func.avg(BinHist.fill_level).label('ordinal_category_mean'), *[func.count().filter(BinHist.fill_level == level).label('category_' + str(level)) for level in range(4)]]
+    return [func.count().label('attempts'), func.count(BinHist.fill_level).label('observed'), func.count().filter(BinHist.fill_level.is_(None)).label('missing'), func.avg(BinHist.fill_level).label('ordinal_category_mean'), *[func.count().filter(BinHist.fill_level == level).label('category_' + str(level)) for level in range(5)]]
 
 
 def fill_summary(session, ctx, args):

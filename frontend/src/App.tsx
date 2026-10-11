@@ -9,6 +9,8 @@ import { ToastProvider } from '@/components/ui/toast'
 import { ResidentRequestPage } from '@/pages/resident-request/resident-request-page'
 import { MapAnalyticsPage } from '@/pages/map-analytics/map-analytics-page'
 import { RoutesPage } from '@/pages/routes/routes-page'
+import { TruckPickerPage } from '@/pages/driver/truck-picker-page'
+import { DriverRouteScreen } from '@/pages/driver/driver-route-screen'
 
 export default function App() {
   return (
@@ -19,6 +21,8 @@ export default function App() {
           path="/resident-request/:bin_id"
           element={<ToastProvider><ResidentRequestPage /></ToastProvider>}
         />
+        <Route path="/driver" element={<ToastProvider><TruckPickerPage /></ToastProvider>} />
+        <Route path="/driver/:truck_id" element={<ToastProvider><DriverRouteScreen /></ToastProvider>} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="trucks" element={<TrucksPage />} />
           <Route path="sites" element={<SitesPage />} />

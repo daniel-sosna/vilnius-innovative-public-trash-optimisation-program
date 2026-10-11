@@ -19,8 +19,8 @@ export function RoleSelection() {
           </h1>
         </div>
         <div className="flex flex-col gap-3">
-          <Button variant="outline" size="lg" disabled>
-            Vairuotojas
+          <Button variant="outline" size="lg" asChild>
+            <Link to="/driver">Vairuotojas</Link>
           </Button>
           <Button size="lg" asChild>
             <Link to="/admin/trucks">Administratorius</Link>

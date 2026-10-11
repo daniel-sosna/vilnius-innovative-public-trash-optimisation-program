@@ -40,7 +40,7 @@ The tables and what their data means. Columns and constraints are defined in [`b
 ## Service history (`bin_hist`)
 
 - Each row is an actual attempt, including failures, with a naive local timestamp and the source reason, which can be an empty string.
-- `fill_level` is NULL or 0–3. Imported attempts have NULL.
+- `fill_level` is NULL or 0–4 (0 empty, 1 less than half, 2 more than half, 3 full, 4 overflowing). Imported attempts have NULL; driver observations carry a level.
 - A row is unique by `(bin_id, date, was_serviced)`, so distinct attempts that share all three values collapse into one.
 - Nothing is inferred: no truck, route, duration or fill.
 
@@ -71,7 +71,7 @@ The tables and what their data means. Columns and constraints are defined in [`b
 |---|---|---|
 | `sites` | Internal `id`; `bins.site_id` points here | `site_key`, address and own mean coordinates; location scope differs from selected members |
 | `bins` | Internal `id`, nullable unique VASA `external_id`; `site_id` → sites | Own latitude/longitude, waste type, capacity, current carrier/object group, nullable address-list count; current attribution qualifies older events |
-| `bin_hist` | Internal `id`; `bin_id` → bins | `date`, successful `was_serviced`, nullable/empty reason, nullable 0–3 observed fill; latest attempt and latest successful baseline differ |
+| `bin_hist` | Internal `id`; `bin_id` → bins | `date`, successful `was_serviced`, nullable/empty reason, nullable 0–4 observed fill; latest attempt and latest successful baseline differ |
 | `resident_requests` | Internal `id`; `bin_id` → bins | Every timestamped submission remains separate, including repeated submissions; local naive wall-clock time |
 | `bin_schedule` | Internal `id`, unique `(bin_id,date)`; bin → bins | Stored calendar-day plan, potentially future; no completed-service or missed-service proof |
 | `population_cells` | Source `OBJECTID` as `id` | Rings with holes, envelope, density/ha, suppression, area/ha and full-polygon resident estimate; NULL density plus suppression false makes stored zero unavailable |

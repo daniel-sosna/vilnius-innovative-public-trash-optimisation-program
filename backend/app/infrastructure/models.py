@@ -165,7 +165,7 @@ class BinHist(Base):
     __tablename__ = "bin_hist"
     __table_args__ = (
         UniqueConstraint("bin_id", "date", "was_serviced", name="uq_bin_hist_event"),
-        CheckConstraint("fill_level BETWEEN 0 AND 3", name="ck_bin_hist_fill_level"),
+        CheckConstraint("fill_level BETWEEN 0 AND 4", name="ck_bin_hist_fill_level"),
     )
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     bin_id: Mapped[int] = mapped_column(
