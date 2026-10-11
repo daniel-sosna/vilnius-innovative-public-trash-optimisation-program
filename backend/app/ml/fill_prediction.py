@@ -14,9 +14,9 @@ def predict_fill_levels(session: Session, day: date) -> dict[int, int]:
     `{bin_id: level}` with one entry per row of `bins` and an integer level from
     0 (empty) to 4 (full). Plan building, storage and reading depend only on it.
 
-    MOCK: until the model exists, levels are synthetic, drawn uniformly from 0..4
-    per bin in ID order from a generator seeded with the date. They are not observed
-    or model-predicted data.
+    Collection-plan mock: levels are synthetic, drawn uniformly from 0..4 per bin
+    in ID order from a generator seeded with the date. The trained standalone
+    predictor is in viptop_fill; this database adapter does not invoke it.
     """
     bin_ids = session.execute(text("SELECT id FROM bins ORDER BY id")).scalars()
     rng = random.Random(f"collection-plan:{day.isoformat()}")
