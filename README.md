@@ -36,6 +36,8 @@ Run these in order after an import. Importing `bins` empties every derived table
 | 2 | `bin_population` | Estimated residents per bin | [bin population](docs/data/bin-population.md) |
 | 3 | `bin_days --start ... --end ...` | Bin-day calendar with simulated collections | [bin days](docs/data/bin-days.md) |
 | 4 | `collection_plan` | Sites to serve per carrier for a date (model prediction, September 2026) | [collection plan](docs/data/collection-plan.md) |
+| 5 | `demo_fleet --date ...` | Invented demo trucks sized from the plan of a date | [route plan](docs/data/route-plan.md#demo-fleet) |
+| 6 | `route_plan --carrier ... --date ...` | Trips per truck for a carrier and date, compared with a baseline | [route plan](docs/data/route-plan.md) |
 
 The offline CSV workflow uses separate optional dependencies and does not need a database:
 
@@ -63,6 +65,7 @@ Other commands:
 | Truck management | `/admin/trucks` | [truck-management](openspec/specs/truck-management/spec.md) |
 | Collection sites, details, adding and deleting sites and bins | `/admin/sites`, `/admin/sites/{id}` | [collection-site-browsing](openspec/specs/collection-site-browsing/spec.md), [collection-site-management](openspec/specs/collection-site-management/spec.md) |
 | Map analytics (landfills, bins, population density, districts, service zones, monthly container adequacy, area AI analysis) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [container adequacy](openspec/specs/container-adequacy-analysis/spec.md), [area agent](openspec/specs/area-analytics-agent/spec.md), [analytics tools](openspec/specs/analytics-tools/spec.md) |
+| Route plans (trucks, trips, savings vs baseline) | `/admin/routes` | [route-planning](openspec/specs/route-planning/spec.md), [route-plan-viewing](openspec/specs/route-plan-viewing/spec.md), [demo-fleet](openspec/specs/demo-fleet/spec.md) |
 | Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
 | Standalone next-day fill prediction | Offline Python package | [daily-fill-prediction](openspec/specs/daily-fill-prediction/spec.md) |
 
@@ -100,7 +103,7 @@ The admin screens have no authentication.
 - [Development](docs/development.md): configuration, running without Docker, migrations, several worktrees at once
 - [Agent guidance](docs/agent-skills.md): analytical procedure and runtime domain references
 - [Data model](docs/data-model.md): tables and what their data means
-- Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
+- Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [route plan](docs/data/route-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
 - Offline data/ML: [fill/QR generation](docs/data/fill-qr.md), [fill prediction](docs/data/fill-prediction.md), [container adequacy](docs/data/container-adequacy.md)
 - Behaviour: [`openspec/specs/`](openspec/specs/)
 - HTTP API: `/docs` on the running backend
