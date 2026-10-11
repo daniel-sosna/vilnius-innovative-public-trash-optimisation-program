@@ -1,0 +1,486 @@
+{
+  "checks": "passed",
+  "conservation": {
+    "Mixed municipal waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 6097.95,
+      "points": 5352,
+      "zero_demand_points": 1565,
+      "max_pressure": 63374.99999999581,
+      "max_access_m": 2216.3781880515357
+    },
+    "Paper/plastic waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 8939.39,
+      "points": 2875,
+      "zero_demand_points": 354,
+      "max_pressure": 46791.66666666267,
+      "max_access_m": 3362.658404379596
+    },
+    "Glass waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 4359.81,
+      "points": 2347,
+      "zero_demand_points": 210,
+      "max_pressure": 93583.33333332534,
+      "max_access_m": 3362.658404379596
+    }
+  },
+  "thresholds": {
+    "Mixed municipal waste": 224.99999999661617,
+    "Paper/plastic waste": 120.00000000065567,
+    "Glass waste": 242.19999999981758
+  },
+  "eligible_bins": 11814,
+  "excluded_bins": 10137,
+  "months": [
+    "2026-09",
+    "2026-08",
+    "2026-07",
+    "2026-06"
+  ],
+  "artifacts": [
+    {
+      "id": "adequacy-2026-09",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-30",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "261b4090829c5e3e5d4a7d29ffa83f913341e7164637dd4a417964ba1790e832"
+    },
+    {
+      "id": "adequacy-2026-08",
+      "month": "2026-08",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "de22195f69df0a70744231da3ffcd47a78bde5a02ba664d51d01bfc6268f07a7"
+    },
+    {
+      "id": "adequacy-2026-07",
+      "month": "2026-07",
+      "period_start": "2026-07-01",
+      "period_end": "2026-07-31",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "fa3aa5d34229e9a5700dd2974de20db9a4fb5dffb00f147d581e58be9f403cb3"
+    },
+    {
+      "id": "adequacy-2026-06",
+      "month": "2026-06",
+      "period_start": "2026-06-01",
+      "period_end": "2026-06-30",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "47a844054b58b40ca978ce981ced5c7ffc42231344504119c87fbdf80cc49b78"
+    }
+  ],
+  "sensitivity": {
+    "pressure_75": {
+      "2026-09": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 35374.999999914406,
+          "Paper/plastic waste": 50240.99999991105,
+          "Glass waste": 1513.9999999857046
+        },
+        "changed_point_types": 185,
+        "category_counts": {
+          "insufficient_evidence": 25933,
+          "potential_shortage": 3747,
+          "ordinary": 10514,
+          "overflow_without_pressure": 294,
+          "unavailable": 300,
+          "priority_shortage": 1449
+        }
+      },
+      "2026-08": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 35333.99999992845,
+          "Paper/plastic waste": 50164.99999990412,
+          "Glass waste": 172.99999999702908
+        },
+        "changed_point_types": 181,
+        "category_counts": {
+          "insufficient_evidence": 25681,
+          "potential_shortage": 3491,
+          "ordinary": 10466,
+          "overflow_without_pressure": 383,
+          "unavailable": 300,
+          "priority_shortage": 1916
+        }
+      },
+      "2026-07": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 35536.99999991342,
+          "Paper/plastic waste": 50562.9999999114,
+          "Glass waste": 367.9999999985099
+        },
+        "changed_point_types": 181,
+        "category_counts": {
+          "insufficient_evidence": 25699,
+          "potential_shortage": 3669,
+          "ordinary": 10639,
+          "unavailable": 300,
+          "priority_shortage": 1612,
+          "overflow_without_pressure": 318
+        }
+      },
+      "2026-06": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 34852.999999932545,
+          "Paper/plastic waste": 50027.99999990772,
+          "Glass waste": 1665.9999999860956
+        },
+        "changed_point_types": 182,
+        "category_counts": {
+          "insufficient_evidence": 25770,
+          "potential_shortage": 3672,
+          "ordinary": 10527,
+          "unavailable": 300,
+          "overflow_without_pressure": 245,
+          "priority_shortage": 1723
+        }
+      }
+    },
+    "pressure_90": {
+      "2026-09": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 69351.99999992516,
+          "Mixed municipal waste": 66658.0000000115,
+          "Glass waste": 8187.999999994452
+        },
+        "changed_point_types": 307,
+        "category_counts": {
+          "insufficient_evidence": 25933,
+          "potential_shortage": 2001,
+          "ordinary": 12260,
+          "overflow_without_pressure": 846,
+          "unavailable": 300,
+          "priority_shortage": 897
+        }
+      },
+      "2026-08": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 71216.99999992736,
+          "Mixed municipal waste": 67871.00000002605,
+          "Glass waste": 1065.0000000041723
+        },
+        "changed_point_types": 306,
+        "category_counts": {
+          "insufficient_evidence": 25681,
+          "potential_shortage": 1830,
+          "ordinary": 12127,
+          "overflow_without_pressure": 1077,
+          "unavailable": 300,
+          "priority_shortage": 1222
+        }
+      },
+      "2026-07": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 71554.99999991954,
+          "Mixed municipal waste": 67556.99999999965,
+          "Glass waste": 2038.000000006389
+        },
+        "changed_point_types": 293,
+        "category_counts": {
+          "insufficient_evidence": 25699,
+          "potential_shortage": 2007,
+          "ordinary": 12301,
+          "unavailable": 300,
+          "priority_shortage": 1016,
+          "overflow_without_pressure": 914
+        }
+      },
+      "2026-06": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 70986.99999993341,
+          "Mixed municipal waste": 66118.0000000295,
+          "Glass waste": 8207.000000012455
+        },
+        "changed_point_types": 319,
+        "category_counts": {
+          "insufficient_evidence": 25770,
+          "potential_shortage": 1856,
+          "ordinary": 12343,
+          "unavailable": 300,
+          "overflow_without_pressure": 845,
+          "priority_shortage": 1123
+        }
+      }
+    },
+    "access_200": {
+      "2026-09": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 10337.000000002785,
+          "Paper/plastic waste": 10104.999999992398,
+          "Glass waste": 134.99999999959954
+        },
+        "changed_point_types": 711,
+        "category_counts": {
+          "insufficient_evidence": 25933,
+          "potential_shortage": 4581,
+          "ordinary": 9680,
+          "overflow_without_pressure": 344,
+          "priority_shortage": 1399,
+          "unavailable": 300
+        }
+      },
+      "2026-08": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 10623.000000002725,
+          "Paper/plastic waste": 10067.999999992808,
+          "Glass waste": 40.00000000023283
+        },
+        "changed_point_types": 719,
+        "category_counts": {
+          "insufficient_evidence": 25681,
+          "potential_shortage": 4323,
+          "ordinary": 9634,
+          "overflow_without_pressure": 432,
+          "priority_shortage": 1867,
+          "unavailable": 300
+        }
+      },
+      "2026-07": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 10593.000000002114,
+          "Paper/plastic waste": 10314.999999993697,
+          "Glass waste": 79.9999999998603
+        },
+        "changed_point_types": 729,
+        "category_counts": {
+          "insufficient_evidence": 25699,
+          "potential_shortage": 4548,
+          "ordinary": 9760,
+          "unavailable": 300,
+          "priority_shortage": 1552,
+          "overflow_without_pressure": 378
+        }
+      },
+      "2026-06": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 10192.000000003278,
+          "Paper/plastic waste": 10030.999999992902,
+          "Glass waste": 144.99999999932015
+        },
+        "changed_point_types": 707,
+        "category_counts": {
+          "insufficient_evidence": 25770,
+          "potential_shortage": 4492,
+          "ordinary": 9707,
+          "unavailable": 300,
+          "overflow_without_pressure": 302,
+          "priority_shortage": 1666
+        }
+      }
+    },
+    "access_500": {
+      "2026-09": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 6380.999999996184,
+          "Mixed municipal waste": 3258.9999999927004,
+          "Glass waste": 49.99999999972061
+        },
+        "changed_point_types": 296,
+        "category_counts": {
+          "insufficient_evidence": 25933,
+          "ordinary": 12214,
+          "potential_shortage": 2047,
+          "overflow_without_pressure": 482,
+          "unavailable": 300,
+          "priority_shortage": 1261
+        }
+      },
+      "2026-08": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 6250.999999995944,
+          "Mixed municipal waste": 3114.999999995188,
+          "Glass waste": 4.999999999906867
+        },
+        "changed_point_types": 292,
+        "category_counts": {
+          "insufficient_evidence": 25681,
+          "ordinary": 12152,
+          "potential_shortage": 1805,
+          "overflow_without_pressure": 547,
+          "unavailable": 300,
+          "priority_shortage": 1752
+        }
+      },
+      "2026-07": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 6260.99999999488,
+          "Mixed municipal waste": 3398.999999992646,
+          "Glass waste": 45.0
+        },
+        "changed_point_types": 298,
+        "category_counts": {
+          "insufficient_evidence": 25699,
+          "ordinary": 12344,
+          "potential_shortage": 1964,
+          "unavailable": 300,
+          "priority_shortage": 1426,
+          "overflow_without_pressure": 504
+        }
+      },
+      "2026-06": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 6209.999999996074,
+          "Mixed municipal waste": 2913.9999999934453,
+          "Glass waste": 49.99999999972061
+        },
+        "changed_point_types": 287,
+        "category_counts": {
+          "insufficient_evidence": 25770,
+          "ordinary": 12200,
+          "potential_shortage": 1999,
+          "unavailable": 300,
+          "overflow_without_pressure": 392,
+          "priority_shortage": 1576
+        }
+      }
+    },
+    "evidence_loose": {
+      "2026-09": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 60053.00000008602,
+          "Paper/plastic waste": 32357.999999989453,
+          "Glass waste": 77066.00000000463
+        },
+        "changed_point_types": 1235,
+        "category_counts": {
+          "insufficient_evidence": 20582,
+          "potential_shortage": 3272,
+          "ordinary": 13019,
+          "overflow_without_pressure": 1484,
+          "priority_shortage": 3580,
+          "unavailable": 300
+        }
+      },
+      "2026-08": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 54968.00000005766,
+          "Paper/plastic waste": 28912.000000013002,
+          "Glass waste": 87596.99999992692
+        },
+        "changed_point_types": 1302,
+        "category_counts": {
+          "ordinary": 13116,
+          "potential_shortage": 3754,
+          "insufficient_evidence": 19886,
+          "priority_shortage": 3637,
+          "overflow_without_pressure": 1544,
+          "unavailable": 300
+        }
+      },
+      "2026-07": {
+        "changed_residents_by_type": {
+          "Glass waste": 110180.99999995805,
+          "Paper/plastic waste": 29378.00000001625,
+          "Mixed municipal waste": 56021.000000026186
+        },
+        "changed_point_types": 1458,
+        "category_counts": {
+          "insufficient_evidence": 18708,
+          "potential_shortage": 3803,
+          "ordinary": 13881,
+          "overflow_without_pressure": 1586,
+          "priority_shortage": 3959,
+          "unavailable": 300
+        }
+      },
+      "2026-06": {
+        "changed_residents_by_type": {
+          "Mixed municipal waste": 61604.99999998206,
+          "Glass waste": 84987.00000004818,
+          "Paper/plastic waste": 30827.999999956908
+        },
+        "changed_point_types": 1303,
+        "category_counts": {
+          "insufficient_evidence": 20192,
+          "potential_shortage": 3347,
+          "ordinary": 13431,
+          "overflow_without_pressure": 1396,
+          "unavailable": 300,
+          "priority_shortage": 3571
+        }
+      }
+    },
+    "evidence_strict": {
+      "2026-09": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 57845.99999998451,
+          "Mixed municipal waste": 52627.999999944535,
+          "Glass waste": 24358.99999993116
+        },
+        "changed_point_types": 989,
+        "category_counts": {
+          "insufficient_evidence": 31143,
+          "potential_shortage": 1890,
+          "ordinary": 8385,
+          "unavailable": 300,
+          "priority_shortage": 417,
+          "overflow_without_pressure": 102
+        }
+      },
+      "2026-08": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 61994.99999997911,
+          "Mixed municipal waste": 60188.999999946755,
+          "Glass waste": 2684.000000012238
+        },
+        "changed_point_types": 993,
+        "category_counts": {
+          "insufficient_evidence": 31326,
+          "potential_shortage": 1847,
+          "ordinary": 8293,
+          "unavailable": 300,
+          "priority_shortage": 379,
+          "overflow_without_pressure": 92
+        }
+      },
+      "2026-07": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 60435.99999994119,
+          "Mixed municipal waste": 61233.999999961365,
+          "Glass waste": 9336.99999998294
+        },
+        "changed_point_types": 977,
+        "category_counts": {
+          "insufficient_evidence": 31077,
+          "potential_shortage": 1954,
+          "ordinary": 8464,
+          "unavailable": 300,
+          "priority_shortage": 370,
+          "overflow_without_pressure": 72
+        }
+      },
+      "2026-06": {
+        "changed_residents_by_type": {
+          "Paper/plastic waste": 59251.00000002953,
+          "Mixed municipal waste": 47669.999999978885,
+          "Glass waste": 22720.999999974625
+        },
+        "changed_point_types": 1011,
+        "category_counts": {
+          "insufficient_evidence": 31336,
+          "potential_shortage": 1837,
+          "ordinary": 8349,
+          "unavailable": 300,
+          "priority_shortage": 370,
+          "overflow_without_pressure": 45
+        }
+      }
+    }
+  }
+}

@@ -74,6 +74,9 @@ class Allocation:
     cell_by_bin: dict[int, int | None]
     factor_by_bin: dict[int, float]
     stats: dict[str, WasteTypeStats]
+    points_by_type: dict[str, list["CollectionPoint"]] = field(default_factory=dict)
+    point_by_area: dict[tuple[int, str], "CollectionPoint"] = field(default_factory=dict)
+    distance_by_area: dict[tuple[int, str], float] = field(default_factory=dict)
 
 
 def project(lon: float, lat: float) -> tuple[float, float]:
@@ -270,6 +273,9 @@ def allocate(bins: list[BinRecord], polygons: list[PopulationPolygon]) -> Alloca
         by_type[record.waste_type].append(record)
 
     stats: dict[str, WasteTypeStats] = {}
+    points_by_type: dict[str, list[CollectionPoint]] = {}
+    point_by_area: dict[tuple[int, str], CollectionPoint] = {}
+    distance_by_area: dict[tuple[int, str], float] = {}
     for waste_type in sorted(by_type):
         type_stats = WasteTypeStats(waste_type)
         stats[waste_type] = type_stats
@@ -280,6 +286,7 @@ def allocate(bins: list[BinRecord], polygons: list[PopulationPolygon]) -> Alloca
         type_stats.residential_bins = sum(len(g) for g in grouped.values())
         type_stats.points = len(grouped)
         if not grouped:
+            points_by_type[waste_type] = []
             type_stats.unallocated = total_residents
             continue
         points = []
@@ -293,8 +300,11 @@ def allocate(bins: list[BinRecord], polygons: list[PopulationPolygon]) -> Alloca
                 )
             )
         point_index = PointIndex(points)
+        points_by_type[waste_type] = points
         for polygon, (x, y) in sources:
             point, distance = point_index.nearest(x, y)
+            point_by_area[(polygon.id, waste_type)] = point
+            distance_by_area[(polygon.id, waste_type)] = distance
             point.residents += polygon.residents
             type_stats.allocated += polygon.residents
             type_stats.distances.append(distance)
@@ -303,7 +313,7 @@ def allocate(bins: list[BinRecord], polygons: list[PopulationPolygon]) -> Alloca
                 factor = point.residents * float(member.capacity_m3) / point.capacity
                 factor_by_bin[member.id] = factor
                 type_stats.factors.append(factor)
-    return Allocation(cell_by_bin, factor_by_bin, stats)
+    return Allocation(cell_by_bin, factor_by_bin, stats, points_by_type, point_by_area, distance_by_area)
 
 
 def percentile(values: list[float], fraction: float) -> float:

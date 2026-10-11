@@ -300,22 +300,22 @@ def synthetic_summary(session, ctx, args):
     return {**page(session, query, args, 'groups'), 'stored_global_rows': session.scalar(select(func.count()).select_from(BinDay)), 'coverage_note': 'No matching synthetic rows does not establish actual service outcomes.'}
 
 
-def mock_query(ctx, args):
-    return select(StopBin.stop_id, StopBin.bin_id, StopBin.predicted_fill, StopBin.due, Bin.capacity_m3.label('current_capacity_m3'), CollectionStop.date, CollectionStop.waste_carrier, CollectionStop.overall_volume_m3.label('whole_stop_snapshot_volume_m3'), CollectionStop.overall_predicted_fill_m3.label('whole_stop_mock_predicted_fill_m3')).select_from(StopBin).join(Bin, Bin.id == StopBin.bin_id).join(CollectionStop, CollectionStop.id == StopBin.stop_id).where(point_scope(Bin, ctx), period_filter(CollectionStop.date, ctx, args, future=True, calendar=True))
+def plan_query(ctx, args):
+    return select(StopBin.stop_id, StopBin.bin_id, StopBin.predicted_fill, StopBin.due, Bin.capacity_m3.label('current_capacity_m3'), CollectionStop.date, CollectionStop.waste_carrier, CollectionStop.overall_volume_m3.label('whole_stop_snapshot_volume_m3'), CollectionStop.overall_predicted_fill_m3.label('whole_stop_predicted_fill_m3')).select_from(StopBin).join(Bin, Bin.id == StopBin.bin_id).join(CollectionStop, CollectionStop.id == StopBin.stop_id).where(point_scope(Bin, ctx), period_filter(CollectionStop.date, ctx, args, future=True, calendar=True))
 
 
-def mock_list(session, ctx, args):
-    return page(session, mock_query(ctx, args).order_by(CollectionStop.date, StopBin.stop_id, StopBin.bin_id), args)
+def plan_list(session, ctx, args):
+    return page(session, plan_query(ctx, args).order_by(CollectionStop.date, StopBin.stop_id, StopBin.bin_id), args)
 
 
-def mock_summary(session, ctx, args):
-    entries = mock_query(ctx, args).subquery()
+def plan_summary(session, ctx, args):
+    entries = plan_query(ctx, args).subquery()
     group = entries.c.waste_carrier if args.grouping == 'waste_carrier' else literal('all')
     capacity = case((entries.c.current_capacity_m3.not_in([Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')]), entries.c.current_capacity_m3), else_=None)
-    query = select(group.label('group'), func.count().label('selected_entries'), func.count(func.distinct(entries.c.stop_id)).label('represented_stops'), func.sum(capacity).label('selected_current_capacity_m3'), *[func.count().filter(entries.c.predicted_fill == level).label('mock_category_' + str(level)) for level in range(5)]).order_by(group.asc().nulls_first())
+    query = select(group.label('group'), func.count().label('selected_entries'), func.count(func.distinct(entries.c.stop_id)).label('represented_stops'), func.sum(capacity).label('selected_current_capacity_m3'), *[func.count().filter(entries.c.predicted_fill == level).label('predicted_category_' + str(level)) for level in range(5)]).order_by(group.asc().nulls_first())
     if args.grouping not in (None, 'none'): query = query.group_by(group)
-    stops = select(entries.c.stop_id, entries.c.whole_stop_snapshot_volume_m3, entries.c.whole_stop_mock_predicted_fill_m3).distinct().subquery()
-    whole = dict(session.execute(select(func.sum(stops.c.whole_stop_snapshot_volume_m3).label('whole_stop_snapshot_volume_m3'), func.sum(stops.c.whole_stop_mock_predicted_fill_m3).label('whole_stop_mock_predicted_fill_m3'))).mappings().one())
+    stops = select(entries.c.stop_id, entries.c.whole_stop_snapshot_volume_m3, entries.c.whole_stop_predicted_fill_m3).distinct().subquery()
+    whole = dict(session.execute(select(func.sum(stops.c.whole_stop_snapshot_volume_m3).label('whole_stop_snapshot_volume_m3'), func.sum(stops.c.whole_stop_predicted_fill_m3).label('whole_stop_predicted_fill_m3'))).mappings().one())
     return {**page(session, query, args, 'groups'), 'stored_global_entries': session.scalar(select(func.count()).select_from(StopBin)), 'represented_whole_stop_context': whole, 'snapshot_scope': 'Whole-stop totals counted once per represented stop, including outside-area bins; current selected capacities are separate.'}
 
 

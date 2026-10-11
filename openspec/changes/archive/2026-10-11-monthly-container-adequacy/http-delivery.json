@@ -1,0 +1,34 @@
+{
+  "storage": "PostgreSQL via CollectionSession",
+  "catalog_seconds": 0.377,
+  "analyses": [
+    {
+      "id": "adequacy-2026-09",
+      "status": 200,
+      "bytes": 45505830,
+      "seconds": 3.3,
+      "revision": "261b4090829c5e3e5d4a7d29ffa83f913341e7164637dd4a417964ba1790e832"
+    },
+    {
+      "id": "adequacy-2026-08",
+      "status": 200,
+      "bytes": 45524514,
+      "seconds": 2.651,
+      "revision": "de22195f69df0a70744231da3ffcd47a78bde5a02ba664d51d01bfc6268f07a7"
+    },
+    {
+      "id": "adequacy-2026-07",
+      "status": 200,
+      "bytes": 45509998,
+      "seconds": 2.718,
+      "revision": "fa3aa5d34229e9a5700dd2974de20db9a4fb5dffb00f147d581e58be9f403cb3"
+    },
+    {
+      "id": "adequacy-2026-06",
+      "status": 200,
+      "bytes": 45511997,
+      "seconds": 3.413,
+      "revision": "47a844054b58b40ca978ce981ced5c7ffc42231344504119c87fbdf80cc49b78"
+    }
+  ]
+}

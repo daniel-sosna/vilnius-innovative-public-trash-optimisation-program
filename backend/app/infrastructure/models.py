@@ -28,6 +28,26 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention={"pk": "pk_%(table_name)s"})
 
 
+class ContainerAdequacyAnalysis(Base):
+    __tablename__ = "container_adequacy_analyses"
+    __table_args__ = (
+        CheckConstraint("type = 'FeatureCollection'", name="ck_adequacy_collection_type"),
+        CheckConstraint("revision ~ '^[a-f0-9]{64}$'", name="ck_adequacy_revision"),
+        CheckConstraint(
+            "jsonb_typeof(analysis) = 'object' AND "
+            "analysis->>'id' IS NOT DISTINCT FROM id AND "
+            "analysis->'complete' IS NOT DISTINCT FROM 'true'::jsonb",
+            name="ck_adequacy_analysis",
+        ),
+        CheckConstraint("jsonb_typeof(features) = 'array'", name="ck_adequacy_features"),
+    )
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    revision: Mapped[str] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(Text)
+    analysis: Mapped[dict] = mapped_column(JSONB)
+    features: Mapped[list] = mapped_column(JSONB)
+
+
 class DistrictBoundary(Base):
     __tablename__ = "district_boundaries"
     __table_args__ = (
@@ -399,7 +419,7 @@ class CollectionStop(Base):
     # Totals over all the carrier's bins at the site (not only the due ones), fixed at
     # planning time and not recalculated afterwards.
     overall_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
-    # Predicted (mock) volume of waste: capacity times the share each fill level stands for.
+    # Predicted volume of waste: capacity times the share each fill level stands for.
     overall_predicted_fill_m3: Mapped[Decimal] = mapped_column(Numeric)
 
 
@@ -422,7 +442,7 @@ class StopBin(Base):
         ForeignKey("bins.id", name="fk_stop_bins_bin_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    # Predicted (currently mock, synthetic) fill level: 0 to 4.
+    # Predicted fill level (trained model, from synthetic history): 0 to 4.
     predicted_fill: Mapped[int] = mapped_column(SmallInteger)
     # True when bin is due for collection today.
     due: Mapped[bool] = mapped_column(Boolean)

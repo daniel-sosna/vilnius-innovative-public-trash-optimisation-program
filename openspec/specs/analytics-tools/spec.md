@@ -176,8 +176,8 @@ Tools SHALL summarize or trend stored `bin_days` outcomes using their synthetic 
 - **WHEN** both synthetic daily outcomes and recorded attempts are queried for a period
 - **THEN** each result identifies its evidence type and separate denominator, and no combined service-quality rate is returned
 
-### Requirement: Stored mock predictions preserve their own scale
-Tools SHALL read stored collection-plan stops and selected stop-bin entries as mock predictions with 0–4 predicted-fill categories. Stored whole-stop totals SHALL be distinguished from recomputed selected-bin capacity subtotals. No read SHALL generate a prediction or rebuild a plan.
+### Requirement: Stored plan predictions preserve their own scale
+Tools SHALL read stored collection-plan stops and selected stop-bin entries as model predictions, made from synthetic history, with 0–4 predicted-fill categories. Stored whole-stop totals SHALL be distinguished from recomputed selected-bin capacity subtotals. No read SHALL generate a prediction or rebuild a plan.
 
 #### Scenario: Read a partly selected stop
 - **WHEN** a stored stop includes bins inside and outside the bbox

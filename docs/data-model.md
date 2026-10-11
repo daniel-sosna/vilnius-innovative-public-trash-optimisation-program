@@ -14,7 +14,7 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `population_cells` | Population-density polygon | Source data | [Bin population](data/bin-population.md) |
 | `bin_population` | Bin | Estimated | Bin population |
 | `bin_days` | Bin and calendar day | Copied, estimated and synthetic | [Bin-day calendar](data/bin-days.md) ([columns](data/bin-days-columns.md)) |
-| `collection_stops`, `stop_bins` | Plan stop (date, carrier, site), and its bins | Mock prediction | [Collection plan](data/collection-plan.md) |
+| `collection_stops`, `stop_bins` | Plan stop (date, carrier, site), and its bins | Model prediction | [Collection plan](data/collection-plan.md) |
 | `district_boundaries` | District (seniūnija) polygon | Source data | [District boundaries](data/district-boundaries.md), import |
 | `service_zones` | Service-zone polygon | Source data | [Service zones](data/service-zones.md), import |
 | `trucks` | Truck | Manual | Admin UI |
@@ -76,8 +76,8 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `population_cells` | Source `OBJECTID` as `id` | Rings with holes, envelope, density/ha, suppression, area/ha and full-polygon resident estimate; NULL density plus suppression false makes stored zero unavailable |
 | `bin_population` | `bin_id` primary key → bins; nullable cell → population_cells | Stored `resident_factor`: nearest residential point allocation per waste stream, split by capacity; current coordinates may differ from stored cell attribution |
 | `bin_days` | `(bin_id,date)`; bin → bins | Copied registry/estimated allocation snapshots and synthetic statuses, not observed history; detailed column semantics in bin-day dictionary |
-| `collection_stops` | Internal `id`, unique date/carrier/site; site → sites | Planning-time whole-stop volume/mock fill snapshots include all stop members; nullable carrier is an unassigned group |
-| `stop_bins` | `(stop_id,bin_id)`; stop → collection_stops, bin → bins | Stored mock `predicted_fill` 0–4 and `due`; selected entry subtotal differs from whole-stop snapshot; no query generates a plan |
+| `collection_stops` | Internal `id`, unique date/carrier/site; site → sites | Planning-time whole-stop volume/predicted fill snapshots include all stop members; nullable carrier is an unassigned group |
+| `stop_bins` | `(stop_id,bin_id)`; stop → collection_stops, bin → bins | Stored model-predicted `predicted_fill` 0–4 and `due`; selected entry subtotal differs from whole-stop snapshot; no query generates a plan |
 | `district_boundaries` | Internal `id`, unique district name/source ID | Source Polygon geometry/name; holes/boundaries matter, stored bin district text is separate |
 | `service_zones` | Internal `id`, unique zone number | Source Polygon geometry/name/number; no observed fleet or historical service-zone attribution |
 | `landfills` | Internal `id`, nullable unique source ID | Nullable location, quality, operator/role/status, waste streams and verification/source fields; geometric proximity is not a road route |
@@ -99,4 +99,12 @@ The [fill/QR generator](data/fill-qr.md) produces an enriched local CSV with
 synthetic labels and QR counts. The [fill predictor](data/fill-prediction.md)
 uses that fixed source and writes its models, analysis and standalone delivery
 under the configured run directory. These are files rather than database tables;
-the collection plan uses the mock provider described in its own guide.
+the collection plan runs the exported model as described in its own guide.
+
+Monthly residential adequacy results are portable GeoJSON files under
+`<data_dir>/analyses/container-adequacy/`; see [container adequacy operation](data/container-adequacy.md).
+Explicit import stores each monthly collection in `container_adequacy_analyses`:
+`id` identifies the period, `revision` is the source-file SHA-256, `type` is
+`FeatureCollection`, and JSONB columns `analysis` / `features` preserve metadata,
+geometry and metrics. These standalone snapshots have no foreign keys to mutable
+bins or population tables. The map reads imported collections from PostgreSQL.

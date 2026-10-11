@@ -157,7 +157,7 @@ class SyntheticTrend(Events):
     interval: Literal['day', 'week', 'month'] | None = None
 
 
-class Mock(Events):
+class PlanSummary(Events):
     grouping: Literal['none', 'waste_carrier'] | None = None
 
 
@@ -200,7 +200,7 @@ class Result(Closed):
     queried_at: str
     read_only: bool = True
     data: dict[str, JsonValue] = Field(default_factory=dict)
-    units: dict[str, str] = Field(default_factory=lambda: {'capacity': 'source capacity, assumed m³ (unverified)', 'observed_fill': 'ordinal category 0–3', 'predicted_fill': 'mock category 0–4'})
+    units: dict[str, str] = Field(default_factory=lambda: {'capacity': 'source capacity, assumed m³ (unverified)', 'observed_fill': 'ordinal category 0–3', 'predicted_fill': 'model-predicted category 0–4 (synthetic history)'})
     limitations: list[str] = Field(default_factory=lambda: [
         'Current bin registry coordinates/categories/carrier qualify event aggregation; servicing carrier is not observed.',
         'Separate short snapshots may see changes between tool calls.',
