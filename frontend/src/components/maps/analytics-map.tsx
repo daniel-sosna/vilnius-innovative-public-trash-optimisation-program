@@ -118,7 +118,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
             renderer.setData(data)
             appliedData.set(layer.id, data)
           }
-          renderer?.setVisible(!!selected[layer.id])
+          renderer?.setVisible(!!selected[layer.id] && state?.status === 'ready')
         }
         if (attached) reconcilePolygonOrder(instance, definitions, renderers)
       }

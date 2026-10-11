@@ -100,3 +100,19 @@ class BinFeature(BaseModel):
 class BinFeatureCollection(BaseModel):
     type: Literal["FeatureCollection"] = "FeatureCollection"
     features: list[BinFeature]
+
+
+class AdequacyCatalogEntry(BaseModel):
+    id: str
+    month: str
+    period_start: str
+    period_end: str
+    complete: Literal[True]
+    schema_version: Literal["1"]
+    method_version: Literal["1"]
+    fill_provenance: Literal["synthetic", "observed"]
+    revision: str
+
+
+class AdequacyCatalog(BaseModel):
+    analyses: list[AdequacyCatalogEntry]

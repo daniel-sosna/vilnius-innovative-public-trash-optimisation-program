@@ -43,6 +43,7 @@ The offline CSV workflow uses separate optional dependencies and does not need a
 |---|---|---|
 | Base exports and synthetic fill/QR labels | `python scripts/prepare_training_data.py`, then `python scripts/fill_qr.py` | [fill/QR generation](docs/data/fill-qr.md) |
 | Train, compare and package fill prediction | From `backend/`: `python -m app.ml.run --config configs/ml.yaml` | [fill prediction](docs/data/fill-prediction.md) |
+| Monthly residential container adequacy GeoJSON | From `backend/`: `uv run --extra analytics python -m app.interfaces.container_adequacy --all-complete --daily data/bin_days_20231010_20261009_enriched.csv` | [container adequacy](docs/data/container-adequacy.md) |
 
 Other commands:
 
@@ -50,6 +51,7 @@ Other commands:
 |---|---|---|
 | `district_boundaries` | Loads only the district boundaries | [district boundaries](docs/data/district-boundaries.md) |
 | `service_zones` | Loads only the service zones | [service zones](docs/data/service-zones.md) |
+| `container_adequacy_import --all` | Loads monthly adequacy GeoJSON into PostgreSQL for the map | [container adequacy](docs/data/container-adequacy.md) |
 | `bin_schedule_sync` | Refreshes VASA planned dates for the current month (about 13 min) | [schedule sync](docs/data/bin-schedule-sync.md) |
 | `bin_sync` | Refreshes sites, bins and history from VASA (takes hours) | [bin sync](docs/data/bin-sync.md) |
 
@@ -60,7 +62,7 @@ Other commands:
 | Role selection | `/` | – |
 | Truck management | `/admin/trucks` | [truck-management](openspec/specs/truck-management/spec.md) |
 | Collection sites, details, adding and deleting sites and bins | `/admin/sites`, `/admin/sites/{id}` | [collection-site-browsing](openspec/specs/collection-site-browsing/spec.md), [collection-site-management](openspec/specs/collection-site-management/spec.md) |
-| Map analytics (landfills, bins, population density, districts, service zones) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md) |
+| Map analytics (landfills, bins, population density, districts, service zones, monthly container adequacy) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [container adequacy](openspec/specs/container-adequacy-analysis/spec.md) |
 | Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
 | Standalone next-day fill prediction | Offline Python package | [daily-fill-prediction](openspec/specs/daily-fill-prediction/spec.md) |
 
@@ -98,7 +100,7 @@ The admin screens have no authentication.
 - [Development](docs/development.md): configuration, running without Docker, migrations, several worktrees at once
 - [Data model](docs/data-model.md): tables and what their data means
 - Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
-- Offline data/ML: [fill/QR generation](docs/data/fill-qr.md), [fill prediction](docs/data/fill-prediction.md)
+- Offline data/ML: [fill/QR generation](docs/data/fill-qr.md), [fill prediction](docs/data/fill-prediction.md), [container adequacy](docs/data/container-adequacy.md)
 - Behaviour: [`openspec/specs/`](openspec/specs/)
 - HTTP API: `/docs` on the running backend
 - Contributing with AI agents: [AGENTS.md](AGENTS.md)

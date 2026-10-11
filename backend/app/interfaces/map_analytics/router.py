@@ -1,4 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Response
+import json
+import logging
+
+from app.services.adequacy_catalog import get_analysis, list_analyses
 
 from app.interfaces.collection_session import CollectionSession
 from app.interfaces.map_analytics.schemas import (
@@ -7,12 +11,36 @@ from app.interfaces.map_analytics.schemas import (
     LandfillFeatureCollection,
     PopulationFeatureCollection,
     ServiceZoneFeatureCollection,
+    AdequacyCatalog,
 )
 from app.services.map_analytics import (
     bin_features, district_features, landfill_features, population_features, service_zone_features,
 )
 
 router = APIRouter(prefix="/map-analytics", tags=["Map analytics"])
+logger = logging.getLogger(__name__)
+
+
+@router.get("/adequacy-analyses", response_model=AdequacyCatalog)
+def adequacy_catalog(session: CollectionSession) -> dict:
+    try:
+        return list_analyses(session)
+    except (OSError, ValueError, TypeError, KeyError):
+        logger.exception("Cannot read saved adequacy catalog")
+        raise HTTPException(500, "Cannot read saved adequacy analyses") from None
+
+
+@router.get("/adequacy-analyses/{analysis_id}")
+def adequacy_analysis(analysis_id: str, session: CollectionSession) -> Response:
+    try:
+        document, revision = get_analysis(session, analysis_id)
+        return Response(json.dumps(document, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+                        media_type="application/geo+json", headers={"ETag": f'"{revision}"'})
+    except FileNotFoundError:
+        raise HTTPException(404, "Unknown adequacy analysis") from None
+    except (OSError, ValueError, TypeError, KeyError):
+        logger.exception("Cannot read saved adequacy analysis")
+        raise HTTPException(500, "Cannot read saved adequacy analysis") from None
 
 
 @router.get("/district-boundaries", response_model=DistrictFeatureCollection)
