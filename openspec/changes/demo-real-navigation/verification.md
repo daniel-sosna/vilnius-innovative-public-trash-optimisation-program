@@ -5,7 +5,7 @@ Implementation and merge conflict resolution are delivered. Per the developer's 
 Developer checks:
 - Run Demo after the marker appearance completes; confirm the optimized routes use matching-carrier stored trucks, obey capacity and return to landfills between trips.
 - Confirm all predicted mappable bins are assigned or reported unserved exactly once, including absent carrier fleets, missing capacities and oversized stops.
-- Confirm partial results reveal the table immediately, hide the planning map and paginate at five trucks per page; all-unserved results show reasons without an empty successful truck table.
+- Confirm the table appears immediately after prediction with a loading row during marker appearance and navigation. Confirm partial results populate its rows, retain the planning map and paginate at five trucks per page; all-unserved results show reasons and explicit empty-table feedback.
 - Confirm OSRM service failure retains predicted markers, releases controls and never substitutes straight lines.
 - Confirm there is one Maršrutai navigation entry, /admin/demo redirects to /admin/routes, and the global project-date provider remains functional.
 - Open two truck rows and confirm distinct calculated road paths, assigned-landfill starts/returns, following camera and disappearing traveled line. Only service stops turn green.

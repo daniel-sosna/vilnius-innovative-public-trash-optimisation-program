@@ -37,7 +37,7 @@ Administrator navigation SHALL show one `Maršrutai` link to `/admin/routes`, us
 
 
 ### Requirement: Start a fresh sequential run
-Starting SHALL clear previous predicted markers, routes, trucks and statuses while retaining the global date and map instance. Only one frontend run SHALL be active. Successful stages SHALL proceed automatically from prediction to visible bins, route calculation and immediate truck results. Completed results SHALL hide the planning map and omit all-route drawing.
+Starting SHALL clear previous predicted markers, routes, trucks and statuses while retaining the global date and map instance. Only one frontend run SHALL be active. Successful stages SHALL proceed automatically from prediction to visible bins, route calculation and immediate truck results. The planning map SHALL remain visible during and after navigation, retaining predicted markers and omitting all-route drawing. The truck table shell SHALL appear immediately after prediction finishes.
 
 #### Scenario: Restart after completion
 - **WHEN** the administrator starts after a completed run
@@ -50,23 +50,28 @@ Starting SHALL clear previous predicted markers, routes, trucks and statuses whi
 
 
 ### Requirement: Compact stage feedback
-The workflow area SHALL distinguish active, completed and failed stages for bin prediction, route calculation only. An active stage SHALL show a loading indicator. Completion SHALL identify routes as ready, and errors SHALL identify the failed stage without marking it successful.
+The workflow area SHALL distinguish active, completed and failed bin prediction. After prediction, the truck table SHALL contain the loading indicator while marker appearance and route calculation are pending. Completion SHALL identify routes as ready, and errors SHALL identify failure without marking it successful.
 
 #### Scenario: Route calculation follows prediction
 - **WHEN** predicted markers are visible and navigation is pending
-- **THEN** bin selection is shown completed and route calculation active
+- **THEN** bin prediction is shown completed and the truck table contains an active route-calculation spinner
 
 #### Scenario: Route drawing follows calculation
 - **WHEN** routes have returned and navigation calculation is complete
-- **THEN** prediction and calculation are completed while the truck table is immediately visible and the planning map is hidden
+- **THEN** prediction and calculation are completed while the truck table contains the calculated rows and the planning map remains visible
 
 
 ### Requirement: Reveal assigned trucks after drawing
-The truck table SHALL appear only after navigation calculation finishes, with one row per assigned truck showing its stored name, route label and assigned stop/bin counts. The table SHALL be paginated with a maximum of five rows per page, without displaying a combined route map while changing pages and resetting to page one for a new run. Rows SHALL be keyboard-accessible links to `/admin/routes/truck/{truck_id}?run_id={run_id}` and associate each route with its visual color.
+The truck table SHALL appear immediately after prediction finishes, with a loading row while marker appearance or navigation is pending. Once navigation finishes, it SHALL show one row per assigned truck with its stored name, route label and assigned stop/bin counts. Empty results or failures SHALL replace the loading row with explicit feedback. The table SHALL be paginated with a maximum of five rows per page, without displaying a combined route map while changing pages and resetting to page one for a new run. Rows SHALL be keyboard-accessible links to `/admin/routes/truck/{truck_id}?run_id={run_id}` and associate each route with its visual color.
+
+#### Scenario: Show the table while planning
+- **WHEN** prediction finishes and marker appearance or navigation is pending
+- **THEN** the table headers and loading row are visible below the map
+- **AND** the route-calculation spinner appears inside the table rather than the prediction feedback
 
 #### Scenario: Reveal and activate results
 - **WHEN** navigation calculation finishes
-- **THEN** the table becomes visible with accurate counts derived from assignments
+- **THEN** the existing table replaces its loading row with assigned trucks and accurate counts derived from assignments
 - **AND** activating any truck row opens its driving-demo route
 
 

@@ -7,7 +7,7 @@ The incoming route-planning feature supplies the real PyVRP solver. Demo must us
 - Use one Maršrutai tab at /admin/routes for prediction and navigation; retire the separate stored-plan screen.
 - Pass predicted due-bin levels to navigation; derive due-bin loads using the shared fill-volume assumptions.
 - Solve per carrier with eligible stored trucks, capacity limits and landfill reloads, then render ordered trips through OSRM.
-- Report unserved bins explicitly; preserve the read-only workflow, appearance animation and five-row truck pagination. Display the table immediately after navigation, without drawing all routes.
+- Report unserved bins explicitly; preserve the read-only workflow, appearance animation and five-row truck pagination. Keep the predicted-bin map visible. Display the table immediately after prediction with a navigation spinner inside it, then populate assigned trucks without drawing all routes.
 - Track each selected truck on its calculated road legs, including landfill returns, with a short-lived in-memory run lookup instead of a shared fixture.
 
 ## Capabilities
