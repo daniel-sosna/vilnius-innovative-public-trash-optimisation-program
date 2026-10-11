@@ -56,6 +56,7 @@ Other commands:
 | `container_adequacy_import --all` | Loads monthly adequacy GeoJSON into PostgreSQL for the map | [container adequacy](docs/data/container-adequacy.md) |
 | `bin_schedule_sync` | Refreshes VASA planned dates for the current month (about 13 min) | [schedule sync](docs/data/bin-schedule-sync.md) |
 | `bin_sync` | Refreshes sites, bins and history from VASA (takes hours) | [bin sync](docs/data/bin-sync.md) |
+| `demo --date 2026-09-14 --navigation` | Runs real CSV prediction and road routing without saving plans | [demo setup](docs/development.md#planning-demo) |
 
 ## Features
 
@@ -65,10 +66,10 @@ Other commands:
 | Truck management | `/admin/trucks` | [truck-management](openspec/specs/truck-management/spec.md) |
 | Collection sites, details, adding and deleting sites and bins | `/admin/sites`, `/admin/sites/{id}` | [collection-site-browsing](openspec/specs/collection-site-browsing/spec.md), [collection-site-management](openspec/specs/collection-site-management/spec.md) |
 | Map analytics (landfills, bins, population density, districts, service zones, monthly container adequacy, area AI analysis) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [container adequacy](openspec/specs/container-adequacy-analysis/spec.md), [area agent](openspec/specs/area-analytics-agent/spec.md), [analytics tools](openspec/specs/analytics-tools/spec.md) |
-| Route plans (trucks, trips, savings vs baseline) | `/admin/routes` | [route-planning](openspec/specs/route-planning/spec.md), [route-plan-viewing](openspec/specs/route-plan-viewing/spec.md), [demo-fleet](openspec/specs/demo-fleet/spec.md) |
-| Driver navigation (truck picker, mock road route, per-bin fill levels) | `/driver`, `/driver/{truck_id}` | [driver-navigation](openspec/specs/driver-navigation/spec.md) |
 | Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
 | Standalone next-day fill prediction | Offline Python package | [daily-fill-prediction](openspec/specs/daily-fill-prediction/spec.md) |
+| Driver navigation (truck picker, road route of the selected date, per-bin fill levels) | `/driver`, `/driver/{truck_id}` | [driver-navigation](openspec/specs/driver-navigation/spec.md) |
+| Route planning and per-truck road tracking | `/admin/routes`, `/admin/routes/truck/{truck_id}` | [demo-planning](openspec/specs/demo-planning/spec.md), [truck-driving-demo](openspec/specs/truck-driving-demo/spec.md), [project-date](openspec/specs/project-date/spec.md) |
 
 The admin screens have no authentication.
 
@@ -104,7 +105,7 @@ The admin screens have no authentication.
 - [Development](docs/development.md): configuration, running without Docker, migrations, several worktrees at once
 - [Agent guidance](docs/agent-skills.md): analytical procedure and runtime domain references
 - [Data model](docs/data-model.md): tables and what their data means
-- [Driver](docs/driver.md): prerequisites, route check command and mock assumptions of the driver screen
+- [Driver](docs/driver.md): steps before a driver run and the route source and assumptions of the driver screen
 - Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [route plan](docs/data/route-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
 - Offline data/ML: [fill/QR generation](docs/data/fill-qr.md), [fill prediction](docs/data/fill-prediction.md), [container adequacy](docs/data/container-adequacy.md)
 - Behaviour: [`openspec/specs/`](openspec/specs/)

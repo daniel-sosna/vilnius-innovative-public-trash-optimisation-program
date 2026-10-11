@@ -8,18 +8,20 @@ export const adequacyWasteTypes = [
   { value: 'Glass waste', label: 'Stiklo atliekos' },
 ] as const
 const monthFormat = new Intl.DateTimeFormat('lt-LT', { year: 'numeric', month: 'long', timeZone: 'UTC' })
+export const adequacyPeriodLabel = (entry: Pick<AdequacyEntry, 'period_start' | 'period_end' | 'complete'>) =>
+  `${entry.period_start} – ${entry.period_end} (${entry.complete ? 'visas mėnuo' : 'dalinis mėnuo'})`
 export const adequacyMonthLabel = (month: string) => monthFormat.format(new Date(`${month}-01T00:00:00Z`))
 export const adequacyCategories = {
   priority_shortage: { label: 'Didelė rizika', color: '#dc2626', conclusion: 'Patikrinkite talpą ir surinkimo dažnį.' },
   potential_shortage: { label: 'Galima stoka', color: '#d97706', conclusion: 'Patikrinkite talpą arba pasiekiamumą.' },
   overflow_without_pressure: { label: 'Dažnas 4 lygis', color: '#7c3aed', conclusion: 'Patikrinkite surinkimo dažnį.' },
   ordinary: { label: 'Įprasta', color: '#6b9278', conclusion: 'Padidėjusių signalų nenustatyta.' },
-  insufficient_evidence: { label: 'Mažai vertinimų', color: '#9ca3af', conclusion: 'Mėnesio išvadai trūksta vertinimų.' },
+  insufficient_evidence: { label: 'Mažai vertinimų', color: '#9ca3af', conclusion: 'Laikotarpio išvadai trūksta vertinimų.' },
   unavailable: { label: 'Nėra įverčio', color: '#d1d5db', conclusion: 'Patikrinkite aptarnavimo duomenis.' },
 } as const
 export type AdequacyCategory = keyof typeof adequacyCategories
 export type AdequacyEntry = {
-  id: string; month: string; period_start: string; period_end: string; complete: true
+  id: string; month: string; period_start: string; period_end: string; complete: boolean
   revision: string; schema_version: string; method_version: string; fill_provenance: 'synthetic' | 'observed'
 }
 export type AdequacyMetadata = Omit<AdequacyEntry, 'revision'> & {
@@ -44,7 +46,9 @@ export async function loadAdequacy(entry: AdequacyEntry, signal: AbortSignal): P
   if (!response.ok) throw new Error('Adequacy read failed')
   const data = await response.json() as AdequacyData
   if (data.type !== 'FeatureCollection' || !Array.isArray(data.features) || data.analysis?.id !== entry.id
-    || data.analysis.schema_version !== '1' || data.analysis.complete !== true) throw new Error('Invalid adequacy result')
+    || data.analysis.schema_version !== entry.schema_version || data.analysis.method_version !== entry.method_version
+    || data.analysis.complete !== entry.complete || data.analysis.period_start !== entry.period_start
+    || data.analysis.period_end !== entry.period_end) throw new Error('Invalid adequacy result')
   const tag = response.headers.get('ETag')
   if (tag && tag !== `"${entry.revision}"`) throw new Error('Artifact changed; refresh catalog')
   return data
@@ -68,7 +72,7 @@ export function adequacyDetails(feature: Feature<Polygon, AdequacyProperties>, c
   const dl = document.createElement('dl')
   dl.className = 'space-y-1 text-xs'
   const fields = [
-    ['Mėnuo', adequacyMonthLabel(meta.month)],
+    ['Laikotarpis', adequacyPeriodLabel(meta)],
     ['Atliekos', adequacyWasteTypes.find(w => w.value === p.waste_type)?.label ?? p.waste_type],
     ['Gyventojai (apytiksliai)', n(p.residents)],
     ['Vietos konteineriai', p.point_id === null ? 'N/A' : `${p.point_bin_count}`],
@@ -102,7 +106,7 @@ const colors: ExpressionSpecification = ['match', ['get', 'category'],
   adequacyCategories.unavailable.color]
 export const adequacyLayer = createPolygonLayer<AdequacyProperties>({
   id: 'adequacy', label: 'Konteinerių pakankamumas', order: 25,
-  meaning: 'Gyventojų, talpos ir mėnesio 4 lygio vertinimų analizė.',
+  meaning: 'Gyventojų, talpos ir pasirinkto laikotarpio 4 lygio vertinimų analizė.',
   legend: [...Object.values(adequacyCategories).map(c => ({ label: `Pakankamumas: ${c.label}`, color: c.color })),
     { label: 'Pakankamumas: gyventojų duomenų nėra (skaidru)', color: 'transparent' }],
   load: async () => { throw new Error('Select a saved analysis') },

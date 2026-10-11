@@ -5,7 +5,21 @@ from typing import Annotated, Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator, BeforeValidator
+
+
+def validate_project_date(value):
+    if isinstance(value, str):
+        import re
+        if not re.fullmatch(r'2026-09-\d{2}', value):
+            raise ValueError('Project date must be a September 2026 date-only string')
+        value = date.fromisoformat(value)
+    if type(value) is not date or value.year != 2026 or value.month != 9:
+        raise ValueError('Project date must be in September 2026')
+    return value
+
+
+ProjectDate = Annotated[date, BeforeValidator(validate_project_date)]
 
 
 class ToolQueryError(ValueError):
@@ -181,6 +195,24 @@ class Fleet(Closed):
     waste_carrier: str | None = Field(default=None, max_length=200)
 
 
+WasteType = Literal['Mixed municipal waste', 'Paper/plastic waste', 'Glass waste']
+AdequacyCategory = Literal['unavailable', 'insufficient_evidence', 'priority_shortage',
+                           'potential_shortage', 'overflow_without_pressure', 'ordinary']
+
+
+class AdequacySummary(Closed):
+    waste_type: WasteType | None = None
+
+
+class AdequacyFeatures(Page):
+    waste_type: WasteType | None = None
+    category: AdequacyCategory | None = None
+
+
+class AdequacyFeature(Closed):
+    feature_id: Annotated[int, Field(strict=True, ge=0, le=9223372036854775807)]
+
+
 class EffectivePeriod(Closed):
     start: str | None
     end: str
@@ -210,14 +242,16 @@ class Result(Closed):
 
 class AnalyzeRequest(Closed):
     bbox: Bbox
+    project_date: ProjectDate
 
 
 class AnalysisResponse(Closed):
     status: Literal['complete', 'incomplete']
     bbox: Bbox
     default_period: EffectivePeriod
+    project_date: ProjectDate
     answer: str | None
-    incomplete_reason: Literal['deadline', 'model_response_incomplete', 'no_final_answer', 'refused'] | None
+    incomplete_reason: Literal['deadline', 'model_response_incomplete', 'no_final_answer', 'refused', 'response_policy'] | None
     model_requests: int = Field(ge=0, le=5)
     elapsed_seconds: float = Field(ge=0)
 
@@ -225,12 +259,27 @@ class AnalysisResponse(Closed):
 @dataclass
 class RunContext:
     bbox: Bbox
+    project_date: date
     started_at: datetime = field(default_factory=lambda: datetime.now(ZoneInfo('Europe/Vilnius')))
     started: float = field(default_factory=monotonic)
     correlation_id: str = field(default_factory=lambda: uuid4().hex)
     selection_ids: list[int] | None = None
     tool_calls: int = 0
     result_bytes: int = 0
+
+    adequacy_discovery_error: str | None = None
+    adequacy_discovered: bool = False
+    adequacy_revision: str | None = None
+    adequacy_metadata: dict | None = None
+    adequacy_matches: list[dict] | None = None
+    adequacy_geometry_coverage: dict | None = None
+
+    def __post_init__(self):
+        self.project_date = validate_project_date(self.project_date)
+
+    @property
+    def adequacy_id(self):
+        return f'adequacy-{self.project_date.isoformat()}'
 
     def remaining(self, exploration=False):
         return max(0.0, self.started + (45 if exploration else 60) - monotonic())

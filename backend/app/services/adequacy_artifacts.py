@@ -12,7 +12,7 @@ import re
 WASTE_TYPES = ("Mixed municipal waste", "Paper/plastic waste", "Glass waste")
 CATEGORIES = {"unavailable", "insufficient_evidence", "priority_shortage", "potential_shortage",
               "overflow_without_pressure", "ordinary"}
-ARTIFACT_PATTERN = re.compile(r"adequacy_(\d{4}-\d{2})\.geojson")
+ARTIFACT_PATTERN = re.compile(r"adequacy_(\d{4}-\d{2}(?:-\d{2})?)\.geojson")
 
 
 def month_bounds(month: str) -> tuple[date, date]:
@@ -44,11 +44,23 @@ def validate_artifact(document: dict) -> dict:
     require(isinstance(document, dict) and document.get("type") == "FeatureCollection", "not a FeatureCollection")
     meta = document.get("analysis")
     require(isinstance(meta, dict), "missing analysis metadata")
-    require(meta.get("schema_version") == "1" and meta.get("method_version") == "1", "unsupported schema/method version")
-    start, end = month_bounds(meta.get("month", ""))
-    require(meta.get("id") == f"adequacy-{meta['month']}", "identity does not match period")
-    require(meta.get("complete") is True and meta.get("period_start") == start.isoformat()
-            and meta.get("period_end") == end.isoformat(), "incomplete or invalid monthly period")
+    version = meta.get("schema_version")
+    require(version in ("1", "2") and meta.get("method_version") == version, "unsupported schema/method version")
+    try:
+        require(isinstance(meta.get("month"), str) and bool(re.fullmatch(r"\d{4}-\d{2}", meta["month"])), "invalid month")
+        start, last = month_bounds(meta["month"])
+        end = date.fromisoformat(meta.get("period_end", ""))
+    except (ValueError, TypeError) as error:
+        raise ValueError("Invalid adequacy artifact: invalid period date") from error
+    require(meta.get("period_start") == start.isoformat() and end.isoformat() == meta.get("period_end"), "invalid inclusive bounds")
+    require(type(meta.get("complete")) is bool, "completion must be boolean")
+    if version == "1":
+        require(meta.get("id") == f"adequacy-{meta['month']}" and end == last and meta["complete"], "incomplete or invalid monthly period")
+    else:
+        require(meta["month"] == "2026-09" and start <= end <= last, "dated period outside September 2026")
+        require(meta.get("id") == f"adequacy-{end.isoformat()}" and meta["complete"] == (end == last), "identity/completion does not match cutoff")
+        for key in ("static_reference_fingerprint", "policy_fingerprint"):
+            require(isinstance(meta.get(key), str) and bool(re.fullmatch(r"[a-f0-9]{64}", meta[key])), key)
     require(meta.get("fill_provenance") in ("synthetic", "observed"), "unknown fill provenance")
     require(isinstance(meta.get("source_fingerprints"), dict) and bool(meta["source_fingerprints"]), "missing source fingerprints")
     require(all(isinstance(v, str) and re.fullmatch(r"[a-f0-9]{64}", v)
@@ -71,6 +83,13 @@ def validate_artifact(document: dict) -> dict:
         require(number(prior.get('mean'), high=1) and integer(prior.get('points')) and prior['points'] > 0, 'prior summary')
     quality = meta['quality']
     require(isinstance(quality.get('calendar'), dict) and quality['calendar'].get('complete') is True, 'calendar coverage')
+    if version == "2":
+        coverage = quality['calendar']
+        require(coverage.get('period_start') == start.isoformat() and coverage.get('period_end') == end.isoformat(), 'calendar period')
+        require(all(integer(coverage.get(k)) for k in ('cohort_bins', 'bins_present', 'bins_with_full_calendar', 'calendar_rows')), 'calendar counts')
+        require(coverage['cohort_bins'] > 0 and coverage['bins_present'] == coverage['cohort_bins'] == coverage['bins_with_full_calendar']
+                and coverage['calendar_rows'] == coverage['cohort_bins'] * end.day, 'incomplete period calendar')
+        require(meta['policy_fingerprint'] == fingerprint(policy), 'policy identity')
     require(isinstance(quality.get('excluded_registry_bins'), list) and all(integer(x) for x in quality['excluded_registry_bins']), 'excluded bins')
     summaries = quality.get('point_summaries', {})
     require(isinstance(summaries, dict) and set(summaries) == set(WASTE_TYPES), 'point summaries')
@@ -148,7 +167,7 @@ def read_artifact(path: Path, directory: Path) -> tuple[dict, str]:
         raise ValueError("Analysis path is outside the published catalog")
     stat = resolved.stat()
     document, revision = _read_cached(str(resolved), stat.st_mtime_ns, stat.st_size, stat.st_ino)
-    if path.name != f"adequacy_{document['analysis']['month']}.geojson":
+    if path.name != f"{document['analysis']['id'].replace('adequacy-', 'adequacy_', 1)}.geojson":
         raise ValueError("Artifact filename and period disagree")
     return document, revision
 
@@ -172,7 +191,7 @@ def list_analyses(directory: Path) -> dict:
 
 
 def get_analysis(directory: Path, analysis_id: str) -> tuple[dict, str]:
-    match = re.fullmatch(r"adequacy-(\d{4}-\d{2})", analysis_id)
+    match = re.fullmatch(r"adequacy-(\d{4}-\d{2}(?:-\d{2})?)", analysis_id)
     if not match:
         raise FileNotFoundError("Unknown analysis")
     return read_artifact(directory / f"adequacy_{match[1]}.geojson", directory)

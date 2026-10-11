@@ -26,6 +26,12 @@ services:
       BIN_SYNC_HTTP_TIMEOUT_SECONDS: ${BIN_SYNC_HTTP_TIMEOUT_SECONDS}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      DEMO_PRODUCT_PATH: ${DEMO_PRODUCT_PATH:-ml/september-fill-predictor/product}
+      DEMO_DAILY_PATH: ${DEMO_DAILY_PATH:-bin_days_20231010_20261009_enriched.csv}
+      DEMO_REGISTRY_PATH: ${DEMO_REGISTRY_PATH:-bins_202610091935.csv}
+      DEMO_POPULATION_PATH: ${DEMO_POPULATION_PATH:-bin_population.csv}
+      DEMO_OSRM_URL: ${DEMO_OSRM_URL:-https://router.project-osrm.org}
+      DEMO_OSRM_REQUEST_INTERVAL_SECONDS: ${DEMO_OSRM_REQUEST_INTERVAL_SECONDS:-1.1}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:

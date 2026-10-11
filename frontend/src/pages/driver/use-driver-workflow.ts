@@ -5,7 +5,7 @@ import { allChosen, driverReducer, initialState } from './driver-state'
 
 export const SAVE_ERROR = 'Nepavyko išsaugoti duomenų. Bandykite dar kartą.'
 
-export function useDriverWorkflow(truckId: number) {
+export function useDriverWorkflow(truckId: number, projectDate: string) {
   const notify = useToast()
   const [state, dispatch] = useReducer(driverReducer, initialState)
   const controller = useRef<AbortController | null>(null)
@@ -19,7 +19,7 @@ export function useDriverWorkflow(truckId: number) {
     const current = new AbortController()
     controller.current = current
     dispatch({ type: 'start' })
-    loadRoute(truckId, current.signal)
+    loadRoute(truckId, projectDate, current.signal)
       .then((route) => {
         if (!current.signal.aborted) dispatch({ type: 'route_loaded', route })
       })
@@ -27,7 +27,7 @@ export function useDriverWorkflow(truckId: number) {
         if (!current.signal.aborted)
           dispatch({ type: 'route_failed', reason: error instanceof RouteError ? error.reason : 'failed' })
       })
-  }, [state.status, truckId])
+  }, [state.status, truckId, projectDate])
 
   // The request is sent from the click handler, not an effect, so a repeated tap or
   // development double-invocation can never store a stop twice.

@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import re
 from .registry import catalogue
+from .answer_policy import OUTPUT_RULES
 
 
 def guide_directory():
@@ -21,4 +22,4 @@ def guide():
         marked = re.findall(r'<!-- agent-runtime:start -->(.*?)<!-- agent-runtime:end -->', content, re.S)
         if not marked: raise ValueError('Runtime semantic section is missing')
         sections.extend(marked)
-    return guidance + '\n\n' + '\n\n'.join(sections) + '\n\nTool catalogue:\n' + json.dumps(catalogue(), ensure_ascii=False, separators=(',', ':'))
+    return OUTPUT_RULES + '\n\n' + guidance + '\n\n' + '\n\n'.join(sections) + '\n\nTool catalogue:\n' + json.dumps(catalogue(), ensure_ascii=False, separators=(',', ':'))

@@ -2,64 +2,79 @@
 
 ## Purpose
 
-Lets a truck driver follow a stored route plan on a phone as a navigation experience and record the observed fill level of every bin before emptying it. Route geometry and the truck position are simulated; routes, bins and observations are real stored data.
+Lets a truck driver follow the road route calculated for the selected day on a phone as a navigation experience and record the observed fill level of every bin before emptying it. The route and its road geometry are real planning results; the truck position is simulated.
 
 ## ADDED Requirements
 
 ### Requirement: Driver entry and layout
-The Driver screen SHALL be available at `/driver/:truck_id` and a truck picker at `/driver`; the role page's `Vairuotojas` option SHALL lead to the picker. Both SHALL use a mobile-first layout without the admin navbar, giving the map most of the viewport.
+The Driver screen SHALL be available at `/driver/:truck_id` and a truck picker at `/driver`; the role page's `Vairuotojas` option SHALL lead to the picker. Both SHALL use a mobile-first layout without the admin navbar, giving the map most of the viewport. The picker SHALL list only trucks that have a calculated route for the selected day, with their stop counts.
 
 #### Scenario: Role page leads to the driver
 - **WHEN** the user selects `Vairuotojas` on the role page
 - **THEN** the truck picker opens and no admin navigation is shown
 
+#### Scenario: Picker lists routed trucks
+- **WHEN** a route calculation for the selected day assigned routes to trucks 1 and 4
+- **THEN** the picker lists exactly those two trucks
+
 #### Scenario: Unknown truck
 - **WHEN** `/driver/:truck_id` names a truck that does not exist or is deleted
 - **THEN** the screen shows a clear not-found message and does not start a route
 
-### Requirement: Driver route source
-`POST /driver/route` with a `truck_id` SHALL build the route from the stored route plan of the truck's carrier for the fixed driver plan date: the truck's first trip gives the ordered stops, and the collection plan of that date gives every bin of the carrier at each stop. It SHALL read stored data only and SHALL NOT run prediction, route planning or read data files. Each bin SHALL carry its database `id`, `inventory_number` and `waste_type`.
+### Requirement: Selected project date
+The Driver SHALL use the application-wide project date (see `project-date`) and follow the route of its forecast day, the day after it. It SHALL NOT keep its own date. The picker and idle screen SHALL show the forecast day. When the project date changes, the Driver SHALL start over from idle and SHALL NOT continue a route of another day.
 
-#### Scenario: Route from stored plans
-- **WHEN** the truck has a first trip of three stops stored in the collection plan
-- **THEN** the response lists three stops in trip order, each with all the carrier's bins there and their inventory number and waste type, and the road path
+#### Scenario: Forecast day shown
+- **WHEN** the project date is 2026-09-14
+- **THEN** the picker and idle screen show 2026-09-15 and the route of 2026-09-15 is requested
+
+#### Scenario: Date changed
+- **WHEN** the project date changes while a route is shown
+- **THEN** the Driver returns to idle for the new day
+
+### Requirement: Driver route source
+`POST /driver/route` with `truck_id` and `project_date` SHALL return the truck's route from the newest route calculation of the forecast day run on the route planning screen (see `demo-planning`): its road path and its service stops in driving order. It SHALL NOT run prediction or route calculation. Each stop SHALL list every bin of the truck's carrier at the site, with database `id`, `inventory_number` and `waste_type`.
+
+#### Scenario: Route from the calculation
+- **WHEN** the newest calculation of the forecast day gave the truck three service stops
+- **THEN** the response lists those three stops in driving order with their bins and the road path
 
 #### Scenario: Not-due bins are included
-- **WHEN** a stop has three bins of the carrier and one is due
+- **WHEN** a stop was planned for one due bin and the carrier has three bins at that site
 - **THEN** all three bins are listed for the stop
 
 #### Scenario: Landfill is not a stop
-- **WHEN** the trip starts and ends at the landfill
-- **THEN** the landfill is not returned as a stop
+- **WHEN** the route returns to the landfill between and after trips
+- **THEN** the returns are part of the path but are not stops
 
 #### Scenario: Bin missing from the database
-- **WHEN** a bin of the collection plan no longer exists
+- **WHEN** a planned bin no longer exists
 - **THEN** the endpoint fails with an error naming no internal details, and no route is returned
 
-### Requirement: No stored plan states
-The system SHALL distinguish a missing plan from an empty one. If the truck's carrier has no stored route plan for the date, or the truck has no trip in it, the screen SHALL show `Šiai dienai paruošto maršruto duomenų nėra.`. If none of the trip's stops is in the collection plan, it SHALL show `Šiandien suplanuotų konteinerių nėra.`. In both cases navigation SHALL NOT be requested.
+### Requirement: No route states
+If no route calculation of the forecast day is available, or it gave the truck no route, the screen SHALL show `Šiai dienai paruošto maršruto duomenų nėra.`. If the route has no service stops, it SHALL show `Šiandien suplanuotų konteinerių nėra.`. In both cases navigation SHALL NOT start.
 
-#### Scenario: No plan
-- **WHEN** nothing is stored for the carrier and date
-- **THEN** the screen shows the missing-data message and no navigation starts
+#### Scenario: No calculation
+- **WHEN** no route calculation is available for the forecast day
+- **THEN** the picker and the screen show the missing-data message and no navigation starts
 
-#### Scenario: Trip without collection stops
-- **WHEN** none of the trip's stops is in the collection plan
-- **THEN** the screen shows the empty message and no navigation starts
+#### Scenario: Truck without a route
+- **WHEN** a calculation exists but assigned no route to the truck
+- **THEN** the screen shows the missing-data message
 
-### Requirement: Navigation service contract
-Route geometry SHALL be obtained through a navigation service that accepts the ordered stops and returns one ordered road path and, for each stop, its position on that path. The mock implementation SHALL return a fixed real-road path and place the stops in order, spaced evenly along it. Replacing the implementation SHALL NOT change the Driver screen or the `POST /driver/route` response.
+### Requirement: Road route geometry
+The path SHALL be the road-following geometry computed by the road-routing service for the calculated route, never straight connections. Each service stop SHALL have a position on the path, non-decreasing in driving order. A route whose geometry is inconsistent with its stops SHALL be rejected.
 
 #### Scenario: Stops lie on the path
-- **WHEN** a route of N stops is built by the mock
-- **THEN** each stop's position is a vertex of the path, the positions strictly increase, and the last stop is at the end of the path
+- **WHEN** a route of N service stops is returned
+- **THEN** each stop's position is a vertex of the path and the positions do not decrease
 
-#### Scenario: Invalid navigation result
-- **WHEN** the service returns fewer than two path points, a non-finite coordinate, or non-increasing stop positions
-- **THEN** the endpoint fails and the screen shows the route error with a retry action
+#### Scenario: Invalid geometry
+- **WHEN** the path has fewer than two points, a non-finite coordinate, or stop positions that decrease or do not match its legs
+- **THEN** the route fails and the screen shows the route error with a retry action
 
 ### Requirement: Starting the route
-The idle screen SHALL offer `Pradėti maršrutą`. While the route is being prepared the screen SHALL show `Ruošiamas maršrutas...`, and on success it SHALL enter navigation mode. It SHALL NOT mention files, parsing or the mock.
+The idle screen SHALL offer `Pradėti maršrutą`. While the route is being prepared the screen SHALL show `Ruošiamas maršrutas...`, and on success it SHALL enter navigation mode. It SHALL NOT mention files, parsing or route services.
 
 #### Scenario: Successful start
 - **WHEN** the driver presses `Pradėti maršrutą` and a route is returned
@@ -194,9 +209,9 @@ The screen SHALL be in exactly one state at a time: idle, preparing route, navig
 - **WHEN** the driver presses `Patvirtinti` twice while the save is running
 - **THEN** only one request is sent and each bin is stored once
 
-### Requirement: Mock and assumption disclosure
-The documentation SHALL state that the path, the stop positions on the map and the truck position are simulated, that the plan date is a fixed value, and which stored data a Driver run needs.
+### Requirement: Assumption disclosure
+The documentation SHALL state that routes come from the route planning screen and are held only in server memory for a limited time, that the truck position is simulated, and what a Driver run needs.
 
 #### Scenario: Documented
 - **WHEN** a developer reads the driver documentation
-- **THEN** it lists the mock parts, the fixed date and the prerequisite plans
+- **THEN** it names the route source, its lifetime, the simulated parts and the steps before a Driver run

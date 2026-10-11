@@ -4,48 +4,39 @@
 
 See `proposal.md` for motivation and `specs/driver-navigation/spec.md` for behaviour.
 
-Observed state of this branch:
+Observed state after merging `main`:
 
-- The stored route plan (`route_plans` → trucks → trips → stops) is read by `route_plan.get_stored_plan(session, date, carrier)`. A stop has `site_id`, coordinates and `bin_count` but no bin IDs.
-- `collection_plan.get_plan(session, date, [carrier])` returns the carrier's stops by `site_id`, each with its bins (`bin_id`, `waste_type`, `due`). It lists every carrier bin at the site with a `due` flag, skips stops without a due bin, and does not return `inventory_number`.
+- The route planning screen (`/admin/routes`, `demo-planning`) predicts the forecast day, solves each carrier with PyVRP and resolves every truck's trips through OSRM. `demo_navigation.navigate` returns a `NavigationResponse` with a `run_id`; `demo_driving.remember_routes` keeps the newest three runs for one hour in the worker's memory, by run and truck. A route has the full road `path`, service `stops` (`site_id`, due `bin_ids`) and `legs` that partition the path, each tagged with its service-stop index or `None` for a landfill return.
+- Stored route plans (`route_plans`) still exist but have straight-line estimates only, no road geometry.
+- The project date (`project-date`) is an app-root React context persisted in localStorage; the forecast day is T+1.
 - `bin_hist` has `CHECK (fill_level BETWEEN 0 AND 3)` (migration 0004) and a unique key `(bin_id, date, was_serviced)`. `resident_requests` already stamps `statement_timestamp() AT TIME ZONE 'Europe/Vilnius'` on the server.
-- Writable endpoints use short transactions (`collection_write_session.py`). The frontend calls `/api/...` through page-local `api.ts` modules; `route-map.tsx` shows the project's direct MapLibre setup (`setWorkerUrl`, `VITE_MAP_STYLE_URL`). `ToastProvider` exists.
-- No Navigation Service, global project date or truck animation exists on this branch.
+- Writable endpoints use short transactions (`collection_write_session.py`). The frontend calls `/api/...` through page-local `api.ts` modules. `ToastProvider` exists.
 
 ## Goals / Non-Goals
 
-**Goals:** a complete, demonstrable Driver vertical slice from stored plans to saved observations; a navigation interface the real router can replace without touching the screen; a driver screen split into small units.
+**Goals:** a complete, demonstrable Driver vertical slice from the calculated routes to saved observations; reuse of the planning screen's routes without recalculating them; a driver screen split into small units.
 
-**Non-Goals:** real GPS, real routing (OSRM/Valhalla/OR-Tools), a date selector, authentication, route history or persistence of progress, offline use, spoken instructions, multiple trips, changing prediction, collection-plan or route-plan code, an admin demo screen.
+**Non-Goals:** real GPS, persisting calculated routes, recalculating routes for the Driver, authentication, route history or persistence of progress, offline use, spoken instructions, changing prediction or route calculation.
 
 ## Decisions
 
-### 1. Source of stops: route plan order + collection plan bins
+### 1. Route source: the planning run memory
 
-`POST /driver/route {truck_id}` loads the truck, then the route plan of its carrier for `DRIVER_PLAN_DATE` and finds the truck's first trip. The collection plan of the same date and carrier gives all the carrier's bins per `site_id` (the truck empties them all, per the collection-plan spec; `due` is not used by the Driver); `inventory_number` and `waste_type` come from one `bins` query by ID. A trip stop absent from the collection plan is dropped.
+The run memory also records each run's forecast day. `demo_driving.latest_routes(forecast_date)` returns the routes of the newest unexpired run of that day. `GET /driver/trucks?project_date=` lists its trucks; `POST /driver/route {truck_id, project_date}` returns one truck's route. A missing run or a truck without a route → `404 no_plan`; an unknown truck → `404 truck_not_found`.
 
-Alternative: the collection plan alone. Rejected: it has no per-truck split or order, so every driver would see the same list.
+Alternatives: stored route plans (rejected: no road geometry, and the planning screen no longer stores plans); recalculating for the Driver (rejected: minutes of prediction and solving, and could differ from what the administrator saw); persisting runs in the database (rejected for now: new schema for a transient demo result). The consequence is that routes vanish after an hour or a backend restart, which is documented.
 
-`DRIVER_PLAN_DATE` is one constant in `services/driver_route.py`, documented as a placeholder for the later date selector. The frontend never holds the date.
+Stops keep the run's driving order. Each stop is expanded to every bin of the truck's carrier at the site (one `bins` query), because the truck empties them all; the run's due `bin_ids` must be among them, else `409 bin_missing`. Addresses come from `sites`.
 
-The endpoint reads only the database through a read-only collection session. Missing route plan, missing truck in the plan, or no trip → `404` with a code the screen maps to the missing-data message. A trip none of whose stops is in the collection plan → `200` with an empty `stops` list, which the screen maps to the empty message. Unknown truck → `404` with a different code.
+### 2. Stop positions from the legs
 
-### 2. Navigation service: interface plus a static mock
-
-`services/navigation.py` defines a `NavigationService` protocol: `build(stops: list[StopIn]) -> NavigationResult` where the result is `path: list[(lat, lon)]` and `stop_index: list[int]` (path vertex of each stop). `MockNavigationService` loads a static GeoJSON `LineString` from `backend/app/services/data/driver_road_path.geojson`, and places N stops at evenly spaced vertices, the last at the final vertex. A validation function checks at least 2 finite points, indexes strictly increasing and within range; failure raises an error mapped to `502` with a navigation-error code.
-
-The mock deliberately ignores the stops' real coordinates. This is stated in the docs and the proposal; it is the price of a fixed, offline, network-free path. If N exceeds the path's vertex count the mock raises the same navigation error.
-
-The router depends on the protocol through one module-level factory so the real implementation is a one-line swap.
-
-Alternative: call public OSRM at runtime. Rejected: network failure modes, rate limits, and the brief puts routing out of scope.
-
-**Path data:** the polyline is generated once by the developer from real roads (e.g. a one-off OSRM or OSM export for a stretch of Vilnius streets), committed as data with its source and licence noted in `docs/driver.md`, and never fetched at runtime. It needs a few hundred vertices so movement is visibly road-following and enough vertices exist for the largest trip. `docs/driver.md` states the size limit.
+Legs share their boundary vertex, so a service leg ends at path vertex `sum(len(leg.path) - 1)` over the legs up to it. That vertex is the stop's `path_index`. Landfill-return legs advance the index without creating a stop. If the summed legs do not reach the end of the path, or a service stop has no leg, the route is rejected with `502 navigation_failed`. Two stops snapped to the same vertex give equal indexes, so positions are non-decreasing rather than strictly increasing. The route ends at the last service stop; the return to the landfill stays visible as road ahead.
 
 ### 3. Response contract
 
 ```text
-POST /driver/route -> {
+GET /driver/trucks?project_date=T -> [{truck_id, truck_name, stop_count, bin_count}]
+POST /driver/route {truck_id, project_date} -> {
   truck_id, plan_date,
   path: [{latitude, longitude}],
   stops: [{ site_id, address, path_index,
@@ -53,7 +44,7 @@ POST /driver/route -> {
 }
 ```
 
-Bin order inside a stop is by bin ID. The screen keeps latitude/longitude only inside `path`, so the contract can change behind the navigation service.
+`plan_date` is the forecast day. Bin order inside a stop is by bin ID. The screen keeps latitude/longitude only inside `path`.
 
 ### 4. Recording a service
 
@@ -63,7 +54,7 @@ Idempotency is not attempted. The screen prevents double submission by state (de
 
 ### 5. Fill-range migration
 
-Alembic `0019` drops `ck_bin_hist_fill_level` and adds it back as `fill_level BETWEEN 0 AND 4`. Data are untouched. Downgrade raises if any row has level 4, then restores `0..3`. The model's `CheckConstraint` and `docs/data-model.md` change with it. The `collection-records` delta covers the behaviour.
+Alembic `0020` drops `ck_bin_hist_fill_level` and adds it back as `fill_level BETWEEN 0 AND 4`. Data are untouched. Downgrade raises if any row has level 4, then restores `0..3`. The model's `CheckConstraint` and `docs/data-model.md` change with it. The `collection-records` delta covers the behaviour.
 
 ### 6. Shared geometry helper
 
@@ -75,7 +66,7 @@ Under `frontend/src/pages/driver/`:
 
 | Unit | Responsibility |
 |---|---|
-| `api.ts` | `loadRoute`, `saveService`, typed errors |
+| `api.ts` | `loadTruckRoutes`, `loadRoute`, `saveService`, typed errors, route validation |
 | `driver-state.ts` | reducer and state union |
 | `use-driver-workflow.ts` | wires reducer, API calls, animator |
 | `use-route-animator.ts` | requestAnimationFrame loop that advances a distance along the path while state is `navigating` |
@@ -84,7 +75,7 @@ Under `frontend/src/pages/driver/`:
 | `bin-level-step.tsx` | one bin: identifier, `n / N`, five options, back |
 | `stop-done-view.tsx` | all-done summary, back, `Patvirtinti`, error toast hook |
 | `driver-route-screen.tsx` | composes the above for `/driver/:truck_id` |
-| `truck-picker-page.tsx` | `/driver` list of trucks |
+| `truck-picker-page.tsx` | `/driver` list of the trucks routed for the selected day |
 
 State is one discriminated union: `idle`, `preparing_route`, `navigating {distance}`, `at_bin {stopIndex, step, levels}` (`step` is the bin index, or the bin count for the all-done view), `saving_service {stopIndex, levels}`, `completed {serviced}`, `error {reason, retry}`. The reducer allows only valid transitions. `saving_service` ignores further confirm actions. Save failure returns to `at_bin` with all selections kept; the toast uses the existing provider. Serviced stops are tracked by index; progress counts the bins of serviced stops, so there is no second source of truth.
 
@@ -102,14 +93,14 @@ Per frame the camera uses `jumpTo` with the truck as centre, a fixed zoom, a top
 
 ### 9. Routing and chrome
 
-`/driver` and `/driver/:truck_id` are siblings of `/admin` in `App.tsx`, wrapped in `ToastProvider`. The screen fills `100dvh` with the map and overlays the panels at the top and bottom, with controls of at least 48 px. The role page's disabled button becomes a link to `/driver`.
+`/driver` and `/driver/:truck_id` are siblings of `/admin` in `App.tsx`, wrapped in `ToastProvider` and inside the app-root `ProjectDateProvider`. The Driver only reads the project date (`useProjectDate`); the calendar stays in the admin layout. The screen keys its workflow by the date, so a date change restarts it from idle. The screen fills `100dvh` with the map and overlays the panels at the top and bottom, with controls of at least 48 px. The role page's `Vairuotojas` button links to `/driver`.
 
 ## Risks / Trade-offs
 
-- [Prerequisite data missing: plans, demo fleet, a truck with a trip] → clear missing-data state; `docs/driver.md` lists the commands in order; verification starts with them.
-- [Static path is fixed and short] → vertex-count check fails loudly; the data file needs a documented minimum size.
-- [Stops on the map are not the real bin positions] → disclosed in docs and spec; bins and order remain real.
-- [Collection plan rebuilt after the route plan] → stops absent from the collection plan are dropped, and the route simply gets shorter.
+- [No calculated route: never run, expired after an hour, evicted by newer runs, or lost on backend restart] → missing-data state in picker and screen; `docs/driver.md` says to run the calculation on `/admin/routes` for the selected date first.
+- [Several backend workers would each hold their own runs] → one worker, as the planning screen already requires.
+- [Loads were sized for due bins only, while the driver records every carrier bin] → documented assumption; capacities can be exceeded on paper.
+- [Route geometry inconsistent with its stops] → rejected with a route error rather than shown with wrong stop positions.
 - [Accidental tap advances to the next bin] → back returns with the choice shown, and the all-done summary allows review before saving.
 - [Retry after a lost response can store a duplicate row] → accepted for the MVP, documented; the unique key limits identical-instant duplicates only.
 - [Camera jitter at sharp vertices] → look-ahead bearing, smoothing and step cap; check manually on a real phone width.
@@ -118,10 +109,6 @@ Per frame the camera uses `jumpTo` with the truck as centre, a fixed zoom, a top
 
 ## Migration Plan
 
-1. Deploy migration `0019` (additive widening; existing rows stay valid).
-2. Deploy backend with the new router and data file, then the frontend.
-3. Roll back by removing the routes; downgrade `0019` only if no level 4 rows exist.
-
-## Open Questions
-
-- Which stretch of Vilnius roads provides the static path, and how many vertices are needed for the largest demo trip? To be settled when the data file is produced (task 2.1); it changes no spec.
+1. Deploy migration `0020` (additive widening; existing rows stay valid).
+2. Deploy the backend with the new router, then the frontend.
+3. Roll back by removing the routes; downgrade `0020` only if no level 4 rows exist.

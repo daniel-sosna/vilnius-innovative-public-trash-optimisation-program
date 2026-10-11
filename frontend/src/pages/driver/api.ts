@@ -34,19 +34,19 @@ function validRoute(route: DriverRoute): boolean {
     route.path.every(isFinitePoint) &&
     indexes.every((index, position) =>
       Number.isInteger(index) && index >= 0 && index < route.path.length &&
-      (position === 0 || index > indexes[position - 1]),
+      (position === 0 || index >= indexes[position - 1]),
     ) &&
     route.stops.every((stop) => stop.bins.length > 0)
   )
 }
 
-export async function loadRoute(truckId: number, signal?: AbortSignal): Promise<DriverRoute> {
+export async function loadRoute(truckId: number, projectDate: string, signal?: AbortSignal): Promise<DriverRoute> {
   let response: Response
   try {
     response = await fetch('/api/driver/route', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ truck_id: truckId }),
+      body: JSON.stringify({ truck_id: truckId, project_date: projectDate }),
       signal,
     })
   } catch {
@@ -76,13 +76,13 @@ export async function saveService(items: { bin_id: number; fill_level: FillLevel
   if (!response.ok) throw new Error('Service save failed')
 }
 
-export type TruckSummary = { id: number; name: string; waste_carrier: string; available: boolean }
+export type TruckRoute = { truck_id: number; truck_name: string; stop_count: number; bin_count: number }
 
-export async function loadTrucks(signal: AbortSignal): Promise<TruckSummary[]> {
-  const response = await fetch('/api/trucks?page=1&page_size=100', { signal })
-  if (!response.ok) throw new Error('Truck list failed')
-  const page = (await response.json()) as { items: TruckSummary[] }
-  return page.items
+// Trucks that have a calculated route for the day after the project date.
+export async function loadTruckRoutes(projectDate: string, signal: AbortSignal): Promise<TruckRoute[]> {
+  const response = await fetch(`/api/driver/trucks?project_date=${encodeURIComponent(projectDate)}`, { signal })
+  if (!response.ok) throw new Error('Truck route list failed')
+  return (await response.json()) as TruckRoute[]
 }
 
 // 'missing' only for a definite 404; other failures let the route request report the problem.

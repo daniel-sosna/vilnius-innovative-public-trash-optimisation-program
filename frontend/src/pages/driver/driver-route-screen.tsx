@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CheckCircle2, LoaderCircle, LocateFixed } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { forecastDate, useProjectDate } from '@/lib/project-date/context'
 import { buildGeometry, type LonLat } from '@/lib/route-geometry'
 import { truckExists, type FillLevel } from './api'
 import { BinLevelStep } from './bin-level-step'
@@ -47,12 +48,14 @@ function TruckRoute({ truckId }: { truckId: number }) {
     })
     return () => controller.abort()
   }, [truckId])
+  const { projectDate } = useProjectDate()
   if (missing) return <Message text={TRUCK_MISSING} />
-  return <Workflow truckId={truckId} />
+  // A new date starts a fresh workflow; a route of another day is never continued.
+  return <Workflow key={projectDate} truckId={truckId} projectDate={projectDate} />
 }
 
-function Workflow({ truckId }: { truckId: number }) {
-  const { state, start, confirm, arrived, choose, back } = useDriverWorkflow(truckId)
+function Workflow({ truckId, projectDate }: { truckId: number; projectDate: string }) {
+  const { state, start, confirm, arrived, choose, back } = useDriverWorkflow(truckId, projectDate)
   const mapRef = useRef<NavigationMapHandle>(null)
   const [following, setFollowing] = useState(true)
 
@@ -99,6 +102,7 @@ function Workflow({ truckId }: { truckId: number }) {
   if (state.status === 'idle')
     return (
       <main className="flex h-dvh flex-col items-center justify-center gap-6 bg-background p-6">
+        <p className="text-lg">Maršruto diena: <span className="font-semibold tabular-nums">{forecastDate(projectDate)}</span></p>
         <Button onClick={start} className="h-20 w-full max-w-sm text-2xl">Pradėti maršrutą</Button>
         <Button variant="outline" asChild className="h-14 w-full max-w-sm text-lg">
           <Link to="/driver">Atgal</Link>

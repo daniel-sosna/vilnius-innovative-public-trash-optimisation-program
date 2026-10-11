@@ -370,6 +370,18 @@ The AI and layer controls SHALL have opaque backgrounds in active, inactive and 
 - **WHEN** either floating control appears above map features
 - **THEN** its background remains opaque and its icon is readable
 
+### Requirement: Shared project date access
+Map Analytics SHALL observe the application-wide project date without initializing or persisting its own independent selection. Introducing date access SHALL preserve existing dataset loading, filtering, map camera and agent analytics behavior; date selection alone SHALL not trigger analytics requests.
+
+#### Scenario: Share the Demo selection
+- **WHEN** the administrator selects September 14 in Demo and opens Map Analytics
+- **THEN** Map Analytics observes `2026-09-14` through the shared date state and the navbar shows the same selection
+
+#### Scenario: Change date in Map Analytics
+- **WHEN** the administrator changes the navbar date while viewing Map Analytics
+- **THEN** the shared date updates without resetting layer selections, moving the map camera or automatically starting agent analysis
+- **AND** Demo observes that same date when subsequently opened
+
 ### Requirement: Saved adequacy analysis catalog
 `GET /map-analytics/adequacy-analyses` SHALL list validated imported analyses in descending period order with opaque ID, month, period bounds, completion status, schema/method versions, revision and fill provenance. The initial catalog SHALL list completed-month artifacts only. An empty imported-analysis table SHALL return an empty catalog; database read errors SHALL report a failed read.
 

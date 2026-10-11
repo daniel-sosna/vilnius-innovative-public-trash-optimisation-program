@@ -17,6 +17,7 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `collection_stops`, `stop_bins` | Plan stop (date, carrier, site), and its bins | Model prediction | [Collection plan](data/collection-plan.md) |
 | `route_plans`, `route_trucks`, `route_trips`, `route_stops` | Route plan (date, carrier), its trucks, their trips, and the stops of a trip | Optimised from predictions; distances estimated | [Route plan](data/route-plan.md) |
 | `district_boundaries` | District (seniūnija) polygon | Source data | [District boundaries](data/district-boundaries.md), import |
+| `container_adequacy_analyses` | Saved monthly or dated assessment | Static estimates and synthetic/observed fill | [Adequacy import](data/container-adequacy.md) |
 | `service_zones` | Service-zone polygon | Source data | [Service zones](data/service-zones.md), import |
 | `trucks` | Truck | Manual | Admin UI |
 | `landfills` | Waste facility | Seeded by a migration | Migration |
@@ -82,6 +83,7 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `route_plans` | Internal `id`, unique date/carrier | Parameters, summaries (optimised, baseline, saving) and unserved stops as JSON; no foreign keys to other tables |
 | `route_trucks`, `route_trips`, `route_stops` | Truck → plan, trip → truck, stop `(trip_id,seq)` → trip; all cascade | Copies of truck, landfill and stop data at planning time (no references to `trucks`, `landfills`, `sites`), so later changes to those do not alter a stored plan; distances are straight-line estimates |
 | `district_boundaries` | Internal `id`, unique district name/source ID | Source Polygon geometry/name; holes/boundaries matter, stored bin district text is separate |
+| `container_adequacy_analyses` | Stable period ID, SHA-256 content revision; no mutable-registry foreign keys | Saved area/type IDs, full polygons, serving-point capacities, assessment counts and conditional uncertainty; September cutoff is inclusive and separate from service/request windows |
 | `service_zones` | Internal `id`, unique zone number | Source Polygon geometry/name/number; no observed fleet or historical service-zone attribution |
 | `landfills` | Internal `id`, nullable unique source ID | Nullable location, quality, operator/role/status, waste streams and verification/source fields; geometric proximity is not a road route |
 | `trucks` | Internal `id`; nullable landfill → landfills | Current carrier, positive volume, available/deleted state; deleted is retired; global registry has no geographic fleet/service history |
@@ -92,6 +94,19 @@ invalid evidence and excluded from known capacity. Population suppression
 assumptions are embedded in stored resident estimates; allocations across waste
 streams cannot be added as unique residents. No route, service duration or
 historical truck relationship is stored.
+
+## Saved adequacy evidence
+
+Saved adequacy combines estimated population and capacity with synthetic or
+observed fill provenance declared in the artifact. Static snapshots, suppressed
+density and straight-line access assumptions are recorded in its metadata.
+Pressure is estimated residents per assumed m³; level-4 frequency uses known
+assessments as its denominator. Shared point observations are one evidence set,
+not independent repetitions for each area. Posterior intervals are conditional
+on the saved model and do not establish causality or forecast overflow.
+The artifact identity/revision and requested-period source coverage accompany
+risk reads. See [adequacy operations](data/container-adequacy.md) and the
+[tool specification](../openspec/changes/risk-agent/specs/analytics-tools/spec.md).
 
 <!-- agent-runtime:end -->
 `resident_requests` stores only the bin and a timestamp, in Europe/Vilnius local time, without a time zone. A request is a raw signal: it is not a verified fill level and does not create a service event. Every submission adds a row.
@@ -104,10 +119,19 @@ uses that fixed source and writes its models, analysis and standalone delivery
 under the configured run directory. These are files rather than database tables;
 the collection plan runs the exported model as described in its own guide.
 
-Monthly residential adequacy results are portable GeoJSON files under
+Residential adequacy results are portable GeoJSON files under
 `<data_dir>/analyses/container-adequacy/`; see [container adequacy operation](data/container-adequacy.md).
-Explicit import stores each monthly collection in `container_adequacy_analyses`:
+Explicit import stores each monthly or dated collection in `container_adequacy_analyses`:
 `id` identifies the period, `revision` is the source-file SHA-256, `type` is
 `FeatureCollection`, and JSONB columns `analysis` / `features` preserve metadata,
 geometry and metrics. These standalone snapshots have no foreign keys to mutable
 bins or population tables. The map reads imported collections from PostgreSQL.
+
+Completed-month files use `adequacy_YYYY-MM.geojson`, ID `adequacy-YYYY-MM` and
+schema/method version 1. September cutoffs use `adequacy_2026-09-DD.geojson`,
+ID `adequacy-2026-09-DD` and version 2, with inclusive period bounds. Dated
+metadata stores static-reference and policy fingerprints. Month completion is
+independent of complete source-calendar coverage for the requested interval.
+The storage constraint requires matching identity and boolean completion;
+artifact validation checks detailed period and evidence consistency. See the
+[adequacy specification](../openspec/changes/risk-agent/specs/container-adequacy-analysis/spec.md).

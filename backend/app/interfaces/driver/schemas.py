@@ -1,12 +1,31 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.interfaces.demo.schemas import calendar_day
+
+
+def project_day(value: str) -> str:
+    return calendar_day(value, "2026-09-01", "2026-09-30")
 
 
 class RouteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     truck_id: Annotated[int, Field(ge=1, le=2**31 - 1)]
+    project_date: str
+
+    @field_validator("project_date")
+    @classmethod
+    def september(cls, value: str) -> str:
+        return project_day(value)
+
+
+class TruckRoute(BaseModel):
+    truck_id: int
+    truck_name: str
+    stop_count: int
+    bin_count: int
 
 
 class PathPoint(BaseModel):
@@ -29,7 +48,7 @@ class RouteStop(BaseModel):
 
 class RouteResponse(BaseModel):
     truck_id: int
-    plan_date: date
+    plan_date: str
     path: list[PathPoint]
     stops: list[RouteStop]
 

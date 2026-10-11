@@ -107,9 +107,9 @@ class AdequacyCatalogEntry(BaseModel):
     month: str
     period_start: str
     period_end: str
-    complete: Literal[True]
-    schema_version: Literal["1"]
-    method_version: Literal["1"]
+    complete: bool
+    schema_version: Literal["1", "2"]
+    method_version: Literal["1", "2"]
     fill_provenance: Literal["synthetic", "observed"]
     revision: str
 

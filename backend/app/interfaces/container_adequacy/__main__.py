@@ -8,16 +8,17 @@ from time import perf_counter
 from app.core.config import data_dir
 from app.services.adequacy_artifacts import output_directory, month_bounds
 from app.services.container_adequacy import (
-    Policy, aggregate_daily, build_snapshot, file_hash, latest_export,
+    Policy, aggregate_daily, aggregate_september, september_prefixes, build_snapshot, file_hash, latest_export,
     load_registry, make_document, publish,
 )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate portable completed-month residential adequacy GeoJSON (synthetic fill).")
+    parser = argparse.ArgumentParser(description="Generate portable monthly or dated residential adequacy GeoJSON (synthetic fill).")
     period = parser.add_mutually_exclusive_group(required=True)
     period.add_argument('--month', help='Completed calendar month YYYY-MM')
     period.add_argument('--all-complete', action='store_true')
+    period.add_argument('--september-cutoffs', action='store_true', help='Prepare all 30 September 2026 inclusive cutoffs')
     parser.add_argument('--daily', type=Path, required=True, help='Explicit immutable enriched bin-day CSV; never the base CSV')
     parser.add_argument('--data-dir', type=Path, default=data_dir())
     parser.add_argument('--bins', type=Path, help='Registry override')
@@ -41,28 +42,37 @@ def main() -> int:
         hashes = {name: file_hash(path) for name, path in sources.items()}
         bins, registry = load_registry(sources['bins'])
         snapshot = build_snapshot(bins, sources['population'], policy)
-        daily = aggregate_daily(args.daily, registry, snapshot['bin_to_point'])
-        months = [args.month] if args.month else daily['complete_months']
-        if not months:
-            raise ValueError('No completed months in the supplied daily cohort calendar')
-        print(json.dumps({'complete_months': daily['complete_months'], 'coverage': daily['coverage'],
-                          'rows': daily['rows'], 'excluded_registry_bins': len(daily['excluded_bins']),
+        daily = (aggregate_september(args.daily, registry, snapshot['bin_to_point']) if args.september_cutoffs
+                 else aggregate_daily(args.daily, registry, snapshot['bin_to_point']))
+        if args.september_cutoffs:
+            periods = ((cutoff.isoformat(), prefix, cutoff) for cutoff, prefix in september_prefixes(daily))
+        else:
+            months = [args.month] if args.month else daily['complete_months']
+            if not months:
+                raise ValueError('No completed months in the supplied daily cohort calendar')
+            periods = ((month, daily, None) for month in months)
+        print(json.dumps({'rows': daily['rows'], 'excluded_registry_bins': len(daily['excluded_bins']),
                           'pressure_thresholds': snapshot['thresholds'], 'read_seconds': round(perf_counter() - started, 2)}))
-        failed = False
-        for month in months:
+        failed, total_size, outcomes = False, 0, {}
+        for label, prefix, cutoff in periods:
             tick = perf_counter()
             try:
-                document = make_document(snapshot, daily, month, hashes, policy)
+                document = make_document(snapshot, prefix, '2026-09' if cutoff else label, hashes, policy, cutoff)
                 path, status = publish(document, output_directory(args.data_dir), args.regenerate)
-                print(json.dumps({'month': month, 'status': status, 'path': str(path.resolve()),
-                                  'revision': file_hash(path), 'quality': document['analysis']['quality']['point_summaries'],
+                total_size += path.stat().st_size
+                outcomes[status] = outcomes.get(status, 0) + 1
+                print(json.dumps({'period': label, 'status': status, 'path': str(path.resolve()),
+                                  'revision': file_hash(path), 'bytes': path.stat().st_size,
+                                  'quality': document['analysis']['quality']['point_summaries'],
                                   'category_counts': document['analysis']['quality']['category_counts'],
                                   'seconds': round(perf_counter() - tick, 2)}))
             except (ValueError, OSError, ImportError) as error:
                 failed = True
-                print(f'{month}: {error}', file=sys.stderr)
+                print(f'{label}: {error}', file=sys.stderr)
         if any(file_hash(path) != hashes[name] for name, path in sources.items()):
             raise ValueError('Source changed during analysis; keep inputs immutable and regenerate explicitly')
+        print(json.dumps({'outcomes': outcomes, 'total_bytes': total_size,
+                          'total_seconds': round(perf_counter() - started, 2), 'success': not failed}))
         return int(failed)
     except (ValueError, OSError, ImportError) as error:
         print(f'Analysis failed: {error}', file=sys.stderr)
