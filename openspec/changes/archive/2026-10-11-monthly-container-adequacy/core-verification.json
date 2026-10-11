@@ -1,0 +1,184 @@
+{
+  "checks": "passed",
+  "conservation": {
+    "Mixed municipal waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 6097.95,
+      "points": 5352,
+      "zero_demand_points": 1565,
+      "max_pressure": 63374.99999999581,
+      "max_access_m": 2216.3781880515357,
+      "highest_pressure_points": [
+        {
+          "point_id": 176,
+          "residents": 7604.999999999497,
+          "capacity_m3": 0.12,
+          "pressure": 63374.99999999581
+        },
+        {
+          "point_id": 5973,
+          "residents": 1031.0000000018533,
+          "capacity_m3": 0.12,
+          "pressure": 8591.666666682111
+        },
+        {
+          "point_id": 66,
+          "residents": 1626.0000000058299,
+          "capacity_m3": 0.24,
+          "pressure": 6775.000000024292
+        },
+        {
+          "point_id": 19989,
+          "residents": 1398.9999999828358,
+          "capacity_m3": 0.24,
+          "pressure": 5829.16666659515
+        },
+        {
+          "point_id": 22731,
+          "residents": 678.0000000035855,
+          "capacity_m3": 0.12,
+          "pressure": 5650.000000029879
+        }
+      ]
+    },
+    "Paper/plastic waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 8939.39,
+      "points": 2875,
+      "zero_demand_points": 354,
+      "max_pressure": 46791.66666666267,
+      "max_access_m": 3362.658404379596,
+      "highest_pressure_points": [
+        {
+          "point_id": 227,
+          "residents": 11229.99999999904,
+          "capacity_m3": 0.24,
+          "pressure": 46791.66666666267
+        },
+        {
+          "point_id": 27114,
+          "residents": 933.9999999983145,
+          "capacity_m3": 0.24,
+          "pressure": 3891.666666659644
+        },
+        {
+          "point_id": 22199,
+          "residents": 316.9999999977648,
+          "capacity_m3": 0.12,
+          "pressure": 2641.66666664804
+        },
+        {
+          "point_id": 7511,
+          "residents": 559.0000000013226,
+          "capacity_m3": 0.24,
+          "pressure": 2329.1666666721776
+        },
+        {
+          "point_id": 25119,
+          "residents": 247.99999999931083,
+          "capacity_m3": 0.12,
+          "pressure": 2066.6666666609235
+        }
+      ]
+    },
+    "Glass waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 4359.81,
+      "points": 2347,
+      "zero_demand_points": 210,
+      "max_pressure": 93583.33333332534,
+      "max_access_m": 3362.658404379596,
+      "highest_pressure_points": [
+        {
+          "point_id": 229,
+          "residents": 11229.99999999904,
+          "capacity_m3": 0.12,
+          "pressure": 93583.33333332534
+        },
+        {
+          "point_id": 22702,
+          "residents": 575.000000002943,
+          "capacity_m3": 0.12,
+          "pressure": 4791.6666666911915
+        },
+        {
+          "point_id": 8488,
+          "residents": 570.0000000033618,
+          "capacity_m3": 0.12,
+          "pressure": 4750.000000028015
+        },
+        {
+          "point_id": 26494,
+          "residents": 481.00000000040046,
+          "capacity_m3": 0.12,
+          "pressure": 4008.333333336671
+        },
+        {
+          "point_id": 19781,
+          "residents": 459.9999999999069,
+          "capacity_m3": 0.12,
+          "pressure": 3833.3333333325577
+        }
+      ]
+    }
+  },
+  "thresholds": {
+    "Mixed municipal waste": 224.99999999661617,
+    "Paper/plastic waste": 120.00000000065567,
+    "Glass waste": 242.19999999981758
+  },
+  "eligible_bins": 11814,
+  "excluded_bins": 10137,
+  "months": [
+    "2026-09",
+    "2026-08",
+    "2026-07",
+    "2026-06"
+  ],
+  "artifacts": [
+    {
+      "id": "adequacy-2026-09",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-30",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "261b4090829c5e3e5d4a7d29ffa83f913341e7164637dd4a417964ba1790e832"
+    },
+    {
+      "id": "adequacy-2026-08",
+      "month": "2026-08",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "de22195f69df0a70744231da3ffcd47a78bde5a02ba664d51d01bfc6268f07a7"
+    },
+    {
+      "id": "adequacy-2026-07",
+      "month": "2026-07",
+      "period_start": "2026-07-01",
+      "period_end": "2026-07-31",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "fa3aa5d34229e9a5700dd2974de20db9a4fb5dffb00f147d581e58be9f403cb3"
+    },
+    {
+      "id": "adequacy-2026-06",
+      "month": "2026-06",
+      "period_start": "2026-06-01",
+      "period_end": "2026-06-30",
+      "complete": true,
+      "schema_version": "1",
+      "method_version": "1",
+      "fill_provenance": "synthetic",
+      "revision": "47a844054b58b40ca978ce981ced5c7ffc42231344504119c87fbdf80cc49b78"
+    }
+  ]
+}

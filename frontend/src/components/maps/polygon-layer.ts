@@ -1,5 +1,5 @@
 import type { Feature, FeatureCollection, GeoJsonProperties, Polygon } from 'geojson'
-import type { FillLayerSpecification, FilterSpecification, LineLayerSpecification, Map as LibreMap, MapLayerMouseEvent, SymbolLayerSpecification } from 'maplibre-gl'
+import type { FillLayerSpecification, FilterSpecification, GeoJSONSource, LineLayerSpecification, Map as LibreMap, MapLayerMouseEvent, SymbolLayerSpecification } from 'maplibre-gl'
 import type { LayerLegendEntry, LayerRenderer, MapLayerDefinition } from './map-layer'
 import { isPointStyleLayer } from './point-layer'
 
@@ -16,7 +16,7 @@ type PolygonDefinition<P extends GeoJsonProperties> = {
   filter?: FilterSpecification
   labels?: Pick<SymbolLayerSpecification, 'minzoom' | 'layout' | 'paint'>
   interaction?: {
-    details(feature: Feature<Polygon, P>): HTMLElement
+    details(feature: Feature<Polygon, P>, data: FeatureCollection): HTMLElement
     canInspect?(feature: Feature<Polygon, P>): boolean
   }
 }
@@ -45,21 +45,26 @@ export function createPolygonLayer<P extends GeoJsonProperties>(definition: Poly
       const prefix = `analytics:${definition.id}`
       const source = `${prefix}:source`, fill = `${prefix}:fill`, outline = `${prefix}:outline`, labels = `${prefix}:labels`
       const styleLayerIds = [fill, outline, ...(definition.labels ? [labels] : [])]
-      const features = new Map((data as FeatureCollection<Polygon, P>).features.map(feature => [String(feature.id), feature]))
+      let features = new Map((data as FeatureCollection<Polygon, P>).features.map(feature => [String(feature.id), feature]))
+      let currentData = data
       let visible = true, disposed = false, hovering = false
       const filter = definition.filter ? { filter: definition.filter } : {}
       map.addSource(source, { type: 'geojson', data, cluster: false })
-      map.addLayer({ id: fill, type: 'fill', source, ...filter, paint: definition.fill })
+      map.addLayer({ id: fill, type: 'fill', source, ...filter, paint: definition.fill,
+        metadata: { 'analytics:interactive': !!definition.interaction } })
       map.addLayer({ id: outline, type: 'line', source, ...filter, paint: definition.outline })
       if (definition.labels) map.addLayer({ id: labels, type: 'symbol', source, ...filter, ...definition.labels })
 
       const inspect = (event: MapLayerMouseEvent) => {
         if (!visible || disposed || !definition.interaction) return
-        if (map.queryRenderedFeatures(event.point).some(feature => isPointStyleLayer(feature.layer))) return
+        const hits = map.queryRenderedFeatures(event.point)
+        if (hits.some(feature => isPointStyleLayer(feature.layer))) return
+        const top = hits.find(feature => (feature.layer.metadata as Record<string, unknown> | undefined)?.['analytics:interactive'])
+        if (top && top.layer.id !== fill) return
         const rendered = event.features?.[0]
         const feature = rendered && features.get(String(rendered.id))
         if (!feature || definition.interaction.canInspect?.(feature) === false) return
-        context.showDetails(definition.id, [event.lngLat.lng, event.lngLat.lat], definition.interaction.details(feature))
+        context.showDetails(definition.id, [event.lngLat.lng, event.lngLat.lat], definition.interaction.details(feature, currentData))
       }
       const enter = () => {
         if (visible && !disposed) { hovering = true; map.getCanvas().style.cursor = 'pointer' }
@@ -74,6 +79,13 @@ export function createPolygonLayer<P extends GeoJsonProperties>(definition: Poly
       }
       return {
         styleLayerIds,
+        setData(next) {
+          if (disposed) return
+          context.closeDetails(definition.id)
+          currentData = next
+          features = new Map((next as FeatureCollection<Polygon, P>).features.map(feature => [String(feature.id), feature]))
+          ;(map.getSource(source) as GeoJSONSource).setData(next)
+        },
         setVisible(next) {
           if (disposed || next === visible) return
           visible = next

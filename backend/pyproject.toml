@@ -22,5 +22,8 @@ dependencies = [
     "uvicorn",
 ]
 
+[project.optional-dependencies]
+analytics = ["scipy>=1.14,<2"]
+
 [tool.uv]
 package = false

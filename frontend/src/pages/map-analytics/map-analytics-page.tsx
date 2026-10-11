@@ -11,6 +11,8 @@ import { getActiveLayers, mapLayers } from './layers'
 import { useLayerSession } from './use-layer-session'
 import { useBinFilters } from './use-bin-filters'
 import type { BinProperties } from './api'
+import { adequacyMonthLabel, adequacyWasteTypes, type AdequacyData } from './adequacy'
+import { useAdequacy } from './use-adequacy'
 
 const investigationMessages = [
   'Vertinama pasirinkto ploto duomenų aprėptis…',
@@ -22,10 +24,16 @@ const investigationMessages = [
 type Analysis = { status: 'complete' | 'incomplete'; bbox: Bbox; answer: string | null; default_period: { start: string; end: string }; incomplete_reason: string | null; model_requests: number; elapsed_seconds: number }
 
 export function MapAnalyticsPage() {
-  const { selection, states, toggle, retry } = useLayerSession(mapLayers)
+  const adequacy = useAdequacy()
+  const { selection, states, toggle, retry } = useLayerSession(mapLayers, adequacy.requests)
   const bins = states.bins
   const binFilters = useBinFilters(bins?.status === 'ready' ? bins.data as FeatureCollection<Point, BinProperties> : undefined)
-  const renderedData = useMemo(() => ({ bins: binFilters.filteredData }), [binFilters.filteredData])
+  const adequacyState = states.adequacy
+  const analysisData = adequacyState?.status === 'ready' ? adequacyState.data as AdequacyData : undefined
+  const renderedData = useMemo(() => ({
+    bins: binFilters.filteredData,
+    adequacy: analysisData ? { ...analysisData, features: analysisData.features.filter(f => f.properties.waste_type === adequacy.wasteType) } : undefined,
+  }), [binFilters.filteredData, analysisData, adequacy.wasteType])
   const activeLayers = getActiveLayers(selection)
   const [sidebarMode, setSidebarMode] = useState<'layers' | 'ai' | null>(null)
   const layersTrigger = useRef<HTMLButtonElement>(null), aiTrigger = useRef<HTMLButtonElement>(null)
@@ -121,8 +129,29 @@ export function MapAnalyticsPage() {
                 {mapLayers.map(layer => {
                   const state = states[layer.id], selected = !!selection[layer.id]
                   return <div key={layer.id} className="space-y-2">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={selected} onChange={event => toggle(layer.id, event.target.checked)} />{layer.label}</label>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={selected} onChange={event => {
+                      if (layer.id === 'adequacy' && event.target.checked && adequacy.status === 'idle') adequacy.refresh()
+                      toggle(layer.id, event.target.checked)
+                    }} />{layer.label}</label>
                     {layer.id === 'bins' && <div role="group" aria-label="Konteinerių atliekų rūšys" className="ml-6 space-y-3">{binFilters.availableCategories.map(category => <label key={category.id} className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={binFilters.categories[category.id]} onChange={event => binFilters.toggleCategory(category.id, event.target.checked)} /><span>{category.label}</span></label>)}</div>}
+                    {layer.id === 'adequacy' && selected && <div className="ml-6 space-y-3">
+                      <label className="grid gap-2 text-sm font-medium">Mėnuo
+                        <select aria-label="Analizės mėnuo" className="min-w-0 w-full rounded-md border bg-background p-2 text-sm" value={adequacy.analysisId} onChange={event => adequacy.setAnalysisId(event.target.value)} disabled={!adequacy.catalog.length}>
+                          {!adequacy.catalog.length && <option value="">Analizių nėra</option>}
+                          {adequacy.catalog.map(entry => <option key={entry.id} value={entry.id}>{adequacyMonthLabel(entry.month)}</option>)}
+                        </select>
+                      </label>
+                      <label className="grid gap-2 text-sm font-medium">Atliekų rūšis
+                        <select aria-label="Analizės atliekų rūšis" className="min-w-0 w-full rounded-md border bg-background p-2 text-sm" value={adequacy.wasteType} onChange={event => adequacy.setWasteType(event.target.value)}>
+                          {adequacyWasteTypes.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
+                        </select>
+                      </label>
+                      <Button variant="outline" size="sm" className="h-auto whitespace-normal" onClick={adequacy.refresh} disabled={adequacy.status === 'loading'}>{adequacy.status === 'error' ? 'Bandyti dar kartą' : 'Atnaujinti analizių sąrašą'}</Button>
+                      {adequacy.status === 'loading' && <p role="status" className="text-xs">Kraunami duomenys…</p>}
+                      {adequacy.status === 'ready' && !adequacy.catalog.length && <p role="status" className="text-xs">Duomenų nėra.</p>}
+                      {adequacy.status === 'error' && <p role="alert" className="text-xs text-destructive">Nepavyko įkelti sluoksnio.</p>}
+                      {adequacy.selected && <p className="text-xs">{adequacy.selected.period_start} – {adequacy.selected.period_end}</p>}
+                    </div>}
                     {selected && state?.status === 'loading' && <p role="status" className="text-xs">Kraunami duomenys…</p>}
                     {selected && state?.status === 'ready' && state.data.features.length === 0 && <p role="status" className="text-xs">Duomenų nėra.</p>}
                     {layer.id === 'bins' && selected && state?.status === 'ready' && state.data.features.length > 0 && binFilters.noneSelected && <p role="status" className="text-xs">Nepasirinkta atliekų rūšių.</p>}

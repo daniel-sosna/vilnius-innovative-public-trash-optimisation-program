@@ -100,3 +100,11 @@ synthetic labels and QR counts. The [fill predictor](data/fill-prediction.md)
 uses that fixed source and writes its models, analysis and standalone delivery
 under the configured run directory. These are files rather than database tables;
 the collection plan runs the exported model as described in its own guide.
+
+Monthly residential adequacy results are portable GeoJSON files under
+`<data_dir>/analyses/container-adequacy/`; see [container adequacy operation](data/container-adequacy.md).
+Explicit import stores each monthly collection in `container_adequacy_analyses`:
+`id` identifies the period, `revision` is the source-file SHA-256, `type` is
+`FeatureCollection`, and JSONB columns `analysis` / `features` preserve metadata,
+geometry and metrics. These standalone snapshots have no foreign keys to mutable
+bins or population tables. The map reads imported collections from PostgreSQL.

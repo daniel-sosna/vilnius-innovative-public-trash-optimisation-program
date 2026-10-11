@@ -1,0 +1,17 @@
+{
+  "checks": "passed",
+  "source_hashes_unchanged": {
+    "sites": "68c6707adba14665ae839d6064bf721f0f2a6bbdc90e1e713fcd2352f69e69b2",
+    "bins": "706517830c61e40119a4928194389b5062166af165a1be605707b477c2200701",
+    "bin_hist": "8099fd51f4118f232977e4b88b8e50cb31158f662a3bdcdaf0a5ed648752418c",
+    "population": "316fc3387216effd50ca34d17e004ef38828fee579fa6610e384a16831df8975",
+    "daily_synthetic_fill": "ebbffbf87c2ffc8ede564de08dd600c5efc4179bcbe8b79c500d850ceb464621"
+  },
+  "result_hashes": {
+    "2026-09": "261b4090829c5e3e5d4a7d29ffa83f913341e7164637dd4a417964ba1790e832",
+    "2026-08": "de22195f69df0a70744231da3ffcd47a78bde5a02ba664d51d01bfc6268f07a7",
+    "2026-07": "fa3aa5d34229e9a5700dd2974de20db9a4fb5dffb00f147d581e58be9f403cb3",
+    "2026-06": "47a844054b58b40ca978ce981ced5c7ffc42231344504119c87fbdf80cc49b78"
+  },
+  "database_import_sources_and_files_unchanged": true
+}

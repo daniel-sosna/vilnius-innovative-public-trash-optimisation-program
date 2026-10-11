@@ -1,0 +1,8 @@
+{
+  "round_trip_features": 42237,
+  "round_trip_bytes": 45505830,
+  "revision_before": "261b4090829c5e3e5d4a7d29ffa83f913341e7164637dd4a417964ba1790e832",
+  "revision_after": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "checks": "passed: PostgreSQL JSONB round trip, empty, unknown, traversal, idempotency, atomic rollback, invalid input, unrelated months, latest ordering, revision/ETag, database errors",
+  "seconds": 72.15
+}
