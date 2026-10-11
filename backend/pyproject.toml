@@ -8,9 +8,11 @@ dependencies = [
     "fastapi",
     "holidays",
     "mapbox-vector-tile>=2.2.0",
+    "openai>=3.28.0",
     "psycopg[binary]",
     "pydantic-settings",
     "requests>=2.34.2",
+    "shapely>=2.2.0",
     "sqlalchemy",
     "uvicorn",
 ]

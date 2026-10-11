@@ -6,6 +6,8 @@ generator. How to build it, its options and its modelling assumptions are in
 in [`openspec/specs/bin-day-calendar/spec.md`](../../openspec/specs/bin-day-calendar/spec.md),
 and that spec wins if the two ever disagree.
 
+<!-- agent-runtime:start -->
+
 - **Grain:** one row per eligible bin per date from `--start` to `--end`, inclusive. A bin is
   eligible when it has a `sub_district` and at least one stored planned date in `bin_schedule`.
 - **Primary key:** `(bin_id, date)`.
@@ -45,6 +47,8 @@ Kinds used below:
 | `holidays_since_last_collection` | `SMALLINT` | no | synthetic |
 | `collections_last_28d` | `SMALLINT` | no | synthetic |
 | `missed_collections_28d` | `SMALLINT` | no | synthetic |
+
+<!-- agent-runtime:end -->
 
 Example counts below come from the exports `bins_202610091935.csv` and
 `bin_schedule_202610100342.csv`, with the calendar built for 2026-09-09..2026-10-09 and
@@ -154,6 +158,8 @@ type and split among that point's bins by capacity. It is 0 for non-residential 
 object groups, or capacity 0), which is 12,366 bins in the current calendar; the generator
 supplies their baseline. Among the other bins: median 85, p90 449, max about 7,600.
 
+<!-- agent-runtime:start -->
+
 ## Synthetic collections
 
 Simulated by the rebuild from the repeating stored schedule. On each planned day a
@@ -167,13 +173,13 @@ columns are read from `bin_hist`.
 
 Outcome of this day's own attempt. The check constraint allows exactly these values:
 
-| Value | Meaning | Rows in current calendar |
-|---|---|---|
-| `none` | No attempt on this day | 463,746 |
-| `collected` | First attempt succeeded | 198,845 |
-| `retry_collected` | A retry succeeded | 2,254 |
-| `failed` | Attempt failed and a retry follows the next day | 4,143 |
-| `missed` | Attempt failed and no retry follows; the planned collection is finally missed | 3,557 |
+| Value | Meaning |
+|---|---|
+| `none` | No attempt on this day |
+| `collected` | First attempt succeeded |
+| `retry_collected` | A retry succeeded |
+| `failed` | Attempt failed and a retry follows the next day |
+| `missed` | Attempt failed and no retry follows; the planned collection is finally missed |
 
 `collected` and `retry_collected` are successful collections: the generator resets fill on
 them.
@@ -196,3 +202,6 @@ date − 1. Today is not counted. 0–28 (enforced). A weekly bin without failur
 Days with status `missed` from date − 28 through date − 1. Today is not counted. 0–28
 (enforced). A planned collection counts once, on the day its last attempt failed, not on
 the planned day. Collections that succeeded on a retry do not count.
+
+
+<!-- agent-runtime:end -->

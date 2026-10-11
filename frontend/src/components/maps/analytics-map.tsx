@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
 import type { LayerData, LayerRenderer, LayerSelection, LayerStates, MapLayerDefinition } from './map-layer'
 import { reconcilePolygonOrder } from './polygon-layer'
+import { AreaSelection, type AreaSelectionProps } from './area-selection'
 import './analytics-map.css'
 
 setWorkerUrl(workerUrl)
@@ -14,6 +15,7 @@ type MapProps = {
   selection: LayerSelection
   states: LayerStates
   renderedData?: Record<string, LayerData | undefined>
+  areaSelection?: AreaSelectionProps
 }
 
 export function AnalyticsMap(props: MapProps) {
@@ -24,7 +26,7 @@ export function AnalyticsMap(props: MapProps) {
   } catch { /* Configuration feedback stays independent of dataset loading. */ }
   if (!configured || !style) {
     return (
-      <div role="alert" className="analytics-map flex min-w-0 items-center justify-center rounded-lg border bg-muted/40 p-5 text-sm text-destructive">
+      <div role="alert" className="analytics-map flex min-w-0 items-center justify-center bg-muted/40 p-5 text-sm text-destructive">
         Žemėlapio konfigūracija nepasiekiama arba netinkama. Kreipkitės į administratorių.
       </div>
     )
@@ -32,11 +34,12 @@ export function AnalyticsMap(props: MapProps) {
   return <AnalyticsCanvas {...props} style={style} />
 }
 
-function AnalyticsCanvas({ definitions, selection, states, renderedData, style }: MapProps & { style: string }) {
+function AnalyticsCanvas({ definitions, selection, states, renderedData, areaSelection, style }: MapProps & { style: string }) {
   const container = useRef<HTMLDivElement>(null)
   const latest = useRef({ selection, states, renderedData })
   const camera = useRef({ center: [25.2797, 54.6872] as [number, number], zoom: 10, bearing: 0, pitch: 0 })
   const runtime = useRef<{ map: LibreMap; sync(selection: LayerSelection, states: LayerStates, renderedData?: Record<string, LayerData | undefined>): void } | null>(null)
+  const [mapInstance, setMapInstance] = useState<LibreMap | null>(null)
   const [revision, setRevision] = useState(0)
   const [result, setResult] = useState<{ revision: number; status: 'ready' | 'error' } | null>(null)
   const status = result?.revision === revision ? result.status : 'loading'
@@ -130,7 +133,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
         if (disposed) return
         ready = true
         sync(latest.current.selection, latest.current.states, latest.current.renderedData)
-        if (!failed) setResult({ revision, status: 'ready' })
+        if (!failed) { setMapInstance(instance); setResult({ revision, status: 'ready' }) }
       })
       const closeWithEscape = (event: KeyboardEvent) => {
         if (event.key === 'Escape' && popup) {
@@ -161,15 +164,16 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, style }
   }, [definitions, style, revision])
 
   return (
-    <div className="analytics-map relative min-w-0 overflow-hidden rounded-lg border bg-muted/40">
+    <div className="analytics-map relative min-w-0 overflow-hidden bg-muted/40">
       <div ref={container} className="h-full w-full" />
+      {mapInstance && status === 'ready' && areaSelection && <AreaSelection map={mapInstance} {...areaSelection} />}
       {status === 'loading' && (
-        <p role="status" className="absolute left-3 top-3 max-w-[calc(100%-4rem)] rounded-md bg-card px-3 py-2 text-sm shadow-sm">
+        <p role="status" className="absolute left-3 top-16 max-w-[calc(100%-4rem)] rounded-md bg-card px-3 py-2 text-sm shadow-sm">
           Kraunamas žemėlapis…
         </p>
       )}
       {status === 'error' && (
-        <div role="alert" className="absolute left-3 right-12 top-3 flex flex-wrap items-center gap-3 rounded-md border bg-card p-3 shadow-sm">
+        <div role="alert" className="absolute left-3 right-12 top-16 flex flex-wrap items-center gap-3 rounded-md border bg-card p-3 shadow-sm">
           <p className="text-sm text-destructive">Nepavyko įkelti žemėlapio.</p>
           <Button variant="outline" size="sm" onClick={() => setRevision(value => value + 1)}>Bandyti dar kartą</Button>
         </div>

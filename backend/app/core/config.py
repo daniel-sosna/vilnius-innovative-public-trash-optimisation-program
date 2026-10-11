@@ -2,7 +2,7 @@ from pathlib import Path
 from string import Formatter
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -16,6 +16,8 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
+    openai_api_key: SecretStr | None = Field(default=None, repr=False)
+    openai_model: str | None = None
     database_url: str = Field(repr=False)
     vasa_tile_url_template: str = (
         "https://atliekuaiksteles.vasa.lt/api/cluster/{z}/{x}/{y}"

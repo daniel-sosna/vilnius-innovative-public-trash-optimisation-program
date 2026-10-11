@@ -27,3 +27,6 @@ Thumbs.db
 # Output data
 backend/data/*
 !backend/data/.gitkeep
+
+# File targets created by the read-only runtime documentation mounts.
+/backend/agent-domain/
