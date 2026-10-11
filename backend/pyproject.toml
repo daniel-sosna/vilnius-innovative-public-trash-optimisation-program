@@ -5,13 +5,18 @@ description = "FastAPI backend for the VipTop waste collection optimisation MVP"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "catboost==1.2.8",
     "fastapi",
     "holidays",
+    "joblib==1.4.2",
     "mapbox-vector-tile>=2.2.0",
+    "numpy==1.26.4",
     "openai>=3.28.0",
+    "pandas==2.2.3",
     "psycopg[binary]",
     "pydantic-settings",
     "requests>=2.34.2",
+    "scikit-learn==1.5.2",
     "shapely>=2.2.0",
     "sqlalchemy",
     "uvicorn",

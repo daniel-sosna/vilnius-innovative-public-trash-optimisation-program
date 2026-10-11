@@ -1,6 +1,6 @@
 import argparse
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.infrastructure.database import create_database_engine
+from app.ml.fill_prediction import check_simulation_date
 from app.services.collection_plan import build_plan
 
 logger = logging.getLogger(__name__)
@@ -39,13 +40,14 @@ def main() -> int:
     engine = None
     try:
         parser = argparse.ArgumentParser(
-            description="Replace the collection plan of one date: bins whose predicted "
-            "fill level is above the threshold, grouped into stops per waste carrier "
-            "and site. The prediction is a MOCK (synthetic, seeded from the date)."
+            description="Replace the collection plan of the day after --date: bins whose "
+            "predicted fill level is above the threshold, grouped into stops per waste "
+            "carrier and site. Levels come from the trained model, run on the CSV exports "
+            "in the data directory; the scan takes about a minute."
         )
         parser.add_argument(
-            "--date", type=iso_date, default=None,
-            help="Plan date, YYYY-MM-DD (default today)",
+            "--date", type=iso_date, required=True,
+            help="Today, YYYY-MM-DD, in September 2026; the plan is for the next day",
         )
         parser.add_argument(
             "--threshold", type=threshold_level, default=DEFAULT_THRESHOLD,
@@ -56,17 +58,23 @@ def main() -> int:
             args = parser.parse_args()
         except SystemExit as error:
             return 0 if error.code == 0 else 1
-        day = args.date or date.today()
+        today = args.date
+        check_simulation_date(today)
+        day = today + timedelta(days=1)
         engine = create_database_engine(Settings())
         with Session(engine) as session:
-            if session.execute(text("SELECT NOT EXISTS (SELECT 1 FROM bins)")).scalar_one():
-                logger.error("Collection plan failed: no bins are stored; nothing was changed")
-                return 1
+            no_bins = session.execute(text("SELECT NOT EXISTS (SELECT 1 FROM bins)")).scalar_one()
+        if no_bins:
+            logger.error("Collection plan failed: no bins are stored; nothing was changed")
+            return 1
+        logger.info("predicting fill levels for %s from history through %s; this takes about a minute", day, today)
+        with Session(engine) as session:
             summary = build_plan(session, day, args.threshold)
         logger.info(
-            "collection plan rebuilt for %s: threshold=%d (due when fill > threshold), "
-            "prediction=MOCK (synthetic, uniform 0..4, seeded from the date)",
+            "collection plan rebuilt for %s (given date %s): threshold=%d (due when fill > threshold), "
+            "prediction=trained model (levels 0..4, from synthetic assessment history)",
             day,
+            today,
             args.threshold,
         )
         logger.info(

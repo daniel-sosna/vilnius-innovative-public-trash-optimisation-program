@@ -99,11 +99,15 @@ def build_plan(session: Session, day: date, threshold: int) -> PlanSummary:
     """Replace the plan of `day` with stops for bins predicted above `threshold`.
 
     A stop is made for each (carrier, site) with a due bin and covers all of the carrier's
-    bins there. Runs in the caller's session and commits once, so a failure leaves the
-    previous plan of the date untouched.
+    bins there. Bins without a predicted level are left out; levels of bins that are not
+    stored are ignored. The prediction runs before the transaction starts, so its long scan
+    holds no locks. The caller's session must not have begun a transaction. The plan is
+    written and committed once, so a failure leaves the previous plan of the date untouched.
     """
+    predicted = predict_fill_levels(day)
     session.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
-    levels = predict_fill_levels(session, day)
+    stored = set(session.execute(text("SELECT id FROM bins")).scalars())
+    levels = {bin_id: level for bin_id, level in predicted.items() if bin_id in stored}
     due_count = sum(level > threshold for level in levels.values())
     session.execute(CREATE_FILL_SQL)
     if levels:

@@ -3,9 +3,11 @@
 Offline training compares CatBoost and Random Forest and exports one selected
 model. Behaviour and date/input contracts are specified in
 [`daily-fill-prediction`](../../openspec/specs/daily-fill-prediction/spec.md).
-The [collection plan](collection-plan.md) uses its own mock provider.
+The [collection plan](collection-plan.md) runs the exported model on the CSV exports.
 
 ## Setup
+
+Training is a one-time step. The delivered `product/` model is reused and is not retrained for ordinary development or for running the collection plan, so most developers do not need this environment or `backend/requirements-ml.txt`. Retrain only to change data, features or candidates.
 
 Use Python 3.12 and an isolated environment. From the repository root:
 
@@ -16,7 +18,7 @@ python -m venv backend/data/ml/.venv
 
 The research environment includes both model libraries and analysis tools.
 CatBoost training requires a working CUDA device; product inference uses CPU.
-The API environment and Docker image do not install the research dependencies.
+The API environment and Docker image install only the inference dependencies (pandas, numpy, scikit-learn, catboost, joblib), not the research ones.
 
 ## Configuration and commands
 
@@ -61,7 +63,7 @@ the developer invocation and caller DataFrames. Copy the product, install its
 artifacts are git-ignored and must be transferred separately.
 
 The bounded CSV adapter scans the full source for each requested date; a full
-registry scan takes roughly 4–5 minutes on the development machine. Supplying
+registry scan (21,951 bins) took about 1 minute on the development machine. Supplying
 DataFrames avoids repeated CSV scans. Feature frames stay in memory.
 
 ## Assumptions
