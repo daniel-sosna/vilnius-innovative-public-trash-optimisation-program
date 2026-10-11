@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { TrucksPage } from '@/pages/trucks/trucks-page'
 import { SitesPage } from '@/pages/sites/sites-page'
@@ -8,11 +8,13 @@ import { AdminLayout } from '@/components/layout/admin-layout'
 import { ToastProvider } from '@/components/ui/toast'
 import { ResidentRequestPage } from '@/pages/resident-request/resident-request-page'
 import { MapAnalyticsPage } from '@/pages/map-analytics/map-analytics-page'
-import { RoutesPage } from '@/pages/routes/routes-page'
+import { ProjectDateProvider } from '@/lib/project-date/provider'
+import { DemoPage } from '@/pages/demo/demo-page'
+import { TruckDemoPage } from '@/pages/demo/truck-demo-page'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <ProjectDateProvider><BrowserRouter>
       <Routes>
         <Route path="/" element={<RoleSelection />} />
         <Route
@@ -24,7 +26,10 @@ export default function App() {
           <Route path="sites" element={<SitesPage />} />
           <Route path="sites/:id" element={<SiteDetailPage />} />
           <Route path="map-analytics" element={<MapAnalyticsPage />} />
-          <Route path="routes" element={<RoutesPage />} />
+          <Route path="demo" element={<Navigate to="/admin/routes" replace />} />
+          <Route path="demo/truck/:truck_id" element={<TruckDemoPage />} />
+          <Route path="routes" element={<DemoPage />} />
+          <Route path="routes/truck/:truck_id" element={<TruckDemoPage />} />
         </Route>
         <Route
           path="*"
@@ -38,6 +43,6 @@ export default function App() {
           }
         />
       </Routes>
-    </BrowserRouter>
+    </BrowserRouter></ProjectDateProvider>
   )
 }

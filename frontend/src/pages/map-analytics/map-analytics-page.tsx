@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { getActiveLayers, mapLayers } from './layers'
 import { useLayerSession } from './use-layer-session'
 import { useBinFilters } from './use-bin-filters'
+import { useProjectDate } from '@/lib/project-date/context'
 import type { BinProperties } from './api'
 import { adequacyMonthLabel, adequacyWasteTypes, type AdequacyData } from './adequacy'
 import { useAdequacy } from './use-adequacy'
@@ -24,6 +25,7 @@ const investigationMessages = [
 type Analysis = { status: 'complete' | 'incomplete'; bbox: Bbox; answer: string | null; default_period: { start: string; end: string }; incomplete_reason: string | null; model_requests: number; elapsed_seconds: number }
 
 export function MapAnalyticsPage() {
+  const { projectDate } = useProjectDate()
   const adequacy = useAdequacy()
   const { selection, states, toggle, retry } = useLayerSession(mapLayers, adequacy.requests)
   const bins = states.bins
@@ -108,7 +110,7 @@ export function MapAnalyticsPage() {
     }
   }
   return (
-    <section className="analytics-layout relative min-h-0 min-w-0 flex-1" aria-labelledby="analytics-title" data-active-layers={activeLayers.map(layer => layer.id).join(' ')}>
+    <section className="analytics-layout relative min-h-0 min-w-0 flex-1" aria-labelledby="analytics-title" data-project-date={projectDate} data-active-layers={activeLayers.map(layer => layer.id).join(' ')}>
       <h1 id="analytics-title" className="sr-only">Žemėlapio analitika</h1>
       <AnalyticsMap definitions={mapLayers} selection={selection} states={states} renderedData={renderedData} areaSelection={{ mode, draft, confirmed,
         onDraft: bbox => { setDraft(bbox); if (bbox) setMode('review') }, onCancel: cancelSelection,

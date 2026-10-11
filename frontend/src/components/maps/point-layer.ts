@@ -20,7 +20,7 @@ type PointDefinition<P extends GeoJsonProperties> = {
     countFont?: string[]
   }
   details(feature: Feature<Point, P>): HTMLElement
-  clustering?: {
+  clustering?: false | {
     radius: number
     throughMaxZoom: boolean
     avoidOverlap?: boolean
@@ -78,7 +78,7 @@ export function createPointLayer<P extends GeoJsonProperties>(definition: PointD
       // MapLibre's canonical tile limit is 25; reserve the final source zoom
       // for individual points. The default map (22) therefore uses 22/23.
       const clusterMaxZoom = Math.min(24, Math.floor(map.getMaxZoom()))
-      const screenClusters = clustering?.avoidOverlap
+      const screenClusters = clustering && clustering.avoidOverlap
         ? new ScreenClusters(data as FeatureCollection<Point, P>, clusterMaxZoom, overlap?.minZoom ?? 15, clustering.radius)
         : undefined
       const view = (): ClusterView => {
@@ -105,7 +105,7 @@ export function createPointLayer<P extends GeoJsonProperties>(definition: PointD
       let updateFrame: number | undefined
 
       map.addSource(ids.source, {
-        type: 'geojson', data: initialLayout?.data ?? data, cluster: !screenClusters, ...POINT_CLUSTER_DEFAULTS,
+        type: 'geojson', data: initialLayout?.data ?? data, cluster: clustering !== false && !screenClusters, ...POINT_CLUSTER_DEFAULTS,
         ...(clustering && {
           clusterRadius: clustering.radius,
           ...(clustering.throughMaxZoom && {

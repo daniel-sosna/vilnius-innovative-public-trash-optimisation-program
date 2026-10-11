@@ -10,7 +10,7 @@ docker compose exec backend uv run python -m app.interfaces.route_plan.verify --
 
 `--date` is the **plan date** (the date the [collection plan](collection-plan.md) was stored under, `T+1`), not "today". Build the collection plan first. A run takes about one minute for the largest carrier (about 2,600 stops, 100 trucks).
 
-The stored plan is shown on `/admin/routes` (admin navigation `Maršrutai`): a map with one colour per truck, numbered stops for the selected truck, and the savings panel.
+Stored plans remain available through the read-only `/route-plans` API. The administrator `Maršrutai` page runs current predictions and navigation; see [route planning setup](../development.md#route-planning).
 
 ## Route plan command
 

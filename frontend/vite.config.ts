@@ -7,6 +7,8 @@ const proxy = {
   '/api': {
     target: process.env.VIPTOP_API_PROXY_TARGET ?? 'http://127.0.0.1:8000',
     changeOrigin: true,
+    timeout: 15 * 60 * 1000,
+    proxyTimeout: 15 * 60 * 1000,
     rewrite: (path: string) => path.replace(/^\/api/, ''),
   },
 }

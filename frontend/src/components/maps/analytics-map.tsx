@@ -16,6 +16,10 @@ type MapProps = {
   states: LayerStates
   renderedData?: Record<string, LayerData | undefined>
   areaSelection?: AreaSelectionProps
+  accessibleLabel?: string
+  onMapState?(status: 'loading' | 'ready' | 'error', map: LibreMap | null): void
+  presentationKey?: number
+  onPresented?(key: number): void
 }
 
 export function AnalyticsMap(props: MapProps) {
@@ -24,6 +28,9 @@ export function AnalyticsMap(props: MapProps) {
   try {
     configured = !!style && ['https:', 'http:'].includes(new URL(style).protocol)
   } catch { /* Configuration feedback stays independent of dataset loading. */ }
+  useEffect(() => {
+    if (!configured) props.onMapState?.('error', null)
+  }, [configured, props.onMapState])
   if (!configured || !style) {
     return (
       <div role="alert" className="analytics-map flex min-w-0 items-center justify-center bg-muted/40 p-5 text-sm text-destructive">
@@ -34,7 +41,7 @@ export function AnalyticsMap(props: MapProps) {
   return <AnalyticsCanvas {...props} style={style} />
 }
 
-function AnalyticsCanvas({ definitions, selection, states, renderedData, areaSelection, style }: MapProps & { style: string }) {
+function AnalyticsCanvas({ definitions, selection, states, renderedData, areaSelection, accessibleLabel = 'Vilniaus žemėlapio analitika', onMapState, presentationKey, onPresented, style }: MapProps & { style: string }) {
   const container = useRef<HTMLDivElement>(null)
   const latest = useRef({ selection, states, renderedData })
   const camera = useRef({ center: [25.2797, 54.6872] as [number, number], zoom: 10, bearing: 0, pitch: 0 })
@@ -43,6 +50,17 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, areaSel
   const [revision, setRevision] = useState(0)
   const [result, setResult] = useState<{ revision: number; status: 'ready' | 'error' } | null>(null)
   const status = result?.revision === revision ? result.status : 'loading'
+
+  useEffect(() => { onMapState?.(status, status === 'ready' ? mapInstance : null) }, [status, mapInstance, onMapState])
+
+  useEffect(() => {
+    if (status !== 'ready' || !mapInstance || presentationKey === undefined) return
+    const presented = () => onPresented?.(presentationKey)
+    // idle follows source processing and a painted frame, including clustering.
+    mapInstance.once('idle', presented)
+    mapInstance.triggerRepaint()
+    return () => { mapInstance.off('idle', presented) }
+  }, [status, mapInstance, presentationKey, onPresented, renderedData, states])
 
   useEffect(() => {
     latest.current = { selection, states, renderedData }
@@ -83,7 +101,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, areaSel
       map = instance
       instance.addControl(new NavigationControl({ showCompass: false }), 'top-right')
       const canvas = instance.getCanvas()
-      canvas.setAttribute('aria-label', 'Vilniaus žemėlapio analitika')
+      canvas.setAttribute('aria-label', accessibleLabel)
       // Pointer interaction should not draw the keyboard focus outline.
       canvas.addEventListener('pointerdown', () => canvas.setAttribute('data-pointer-focus', ''), { signal: events.signal })
       const clearPointerFocus = () => canvas.removeAttribute('data-pointer-focus')
@@ -161,7 +179,7 @@ function AnalyticsCanvas({ definitions, selection, states, renderedData, areaSel
       }
       runtime.current = null
     }
-  }, [definitions, style, revision])
+  }, [definitions, style, revision, accessibleLabel])
 
   return (
     <div className="analytics-map relative min-w-0 overflow-hidden bg-muted/40">

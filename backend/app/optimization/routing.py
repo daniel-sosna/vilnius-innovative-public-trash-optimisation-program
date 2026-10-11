@@ -10,8 +10,6 @@ import time
 from dataclasses import asdict, dataclass
 
 import numpy as np
-from pyvrp import Client, Depot, Location, ProblemData, VehicleType, solve
-from pyvrp.stop import MaxIterations, MaxRuntime, MultipleCriteria
 
 EARTH_RADIUS_M = 6_371_000
 # Cap for overtime in the solver; overtime is limited by its price, not by this.
@@ -135,6 +133,9 @@ def _figures(trips: dict[int, list[Trip]], shift_s: int) -> Figures:
 
 def _optimise(depots, stops, trucks, loads_l, dist, dur, params: Params):
     """Solve with PyVRP; returns (trips per truck, iterations, hit the wall limit, seconds)."""
+    from pyvrp import Client, Depot, Location, ProblemData, VehicleType, solve
+    from pyvrp.stop import MaxIterations, MaxRuntime, MultipleCriteria
+
     num_depots = len(depots)
     service_s = int(round(params.service_min * 60))
     shift_s = int(round(params.shift_min * 60))
