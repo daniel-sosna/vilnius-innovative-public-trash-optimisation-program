@@ -10,11 +10,12 @@ const links = [
   { to: '/admin/trucks', label: 'Šiukšliavežės' },
   { to: '/admin/sites', label: 'Šiukšlių surinkimo vietos' },
   { to: '/admin/map-analytics', label: 'Žemėlapio analitika' },
+  { to: '/admin/routes', label: 'Maršrutai' },
 ]
 
 export function AdminLayout() {
   const location = useLocation()
-  const mapRoute = location.pathname === '/admin/map-analytics'
+  const mapRoute = ['/admin/map-analytics', '/admin/routes'].includes(location.pathname)
   const navigationId = useId()
   const toggle = useRef<HTMLButtonElement>(null)
   const [menu, setMenu] = useState({ key: location.key, open: false })

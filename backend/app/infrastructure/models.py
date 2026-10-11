@@ -426,3 +426,77 @@ class StopBin(Base):
     predicted_fill: Mapped[int] = mapped_column(SmallInteger)
     # True when bin is due for collection today.
     due: Mapped[bool] = mapped_column(Boolean)
+
+
+# A stored route plan keeps its own copies of truck, landfill and stop data, so it
+# survives collection-plan rebuilds, site deletion and fleet changes.
+class RoutePlan(Base):
+    __tablename__ = "route_plans"
+    __table_args__ = (
+        UniqueConstraint("date", "waste_carrier", name="uq_route_plans_date_carrier"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    date: Mapped[date_] = mapped_column(Date)
+    waste_carrier: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    # Parameters used (speed, detour factor, ... seed), enough to rerun the computation.
+    parameters: Mapped[dict] = mapped_column(JSONB)
+    # Figures of the optimised plan and the baseline, and the saving.
+    summary: Mapped[dict] = mapped_column(JSONB)
+    # Stops left out, each with a reason.
+    unserved: Mapped[list] = mapped_column(JSONB)
+    excluded_trucks: Mapped[int] = mapped_column(Integer)
+
+
+class RouteTruck(Base):
+    __tablename__ = "route_trucks"
+    __table_args__ = (Index("ix_route_trucks_plan_id", "plan_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    plan_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("route_plans.id", name="fk_route_trucks_plan_id", ondelete="CASCADE"),
+    )
+    position: Mapped[int] = mapped_column(Integer)
+    truck_id: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(Text)
+    max_volume_m3: Mapped[Decimal] = mapped_column(Numeric)
+    landfill_id: Mapped[int] = mapped_column(Integer)
+    landfill_name: Mapped[str] = mapped_column(Text)
+    landfill_latitude: Mapped[float] = mapped_column(Double)
+    landfill_longitude: Mapped[float] = mapped_column(Double)
+
+
+class RouteTrip(Base):
+    __tablename__ = "route_trips"
+    __table_args__ = (Index("ix_route_trips_route_truck_id", "route_truck_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    route_truck_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("route_trucks.id", name="fk_route_trips_route_truck_id", ondelete="CASCADE"),
+    )
+    seq: Mapped[int] = mapped_column(Integer)
+    load_m3: Mapped[Decimal] = mapped_column(Numeric)
+    distance_km: Mapped[Decimal] = mapped_column(Numeric)
+    duration_min: Mapped[Decimal] = mapped_column(Numeric)
+
+
+class RouteStop(Base):
+    __tablename__ = "route_stops"
+
+    trip_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("route_trips.id", name="fk_route_stops_trip_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(BigInteger)
+    address: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[float] = mapped_column(Double)
+    longitude: Mapped[float] = mapped_column(Double)
+    load_m3: Mapped[Decimal] = mapped_column(Numeric)
+    bin_count: Mapped[int] = mapped_column(Integer)

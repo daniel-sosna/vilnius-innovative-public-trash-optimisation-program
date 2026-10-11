@@ -15,6 +15,7 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `bin_population` | Bin | Estimated | Bin population |
 | `bin_days` | Bin and calendar day | Copied, estimated and synthetic | [Bin-day calendar](data/bin-days.md) ([columns](data/bin-days-columns.md)) |
 | `collection_stops`, `stop_bins` | Plan stop (date, carrier, site), and its bins | Model prediction | [Collection plan](data/collection-plan.md) |
+| `route_plans`, `route_trucks`, `route_trips`, `route_stops` | Route plan (date, carrier), its trucks, their trips, and the stops of a trip | Optimised from predictions; distances estimated | [Route plan](data/route-plan.md) |
 | `district_boundaries` | District (seniūnija) polygon | Source data | [District boundaries](data/district-boundaries.md), import |
 | `service_zones` | Service-zone polygon | Source data | [Service zones](data/service-zones.md), import |
 | `trucks` | Truck | Manual | Admin UI |
@@ -78,6 +79,8 @@ The tables and what their data means. Columns and constraints are defined in [`b
 | `bin_days` | `(bin_id,date)`; bin → bins | Copied registry/estimated allocation snapshots and synthetic statuses, not observed history; detailed column semantics in bin-day dictionary |
 | `collection_stops` | Internal `id`, unique date/carrier/site; site → sites | Planning-time whole-stop volume/predicted fill snapshots include all stop members; nullable carrier is an unassigned group |
 | `stop_bins` | `(stop_id,bin_id)`; stop → collection_stops, bin → bins | Stored model-predicted `predicted_fill` 0–4 and `due`; selected entry subtotal differs from whole-stop snapshot; no query generates a plan |
+| `route_plans` | Internal `id`, unique date/carrier | Parameters, summaries (optimised, baseline, saving) and unserved stops as JSON; no foreign keys to other tables |
+| `route_trucks`, `route_trips`, `route_stops` | Truck → plan, trip → truck, stop `(trip_id,seq)` → trip; all cascade | Copies of truck, landfill and stop data at planning time (no references to `trucks`, `landfills`, `sites`), so later changes to those do not alter a stored plan; distances are straight-line estimates |
 | `district_boundaries` | Internal `id`, unique district name/source ID | Source Polygon geometry/name; holes/boundaries matter, stored bin district text is separate |
 | `service_zones` | Internal `id`, unique zone number | Source Polygon geometry/name/number; no observed fleet or historical service-zone attribution |
 | `landfills` | Internal `id`, nullable unique source ID | Nullable location, quality, operator/role/status, waste streams and verification/source fields; geometric proximity is not a road route |
