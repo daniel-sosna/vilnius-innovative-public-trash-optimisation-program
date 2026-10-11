@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button'
 import { ToastProvider } from '@/components/ui/toast'
 import { VipTopLogo } from '@/components/viptop-logo'
 import { VilniusLogo } from '@/components/vilnius-logo'
+import { ProjectCalendar } from './project-calendar'
 
 const links = [
   { to: '/admin/trucks', label: 'Šiukšliavežės' },
   { to: '/admin/sites', label: 'Šiukšlių surinkimo vietos' },
   { to: '/admin/map-analytics', label: 'Žemėlapio analitika' },
+  { to: '/admin/demo', label: 'Demo' },
 ]
 
 export function AdminLayout() {
@@ -42,7 +44,7 @@ export function AdminLayout() {
             }
           }}
         >
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-4 sm:px-6">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-4 sm:px-6 lg:gap-x-6">
             <Link
               to="/"
               className="flex items-center gap-2 rounded-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
@@ -84,6 +86,7 @@ export function AdminLayout() {
                 </NavLink>
               ))}
             </nav>
+            <ProjectCalendar />
             <Link
               to="/"
               className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring sm:ml-auto"

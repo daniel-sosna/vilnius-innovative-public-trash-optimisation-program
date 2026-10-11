@@ -96,6 +96,54 @@ It exits non-zero when the stack is not running.
 - **Windows:** `COMPOSE_FILE` uses `;` as its separator. Alternatively, set `COMPOSE_PATH_SEPARATOR=:`.
 - **Agents:** the `worktree-create` and `worktree-setup` skills (`.ai/skills/`) do these steps.
 
+## Planning demo
+
+Supply the trusted inference product and input CSVs using the
+[fill prediction runtime configuration](data/fill-prediction.md#application-demo-runtime).
+Rebuild the backend after dependency changes and start the stack. Open
+<http://localhost:5173/admin/demo> (use the assigned frontend port in worktree mode).
+The route illustration needs available stored trucks; add them through the
+fleet screen. The explicit command below enables stored `Demo 1`–`Demo 150`
+records using the carrier, capacity and landfill configured on `Demo 1`, adding
+missing names and leaving unrelated trucks untouched:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.demo.fleet
+```
+
+Road geometry uses [OSRM's route API](https://project-osrm.org/docs/v5.24.0/api/#route-service)
+with the supplied stop order. `DEMO_OSRM_URL` defaults to
+`https://router.project-osrm.org`; set it to a dedicated OSRM server for repeated
+large runs. `DEMO_OSRM_REQUEST_INTERVAL_SECONDS` defaults to 1.1 (minimum 1) to
+respect the public service's request rate. Requests send the selected stop
+coordinates to that server. Road generation for 150 trucks can take several
+minutes; assignments make no carrier/capacity feasibility claim.
+
+Both Vite development and preview proxies and the prediction client allow a
+15-minute prediction or navigation request. Configure any additional reverse proxy with an equally long
+deadline. Each prediction scans its CSV without a result cache. Leaving the page
+aborts the client request, but the backend scan can continue and reject another
+prediction as busy until it finishes. Backend code reloads interrupt active
+requests; finish editing before filming a run. Use one backend worker so the
+in-process inference guard covers the demo server.
+
+The repeatable command can also calculate road paths and report
+truck/stop/bin counts and exact coverage:
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.demo --date 2026-09-14 --navigation
+```
+
+It reads the current fleet and data without saving routes or rebuilding plans.
+The truck-driving fixture is an independent illustration rather than a replay
+of generated routes. Its fixed Vilnius stop locations are in
+`backend/app/services/demo_driving.py`; the configured OSRM server resolves
+them to road geometry on page load. Animation timing is configured in
+`frontend/src/pages/demo/truck-demo-page.tsx`. Behavior specs:
+[project date](../openspec/specs/project-date/spec.md),
+[planning](../openspec/specs/demo-planning/spec.md),
+[driving](../openspec/specs/truck-driving-demo/spec.md).
+
 ## Area analyst configuration and diagnostics
 
 Set `OPENAI_API_KEY` and `OPENAI_MODEL` in the repository-root `.env` for the

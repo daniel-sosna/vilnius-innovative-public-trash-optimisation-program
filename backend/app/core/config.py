@@ -106,3 +106,32 @@ def data_dir() -> Path:
     if not configured:
         return BACKEND_DATA_DIR
     return (REPO_ROOT / configured).resolve()
+
+
+class DemoSettings(BaseSettings):
+    """Demo paths are relative to the mounted data directory unless absolute."""
+
+    model_config = SettingsConfigDict(
+        env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore",
+    )
+    demo_product_path: str = "ml/september-fill-predictor/product"
+    demo_daily_path: str = "bin_days_20231010_20261009_enriched.csv"
+    demo_registry_path: str = "bins_202610091935.csv"
+    demo_population_path: str = "bin_population.csv"
+    demo_osrm_url: str = "https://router.project-osrm.org"
+    demo_osrm_request_interval_seconds: float = Field(default=1.1, ge=1, allow_inf_nan=False)
+
+    @field_validator("demo_osrm_url")
+    @classmethod
+    def routing_url(cls, value: str) -> str:
+        url = urlsplit(value)
+        if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password or url.query or url.fragment:
+            raise ValueError("DEMO_OSRM_URL must be an HTTP(S) endpoint without credentials, query or fragment")
+        return value.rstrip("/")
+
+    def paths(self) -> dict[str, Path]:
+        base = data_dir()
+        return {
+            name: (base / getattr(self, f"demo_{name}_path")).resolve()
+            for name in ("product", "daily", "registry", "population")
+        }

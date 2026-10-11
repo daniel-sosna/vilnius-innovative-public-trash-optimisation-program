@@ -52,6 +52,7 @@ Other commands:
 | `service_zones` | Loads only the service zones | [service zones](docs/data/service-zones.md) |
 | `bin_schedule_sync` | Refreshes VASA planned dates for the current month (about 13 min) | [schedule sync](docs/data/bin-schedule-sync.md) |
 | `bin_sync` | Refreshes sites, bins and history from VASA (takes hours) | [bin sync](docs/data/bin-sync.md) |
+| `demo --date 2026-09-14 --navigation` | Runs real CSV prediction and road routing without saving plans | [demo setup](docs/development.md#planning-demo) |
 
 ## Features
 
@@ -63,6 +64,7 @@ Other commands:
 | Map analytics (landfills, bins, population density, districts, service zones) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [area agent](openspec/specs/area-analytics-agent/spec.md), [analytics tools](openspec/specs/analytics-tools/spec.md) |
 | Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
 | Standalone next-day fill prediction | Offline Python package | [daily-fill-prediction](openspec/specs/daily-fill-prediction/spec.md) |
+| Planning demo and illustrative truck driving | `/admin/demo`, `/admin/demo/truck/{truck_id}` | [demo-planning](openspec/specs/demo-planning/spec.md), [truck-driving-demo](openspec/specs/truck-driving-demo/spec.md), [project-date](openspec/specs/project-date/spec.md) |
 
 The admin screens have no authentication.
 

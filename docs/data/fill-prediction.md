@@ -16,7 +16,8 @@ python -m venv backend/data/ml/.venv
 
 The research environment includes both model libraries and analysis tools.
 CatBoost training requires a working CUDA device; product inference uses CPU.
-The API environment and Docker image do not install the research dependencies.
+The API environment and Docker image install the selected product's CPU inference
+dependencies; the full research environment remains separate.
 
 ## Configuration and commands
 
@@ -63,6 +64,37 @@ artifacts are git-ignored and must be transferred separately.
 The bounded CSV adapter scans the full source for each requested date; a full
 registry scan takes roughly 4–5 minutes on the development machine. Supplying
 DataFrames avoids repeated CSV scans. Feature frames stay in memory.
+
+## Application demo runtime
+
+Build and start the stack with `docker compose up -d --build`. Supply the trusted
+`model.joblib` and `district_aliases.json` under
+`ml/september-fill-predictor/product/` in the [data directory](../development.md#data-directory),
+alongside the collection exports, enriched daily CSV, registry CSV and population
+CSV. No training or source generation is performed by the demo. Dependency
+versions are locked against metadata embedded in the supplied model.
+
+| Backend variable | Default relative to the mounted data directory |
+|---|---|
+| `DEMO_PRODUCT_PATH` | `ml/september-fill-predictor/product` |
+| `DEMO_DAILY_PATH` | `bin_days_20231010_20261009_enriched.csv` |
+| `DEMO_REGISTRY_PATH` | `bins_202610091935.csv` |
+| `DEMO_POPULATION_PATH` | `bin_population.csv` |
+
+Set these in the root `.env`; absolute paths must exist inside the container.
+Compose forwards them to the backend. Ordinary API startup does not load the
+model or require these input files.
+
+```bash
+docker compose exec backend uv run python -m app.interfaces.demo --date 2026-09-14
+```
+
+This read-only check prints forecast date, evaluated/due/mappable counts and
+duration. Exit codes: 0 success, 1 prerequisite/inference/database failure,
+2 invalid date or command arguments. Each invocation scans the configured CSV
+and invokes the real predictor; allow roughly 4–5 minutes for full history.
+It does not export predictions, rewrite sources/models or rebuild stored plans.
+Application contracts are in the [application prediction specification](../../openspec/specs/daily-fill-prediction/spec.md).
 
 ## Assumptions
 
