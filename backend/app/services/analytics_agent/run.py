@@ -6,6 +6,7 @@ from time import monotonic
 
 from .contracts import AnalysisResponse, RunContext
 from .guide import guide
+from .answer_policy import violation
 from .registry import definitions, dispatch, serialize
 
 logger = logging.getLogger(__name__)
@@ -34,19 +35,20 @@ def execute_batch(factory, ctx, calls, first=False, progress=None):
     return outputs
 
 
-async def analyze(factory, bbox, provider, context=None, progress=None):
-    ctx = context or RunContext(bbox)
+async def analyze(factory, bbox, provider, context: RunContext, progress=None):
+    ctx = context
     instructions = guide()
-    history = [{'role': 'user', 'content': json.dumps({'bbox': bbox.model_dump(), 'default_period': ctx.period().model_dump(), 'request': 'Analyze this area from tool evidence. Answer in Lithuanian.'})}]
+    history = [{'role': 'user', 'content': json.dumps({'bbox': bbox.model_dump(), 'project_date': ctx.project_date.isoformat(), 'adequacy_period': {'start': '2026-09-01', 'end_inclusive': ctx.project_date.isoformat()}, 'default_period': ctx.period().model_dump(), 'request': 'Analyze this area from tool evidence. Answer in Lithuanian.'})}]
     tools = definitions()
     requests = 0
     answer = None
     reason = 'no_final_answer'
     complete = False
+    correcting_answer = False
     logger.info('analytics start run=%s', ctx.correlation_id)
     try:
         while requests < 5 and ctx.remaining() > 0:
-            synthesis = requests == 4 or ctx.remaining(True) <= 0 or ctx.tool_calls >= 12 or ctx.result_bytes >= 49152
+            synthesis = correcting_answer or requests == 4 or ctx.remaining(True) <= 0 or ctx.tool_calls >= 12 or ctx.result_bytes >= 49152
             if synthesis:
                 history.append({'role': 'user', 'content': 'Synthesize only returned evidence now; no further tools. Explain failed reads, missing data and limitations.'})
             timeout = ctx.remaining() if synthesis else min(12.0, ctx.remaining(True))
@@ -89,6 +91,13 @@ async def analyze(factory, bbox, provider, context=None, progress=None):
                 reason = 'model_response_incomplete'
                 break
             if answer and requests > 1:
+                policy_error = violation(answer)
+                if policy_error:
+                    answer = None
+                    reason = 'response_policy'
+                    correcting_answer = True
+                    history.append({'role': 'user', 'content': 'Rewrite the final answer to comply with the mandatory presentation rules. Include the exact nonempty section ## Konteinerių pakankamumas and omit all prohibited data-origin wording. Use only evidence already returned; no more tools.'})
+                    continue
                 complete = True
                 reason = None
                 break
@@ -96,8 +105,12 @@ async def analyze(factory, bbox, provider, context=None, progress=None):
                 answer = None
                 reason = 'no_final_answer'
                 break
-        if not complete and ctx.remaining() <= 0: reason = 'deadline'
-        return AnalysisResponse(status='complete' if complete else 'incomplete', bbox=bbox, default_period=ctx.period(), answer=answer, incomplete_reason=reason, model_requests=requests, elapsed_seconds=round(monotonic() - ctx.started, 3))
+        if answer is not None and violation(answer):
+            answer = None
+            complete = False
+            reason = 'response_policy'
+        if not complete and ctx.remaining() <= 0 and reason != 'response_policy': reason = 'deadline'
+        return AnalysisResponse(status='complete' if complete else 'incomplete', bbox=bbox, project_date=ctx.project_date, default_period=ctx.period(), answer=answer, incomplete_reason=reason, model_requests=requests, elapsed_seconds=round(monotonic() - ctx.started, 3))
     except Exception as error:
         logger.warning('analytics failed run=%s type=%s requests=%s duration=%.3f', ctx.correlation_id, type(error).__name__, requests, monotonic() - ctx.started)
         raise

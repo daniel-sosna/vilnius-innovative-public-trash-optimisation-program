@@ -28,23 +28,32 @@ Attributed capacity is shared through nearest residential collection points, not
 containers physically located inside a polygon. Synthetic fill depends on resident
 pressure and collection timing; association is not independent evidence of real shortages.
 
-Method and behavior: [container adequacy spec](../../openspec/specs/container-adequacy-analysis/spec.md),
+Method and behavior: [container adequacy spec](../../openspec/changes/risk-agent/specs/container-adequacy-analysis/spec.md),
 [map API/UI spec](../../openspec/specs/map-analytics/spec.md).
 
 ## Generate and transfer
 
 ```bash
+uv run --extra analytics python -m app.interfaces.container_adequacy --september-cutoffs --daily data/bin_days_20231010_20261009_enriched.csv
 uv run --extra analytics python -m app.interfaces.container_adequacy --all-complete --daily data/bin_days_20231010_20261009_enriched.csv
 uv run --extra analytics python -m app.interfaces.container_adequacy --month 2026-09 --daily data/bin_days_20231010_20261009_enriched.csv
 ```
 
 `--data-dir`, `--bins` and `--population` override locations. Policy options are
 listed by `--help`; defaults are recorded in each output. Generation reads the
-source CSV once, fits each requested month and prints coverage, hashes, paths,
-category counts and timings. Budget about two minutes for this supplied 2.84M-row source;
+source CSV once, fits each requested period and prints coverage, hashes, paths,
+category counts, total bytes and timings. September preparation fixes the source
+cohort from September 1 calendar membership; registry bins outside that cohort
+are recorded as exclusions. Static pressure/access references are shared across
+the cutoffs; assessment statistics are fitted separately for each prefix. Budget about two minutes for this supplied 2.84M-row source;
 actual timings are recorded in the change verification evidence.
 
-Outputs: `<data_dir>/analyses/container-adequacy/adequacy_YYYY-MM.geojson`.
+Outputs under `<data_dir>/analyses/container-adequacy/`:
+
+| Preparation mode | Filename | Schema/method version |
+| --- | --- | --- |
+| Completed month | `adequacy_YYYY-MM.geojson` | 1 |
+| September cutoffs | `adequacy_2026-09-DD.geojson` (30 files) | 2 |
 Copy these self-contained files to the target host and import them using the command
 below. Original exports and analytics dependencies are not needed on the receiving
 host. GeoJSON files are ignored by Git; transfer
@@ -53,7 +62,7 @@ them with other data artifacts.
 Identical inputs reuse the saved bytes. Changing inputs, policy or method requires
 the explicit `--regenerate` flag; replacement changes the content revision.
 Publication writes a temporary file beside its destination and replaces each
-month atomically. Batch failures leave already published months intact and return
+period atomically. Batch failures leave already published valid files intact and return
 a nonzero exit code. Generation never imports into the database or modifies sources.
 
 ## Import for the map
@@ -74,10 +83,10 @@ docker compose exec backend uv run python -m app.interfaces.container_adequacy_i
 ```
 
 `--all` uses the configured data directory. Repeat `--file` to select several files.
-Import upserts the selected monthly collections into `container_adequacy_analyses`
+Import upserts the selected monthly or dated collections into `container_adequacy_analyses`
 in one transaction. Reimport after explicit regeneration to publish its new revision.
 Refresh the map's analysis list after import. Generated files alone do not publish
 map data; the API reads PostgreSQL. Source GeoJSON can be moved after import.
 
 Repeatable verification commands and recorded evidence are in
-[the change](../../openspec/changes/archive/2026-10-11-monthly-container-adequacy/verification.md).
+[the change](../../openspec/changes/risk-agent/verification.md).

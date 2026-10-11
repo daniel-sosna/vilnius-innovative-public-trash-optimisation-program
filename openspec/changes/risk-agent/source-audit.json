@@ -1,0 +1,505 @@
+{
+  "checks": "passed",
+  "conservation": {
+    "Mixed municipal waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 6097.95,
+      "points": 5352,
+      "zero_demand_points": 1565,
+      "max_pressure": 63374.99999999581,
+      "max_access_m": 2216.3781880515357,
+      "highest_pressure_points": [
+        {
+          "point_id": 176,
+          "residents": 7604.999999999497,
+          "capacity_m3": 0.12,
+          "pressure": 63374.99999999581
+        },
+        {
+          "point_id": 5973,
+          "residents": 1031.0000000018533,
+          "capacity_m3": 0.12,
+          "pressure": 8591.666666682111
+        },
+        {
+          "point_id": 66,
+          "residents": 1626.0000000058299,
+          "capacity_m3": 0.24,
+          "pressure": 6775.000000024292
+        },
+        {
+          "point_id": 19989,
+          "residents": 1398.9999999828358,
+          "capacity_m3": 0.24,
+          "pressure": 5829.16666659515
+        },
+        {
+          "point_id": 22731,
+          "residents": 678.0000000035855,
+          "capacity_m3": 0.12,
+          "pressure": 5650.000000029879
+        }
+      ]
+    },
+    "Paper/plastic waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 8939.39,
+      "points": 2875,
+      "zero_demand_points": 354,
+      "max_pressure": 46791.66666666267,
+      "max_access_m": 3362.658404379596,
+      "highest_pressure_points": [
+        {
+          "point_id": 227,
+          "residents": 11229.99999999904,
+          "capacity_m3": 0.24,
+          "pressure": 46791.66666666267
+        },
+        {
+          "point_id": 27114,
+          "residents": 933.9999999983145,
+          "capacity_m3": 0.24,
+          "pressure": 3891.666666659644
+        },
+        {
+          "point_id": 22199,
+          "residents": 316.9999999977648,
+          "capacity_m3": 0.12,
+          "pressure": 2641.66666664804
+        },
+        {
+          "point_id": 7511,
+          "residents": 559.0000000013226,
+          "capacity_m3": 0.24,
+          "pressure": 2329.1666666721776
+        },
+        {
+          "point_id": 25119,
+          "residents": 247.99999999931083,
+          "capacity_m3": 0.12,
+          "pressure": 2066.6666666609235
+        }
+      ]
+    },
+    "Glass waste": {
+      "residents": 544476.0000000449,
+      "attributed_capacity_m3": 4359.81,
+      "points": 2347,
+      "zero_demand_points": 210,
+      "max_pressure": 93583.33333332534,
+      "max_access_m": 3362.658404379596,
+      "highest_pressure_points": [
+        {
+          "point_id": 229,
+          "residents": 11229.99999999904,
+          "capacity_m3": 0.12,
+          "pressure": 93583.33333332534
+        },
+        {
+          "point_id": 22702,
+          "residents": 575.000000002943,
+          "capacity_m3": 0.12,
+          "pressure": 4791.6666666911915
+        },
+        {
+          "point_id": 8488,
+          "residents": 570.0000000033618,
+          "capacity_m3": 0.12,
+          "pressure": 4750.000000028015
+        },
+        {
+          "point_id": 26494,
+          "residents": 481.00000000040046,
+          "capacity_m3": 0.12,
+          "pressure": 4008.333333336671
+        },
+        {
+          "point_id": 19781,
+          "residents": 459.9999999999069,
+          "capacity_m3": 0.12,
+          "pressure": 3833.3333333325577
+        }
+      ]
+    }
+  },
+  "thresholds": {
+    "Mixed municipal waste": 224.99999999661617,
+    "Paper/plastic waste": 120.00000000065567,
+    "Glass waste": 242.19999999981758
+  },
+  "eligible_bins": 11814,
+  "excluded_bins": 10137,
+  "months": [
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09",
+    "2026-09"
+  ],
+  "artifacts": [
+    {
+      "id": "adequacy-2026-09-30",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-30",
+      "complete": true,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "e01f63dbc2c1c5d71eecf89889b22ece5d89d04de3dfd1ee5f41e45f7d0d29bb"
+    },
+    {
+      "id": "adequacy-2026-09-29",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-29",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "7988de0ced5e69c1edb2654746ea3eaf0ce19d7766ab14e5fe00a94becc9bca8"
+    },
+    {
+      "id": "adequacy-2026-09-28",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-28",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "4ef1b7313a1e0b9e364c89771adafe44761b7bc64769c7b4fa13d1926f4b10c0"
+    },
+    {
+      "id": "adequacy-2026-09-27",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-27",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "74f31ff6fc5b3bc7e39bd2610919b34d554d016e65e206db548c8cf95b9844c8"
+    },
+    {
+      "id": "adequacy-2026-09-26",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-26",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "fb1f5983163247763ee9d19aa90fe3d27c40a11da3e6782a79154de94edcb066"
+    },
+    {
+      "id": "adequacy-2026-09-25",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-25",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "b2310a06cffcf710bbaeb8cb5e361d2c7a76730b9700de1d0ea120e38176b50a"
+    },
+    {
+      "id": "adequacy-2026-09-24",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-24",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "c8f97d184530ec0abccb6c44c863c2ab2aeee287e6277442b43cb1d2236f5eea"
+    },
+    {
+      "id": "adequacy-2026-09-23",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-23",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "e93fe78a4ea49533a75243cc3251a97b1a543b97492196bcf2e87e1e8731a4b4"
+    },
+    {
+      "id": "adequacy-2026-09-22",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-22",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "faad2d042e26657f1b4998da3756a66196340ac0fb3d0a437bf5459aa2570e9c"
+    },
+    {
+      "id": "adequacy-2026-09-21",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-21",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "066e7fae9dec70b7e7d153512e84330bca5d3044c56c327cc14fae0b9c02a9c9"
+    },
+    {
+      "id": "adequacy-2026-09-20",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-20",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "ede402eeaecfe4e04aaa968af08686293642e9db799e91ea36b92da5198ac754"
+    },
+    {
+      "id": "adequacy-2026-09-19",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-19",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "16365b26ea42fc3b019173536b513d4939adb98f9e22af033c3507ec98d4ac62"
+    },
+    {
+      "id": "adequacy-2026-09-18",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-18",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "93720fb00e31af289c7f3a9ce282199f22923906c4f74d15a52790e26000b81a"
+    },
+    {
+      "id": "adequacy-2026-09-17",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-17",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "3db02e576cff11a320e91152211bc73d7e0e2e9cbff66993eb32121efc7d02cc"
+    },
+    {
+      "id": "adequacy-2026-09-16",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-16",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "17cfc080c814e028c0921d6f676285e4949a4f298dcedd27a0d8d30eb1d83104"
+    },
+    {
+      "id": "adequacy-2026-09-15",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-15",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "9d828be5ee4dab89f413f94be1b69d8130528c45a6fad6803e6a0015069a890f"
+    },
+    {
+      "id": "adequacy-2026-09-14",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-14",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "fee8f2ba850a16be0b0edaee6d0fd6a76376188d604d40da7e6922428de7fc58"
+    },
+    {
+      "id": "adequacy-2026-09-13",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-13",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "dc636cbcdb92004b7a2d4a72d1f90e95d5f36f7a2f44e1137d14a7b0860f09ab"
+    },
+    {
+      "id": "adequacy-2026-09-12",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-12",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "dc5ef0191a8a8898c73dfa6d3a144a5ebf974dc3089cf99098f2fcea54828c55"
+    },
+    {
+      "id": "adequacy-2026-09-11",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-11",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "faa152c219a631a22de3c8fb87b8fb7ffb4fd45711345d4f29241c1df16f5145"
+    },
+    {
+      "id": "adequacy-2026-09-10",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-10",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "61431014d9df65dd82c9121235bf6fcc89f90a44d24d7b1282683263e86997ca"
+    },
+    {
+      "id": "adequacy-2026-09-09",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-09",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "3251696315b0a493d09ec6d638208d1aa95d9a375ea94190960a4ff3144ae250"
+    },
+    {
+      "id": "adequacy-2026-09-08",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-08",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "ca5a8fb5d881e87802c9e4792736d2b29b592a57002f32e42b332f42e2de48bd"
+    },
+    {
+      "id": "adequacy-2026-09-07",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-07",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "f1c7726b8fe749b945bb340cff3cbb8b40bdc265506fae84231e14352ec312cc"
+    },
+    {
+      "id": "adequacy-2026-09-06",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-06",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "adb5f2f85cbb661de0dd14be8d7d7a7293707a7bdac4fc500bfd97e61834f92a"
+    },
+    {
+      "id": "adequacy-2026-09-05",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-05",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "9a29e4202fa34c47e354ed72d4c9d57a22a067390534f7c145e9e8424adf2872"
+    },
+    {
+      "id": "adequacy-2026-09-04",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-04",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "90cc6a62a473263645ba117d32b5bfadb25fbf9598d76822846b3c161d3f62cf"
+    },
+    {
+      "id": "adequacy-2026-09-03",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-03",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "ec8c89fccf504992b3700b4f7507eb3eddda3118b8b16ded4a066b029bff0fe2"
+    },
+    {
+      "id": "adequacy-2026-09-02",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-02",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "cb6fc77468c494b31cdc6dc235e431f4fe57ff1e23a28f9f04fa69bd4da32551"
+    },
+    {
+      "id": "adequacy-2026-09-01",
+      "month": "2026-09",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-01",
+      "complete": false,
+      "schema_version": "2",
+      "method_version": "2",
+      "fill_provenance": "synthetic",
+      "revision": "1c1dcc7c936dfead79f78046410ad961c74e142c9a9115232dd922fb24d8cce4"
+    }
+  ],
+  "source_prefix_audit": {
+    "cutoffs": 30,
+    "refitted_days": [
+      1,
+      18,
+      30
+    ],
+    "no_future_leakage": "passed"
+  }
+}

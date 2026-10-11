@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FeatureCollection, Point } from 'geojson'
 import { Layers, Sparkles, X } from 'lucide-react'
 import Markdown from 'react-markdown'
@@ -12,7 +12,7 @@ import { useLayerSession } from './use-layer-session'
 import { useBinFilters } from './use-bin-filters'
 import { useProjectDate } from '@/lib/project-date/context'
 import type { BinProperties } from './api'
-import { adequacyMonthLabel, adequacyWasteTypes, type AdequacyData } from './adequacy'
+import { adequacyMonthLabel, adequacyPeriodLabel, adequacyWasteTypes, type AdequacyData } from './adequacy'
 import { useAdequacy } from './use-adequacy'
 
 const investigationMessages = [
@@ -22,11 +22,13 @@ const investigationMessages = [
   'Tikslinamos įžvalgos ir tikrinami duomenų ribotumai…',
 ]
 
-type Analysis = { status: 'complete' | 'incomplete'; bbox: Bbox; answer: string | null; default_period: { start: string; end: string }; incomplete_reason: string | null; model_requests: number; elapsed_seconds: number }
+type Analysis = { project_date: string; status: 'complete' | 'incomplete'; bbox: Bbox; answer: string | null; default_period: { start: string; end: string }; incomplete_reason: string | null; model_requests: number; elapsed_seconds: number }
 
 export function MapAnalyticsPage() {
   const { projectDate } = useProjectDate()
-  const adequacy = useAdequacy()
+  const currentProjectDate = useRef(projectDate)
+  currentProjectDate.current = projectDate
+  const adequacy = useAdequacy(projectDate)
   const { selection, states, toggle, retry } = useLayerSession(mapLayers, adequacy.requests)
   const bins = states.bins
   const binFilters = useBinFilters(bins?.status === 'ready' ? bins.data as FeatureCollection<Point, BinProperties> : undefined)
@@ -61,6 +63,11 @@ export function MapAnalyticsPage() {
     return () => document.removeEventListener('keydown', dismiss)
   }, [sidebarMode, mode, close, cancelSelection])
   useEffect(() => () => { request.current?.abort(); request.current = null }, [])
+  useLayoutEffect(() => {
+    request.current?.abort(); request.current = null
+    setPending(false); setAnswer(null); setError(null)
+    setProgress('Ruošiama pasirinkto ploto analizė…')
+  }, [projectDate])
   async function analyze() {
     if (!confirmed || request.current) return
     const controller = new AbortController()
@@ -68,7 +75,7 @@ export function MapAnalyticsPage() {
     setPending(true); setError(null); setAnswer(null); setProgress('Ruošiama pasirinkto ploto analizė…')
     const timeout = window.setTimeout(() => controller.abort(), 65000)
     try {
-      const response = await fetch('/api/map-analytics/agent/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ bbox: confirmed }), signal: controller.signal })
+      const response = await fetch('/api/map-analytics/agent/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ bbox: confirmed, project_date: projectDate }), signal: controller.signal })
       if (!response.ok) throw new Error(response.status === 503 ? 'AI analizė nesukonfigūruota. Kreipkitės į administratorių.' : 'Analizės atlikti nepavyko. Bandykite dar kartą.')
       if (!response.body) throw new Error('Nepavyko gauti analizės atsakymo.')
       const reader = response.body.getReader(), decoder = new TextDecoder()
@@ -83,8 +90,11 @@ export function MapAnalyticsPage() {
           const dataLine = frame.split('\n').find(line => line.startsWith('data: '))
           if (!dataLine) continue
           const data = JSON.parse(dataLine.slice(6))
-          if (request.current !== controller) continue
-          if (event === 'result') { setAnswer(data as Analysis); received = true }
+          if (request.current !== controller || currentProjectDate.current !== projectDate || controller.signal.aborted) continue
+          if (event === 'result') {
+            if (data.project_date !== projectDate) throw new Error('Gautas kitos datos atsakymas. Bandykite dar kartą.')
+            setAnswer(data as Analysis); received = true
+          }
           if (event === 'error') throw new Error(data.message)
           if (event === 'progress') {
             const tool = String(data.tool ?? '')
@@ -93,7 +103,7 @@ export function MapAnalyticsPage() {
               : tool.includes('population') ? 'Tikrinamas gyventojų tankis ir teritorijos aprėptis…'
               : tool.includes('request') ? 'Nagrinėjami gyventojų pranešimai…'
               : tool.includes('service') || tool.includes('fill') ? 'Nagrinėjama aptarnavimo istorija ir užpildymas…'
-              : tool.includes('plan') || tool.includes('synthetic') ? 'Tikrinami sintetiniai duomenys ir prognozės…'
+              : tool.includes('plan') || tool.includes('synthetic') ? 'Tikrinami surinkimo planai ir prognozės…'
               : tool === 'get_area_overview' ? 'Renkama pasirinkto ploto duomenų apžvalga…'
               : 'Tikrinami papildomi pasirinkto ploto duomenys…'
             setProgress(message)
@@ -103,7 +113,7 @@ export function MapAnalyticsPage() {
       }
       if (!received) throw new Error('Ryšys nutrūko negavus analizės atsakymo.')
     } catch (failure) {
-      if (request.current === controller) setError(controller.signal.aborted ? 'Ryšys nutrūko arba baigėsi laukimo laikas. Bandykite dar kartą.' : failure instanceof Error ? failure.message : 'Analizės atlikti nepavyko.')
+      if (request.current === controller && currentProjectDate.current === projectDate) setError(controller.signal.aborted ? 'Ryšys nutrūko arba baigėsi laukimo laikas. Bandykite dar kartą.' : failure instanceof Error ? failure.message : 'Analizės atlikti nepavyko.')
     } finally {
       window.clearTimeout(timeout)
       if (request.current === controller) { request.current = null; setPending(false) }
@@ -132,15 +142,14 @@ export function MapAnalyticsPage() {
                   const state = states[layer.id], selected = !!selection[layer.id]
                   return <div key={layer.id} className="space-y-2">
                     <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={selected} onChange={event => {
-                      if (layer.id === 'adequacy' && event.target.checked && adequacy.status === 'idle') adequacy.refresh()
+                      if (layer.id === 'adequacy') adequacy.setEnabled(event.target.checked)
                       toggle(layer.id, event.target.checked)
                     }} />{layer.label}</label>
                     {layer.id === 'bins' && <div role="group" aria-label="Konteinerių atliekų rūšys" className="ml-6 space-y-3">{binFilters.availableCategories.map(category => <label key={category.id} className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={binFilters.categories[category.id]} onChange={event => binFilters.toggleCategory(category.id, event.target.checked)} /><span>{category.label}</span></label>)}</div>}
                     {layer.id === 'adequacy' && selected && <div className="ml-6 space-y-3">
                       <label className="grid gap-2 text-sm font-medium">Mėnuo
-                        <select aria-label="Analizės mėnuo" className="min-w-0 w-full rounded-md border bg-background p-2 text-sm" value={adequacy.analysisId} onChange={event => adequacy.setAnalysisId(event.target.value)} disabled={!adequacy.catalog.length}>
-                          {!adequacy.catalog.length && <option value="">Analizių nėra</option>}
-                          {adequacy.catalog.map(entry => <option key={entry.id} value={entry.id}>{adequacyMonthLabel(entry.month)}</option>)}
+                        <select aria-label="Analizės mėnuo" className="min-w-0 w-full rounded-md border bg-background p-2 text-sm" value={adequacy.month} onChange={event => adequacy.setMonth(event.target.value)}>
+                          {adequacy.months.map(month => <option key={month} value={month}>{adequacyMonthLabel(month)}</option>)}
                         </select>
                       </label>
                       <label className="grid gap-2 text-sm font-medium">Atliekų rūšis
@@ -148,11 +157,11 @@ export function MapAnalyticsPage() {
                           {adequacyWasteTypes.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
                         </select>
                       </label>
-                      <Button variant="outline" size="sm" className="h-auto whitespace-normal" onClick={adequacy.refresh} disabled={adequacy.status === 'loading'}>{adequacy.status === 'error' ? 'Bandyti dar kartą' : 'Atnaujinti analizių sąrašą'}</Button>
+                      {adequacy.status === 'error' && <Button variant="outline" size="sm" className="h-auto whitespace-normal" onClick={adequacy.refresh}>Bandyti dar kartą</Button>}
                       {adequacy.status === 'loading' && <p role="status" className="text-xs">Kraunami duomenys…</p>}
-                      {adequacy.status === 'ready' && !adequacy.catalog.length && <p role="status" className="text-xs">Duomenų nėra.</p>}
+                      {adequacy.status === 'ready' && !adequacy.selected && <p role="status" className="text-xs">Duomenų nėra.</p>}
                       {adequacy.status === 'error' && <p role="alert" className="text-xs text-destructive">Nepavyko įkelti sluoksnio.</p>}
-                      {adequacy.selected && <p className="text-xs">{adequacy.selected.period_start} – {adequacy.selected.period_end}</p>}
+                      {adequacy.selected && <p className="text-xs">{adequacyPeriodLabel(adequacy.selected)}</p>}
                     </div>}
                     {selected && state?.status === 'loading' && <p role="status" className="text-xs">Kraunami duomenys…</p>}
                     {selected && state?.status === 'ready' && state.data.features.length === 0 && <p role="status" className="text-xs">Duomenų nėra.</p>}

@@ -1,6 +1,6 @@
 """Single catalogue for local dispatch, strict provider schemas and documentation."""
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from functools import partial
 import json
@@ -13,7 +13,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from . import contracts as c, queries as q, spatial as s
+from . import contracts as c, queries as q, spatial as s, adequacy as a
 from .reads import analytical_session
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,10 @@ class Tool:
 
 
 TOOLS = [
-    Tool('get_area_overview', c.Empty, q.area_overview, 'Start here: compact selected-bin/site counts, known/missing/invalid source capacity, waste distribution, recent recorded activity and optional dataset/date coverage.'),
+    Tool('get_area_overview', c.Empty, q.area_overview, 'Start here: discover the exact saved adequacy cutoff and pin its revision or absence; compact selected-bin/site counts, known/missing/invalid source capacity, waste distribution, recent recorded activity and optional dataset/date coverage.'),
+    Tool('get_adequacy_summary', c.AdequacySummary, a.summary, 'Summarize exact saved September-to-project-date risk by waste stream/category, whole intersecting polygons and deduplicated serving-point evidence. NULL waste type means all streams separately. No generation or future substitution.', 'saved adequacy: synthetic/observed fill and static estimates'),
+    Tool('list_adequacy_features', c.AdequacyFeatures, a.listing, 'List matching saved risk feature IDs and component metrics without geometry. Nullable waste/category filters; deterministic ID order, default 50/max 100. Captured bbox/date and pinned revision.', 'saved adequacy: synthetic/observed fill and static estimates'),
+    Tool('get_adequacy_feature', c.AdequacyFeature, a.detail, 'Inspect one internal saved feature ID intersecting the captured bbox: category/reasons, pressure/reference, capacity, counts, coverage and uncertainty. Includes external serving-point context; revision replacement yields stale evidence.', 'saved adequacy: synthetic/observed fill and static estimates'),
     Tool('get_bin', c.BinId, q.get_bin, 'Internal bin ID detail with site reference and evidence counts. Reject missing/outside-area identity; external_id is separate.'),
     Tool('get_bins_by_ids', c.BinIds, q.bins_by_ids, 'At most 100 internal bin IDs; selected records plus missing/outside IDs; never silently widen area.'),
     Tool('list_bins', c.BinList, q.bin_list, 'Selected bins with source-value filters and investigative sorts. latest_success differs from latest_attempt; missing history is unknown, not proven overdue. Cutoff required only for not_serviced_since.'),
@@ -93,6 +96,7 @@ def catalogue():
     return {'common_semantics': {
         'scope': 'Trusted bbox is automatic. NULL scope means area; explicit global includes area and all eligible stored bins. Detail IDs are internal and area-validated; facilities/fleet are contextual.',
         'time': 'NULL period means last 30 Europe/Vilnius dates including partial today, capped at captured run start for observations. Explicit start/end dates use exclusive end. all_history has no lower bound. Future only schedules/stored plans.',
+        'adequacy_time': 'Risk tools use captured project_date, inclusive September 1 through cutoff, independently of visual filters; all other time windows retain their documented defaults.',
         'pagination': 'NULL limit/offset means 50/0; maximum 100 records/IDs, 366 trend buckets; deterministic next_offset and has_more. Output-size trimming is explicit.',
         'NULL': 'Unknown/missing/unavailable stays NULL; numeric special capacity values excluded; zero counts do not establish full source coverage. Failed reads have status error.',
         'units': 'Capacity uses unverified source m³ assumption; observed fill ordinal 0–3, model-predicted fill 0–4 (from synthetic history); population estimates and per-stream allocations are not unique residents.',
@@ -164,6 +168,8 @@ def dispatch(factory, ctx, name, arguments, exploration=True):
             read_only = session.scalar(text('SHOW transaction_read_only')) == 'on'
             if not read_only: raise RuntimeError('Read-only invariant failed')
         scope = 'global_fleet_context' if name == 'get_fleet_summary' else 'facility_context' if name in ('get_landfill', 'get_nearest_landfills') else 'area_and_global' if name == 'compare_area_to_global' else 'area_and_geography' if name == 'get_geographic_summary' else 'area_site_locations' if name == 'list_sites' else getattr(args, 'scope', None) or 'area'
+        if name in ('get_adequacy_summary', 'list_adequacy_features', 'get_adequacy_feature'):
+            period = c.EffectivePeriod(start='2026-09-01T00:00:00', end=(ctx.project_date + timedelta(days=1)).isoformat() + 'T00:00:00', date_end_exclusive=(ctx.project_date + timedelta(days=1)).isoformat(), partial_today=False, timestamp_semantics='Saved date-only adequacy period, inclusive cutoff; separate from observation windows.')
         result = tool.result_type(status='ok', scope=scope, period=period, evidence_type=tool.evidence, queried_at=datetime.now(ctx.started_at.tzinfo).isoformat(), data=data)
     except c.ToolQueryError as error:
         result = error_result(ctx, error.code, str(error))

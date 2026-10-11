@@ -1,6 +1,7 @@
 import argparse
 import logging
 from pathlib import Path
+from time import perf_counter
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,14 +16,15 @@ logger = logging.getLogger(__name__)
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
-    parser = argparse.ArgumentParser(description="Import validated monthly adequacy GeoJSON into PostgreSQL.")
+    parser = argparse.ArgumentParser(description="Import validated monthly or dated adequacy GeoJSON into PostgreSQL.")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--file", type=Path, action="append", help="GeoJSON file; repeat for multiple months")
-    group.add_argument("--all", action="store_true", help="Import completed monthly files in the configured data directory")
+    group.add_argument("--file", type=Path, action="append", help="GeoJSON file; repeat for multiple periods")
+    group.add_argument("--all", action="store_true", help="Import monthly and dated files in the configured data directory")
     try:
         args = parser.parse_args()
     except SystemExit as error:
         return 0 if error.code == 0 else 1
+    started = perf_counter()
     engine = None
     try:
         paths = args.file if args.file else sorted(
@@ -30,15 +32,17 @@ def main() -> int:
             if ARTIFACT_PATTERN.fullmatch(path.name)
         )
         if not paths:
-            raise ValueError("No completed monthly GeoJSON files found; generate or supply --file first")
+            raise ValueError("No adequacy GeoJSON files found; generate or supply --file first")
         records = [parse_analysis(path) for path in paths]
         if len({record["id"] for record in records}) != len(records):
             raise ValueError("Duplicate analysis IDs in selected files")
+        total_bytes = sum(path.stat().st_size for path in paths)
         engine = create_database_engine(Settings())
         with engine.begin() as connection:
             connection.execute(text(f"SET LOCAL lock_timeout = {SYNC_LOCK_TIMEOUT_MS}"))
             count = import_analyses(connection, records)
-        logger.info("container_adequacy_analyses <- %d monthly GeoJSON files", count)
+        logger.info("container_adequacy_analyses <- %d GeoJSON files; %d bytes; %.2f seconds",
+                    count, total_bytes, perf_counter() - started)
         return 0
     except (OSError, ValueError, TypeError, KeyError) as error:
         logger.error("Adequacy import failed, nothing was changed: %s", error)

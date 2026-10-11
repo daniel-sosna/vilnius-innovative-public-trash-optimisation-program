@@ -3,13 +3,15 @@ import json
 import logging
 from contextlib import suppress
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, Query
+from typing import Annotated
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import StreamingResponse
 
 from app.core.config import Settings
 from app.integrations.openai import ResponsesProvider, ProviderFailure
 from app.services.adequacy_catalog import get_analysis, list_analyses
-from app.services.analytics_agent.contracts import AnalyzeRequest, AnalysisResponse, RunContext
+from app.services.analytics_agent.contracts import AnalyzeRequest, AnalysisResponse, RunContext, ProjectDate
 from app.services.analytics_agent.run import analyze
 
 from app.interfaces.collection_session import CollectionSession
@@ -30,10 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/adequacy-analyses", response_model=AdequacyCatalog)
-def adequacy_catalog(session: CollectionSession) -> dict:
+def adequacy_catalog(session: CollectionSession, project_date: Annotated[ProjectDate | None, Query()] = None) -> dict:
     try:
-        return list_analyses(session)
-    except (OSError, ValueError, TypeError, KeyError):
+        return list_analyses(session, project_date)
+    except (OSError, ValueError, TypeError, KeyError, SQLAlchemyError):
         logger.exception("Cannot read saved adequacy catalog")
         raise HTTPException(500, "Cannot read saved adequacy analyses") from None
 
@@ -46,7 +48,7 @@ def adequacy_analysis(analysis_id: str, session: CollectionSession) -> Response:
                         media_type="application/geo+json", headers={"ETag": f'"{revision}"'})
     except FileNotFoundError:
         raise HTTPException(404, "Unknown adequacy analysis") from None
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError, TypeError, KeyError, SQLAlchemyError):
         logger.exception("Cannot read saved adequacy analysis")
         raise HTTPException(500, "Cannot read saved adequacy analysis") from None
 
@@ -83,7 +85,7 @@ async def analyze_area(body: AnalyzeRequest, request: Request):
     model = (settings.openai_model or '').strip()
     if not key or not model:
         raise HTTPException(status_code=503, detail={'code': 'analysis_configuration', 'message': 'Analysis requires backend OpenAI key and model configuration.'})
-    context = RunContext(body.bbox)
+    context = RunContext(body.bbox, body.project_date)
     if 'text/event-stream' in request.headers.get('accept', ''):
         async def events():
             queue = asyncio.Queue()

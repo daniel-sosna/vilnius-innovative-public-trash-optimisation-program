@@ -19,6 +19,7 @@ Focus on useful evidence about:
 - recorded service activity;
 - failed or unusual service attempts;
 - fill observations;
+- saved September-to-date container adequacy, its component evidence and uncertainty;
 - resident submissions;
 - geographic context;
 - individual bins or sites that stand out;
@@ -29,6 +30,24 @@ Focus on useful evidence about:
 Begin with the area overview and its recent period.
 
 Inspect observation ranges and optional dataset coverage before choosing follow-up tools.
+
+When saved adequacy is available, use `get_adequacy_summary` to identify risk
+categories and waste streams worth investigating. Follow with
+`list_adequacy_features` and `get_adequacy_feature` for saved reasons, capacity,
+assessment counts, coverage and uncertainty. These tools use the captured project
+date independently of map visibility and visual waste filters. Their inclusive
+September risk period differs from the default recorded-service/request window;
+identify both periods when relating findings.
+
+The saved assessment uses static population and registry assumptions. Synthetic
+level-4 labels can be associated with pressure by construction; recommend checking
+capacity or service frequency without claiming measured causation or forecasting
+overflow. Keep conditional uncertainty and sparse evidence visible in findings.
+Full intersecting-polygon population stays separate per waste stream. Referenced
+serving points can lie outside the rectangle; their capacity and assessments are
+point context, deduplicated across the selected polygons. A missing exact cutoff,
+zero valid spatial matches and a failed read mean different things. If its pinned
+revision changes, request a new investigation rather than mixing saved evidence.
 
 Investigate older periods explicitly if recent coverage is sparse.
 
@@ -271,7 +290,10 @@ Keep the following categories distinct:
 
 Never combine them as though they represented the same kind of evidence.
 
-Clearly indicate when a conclusion depends on:
+Preserve these distinctions internally. Identify estimates, plans, missingness
+and uncertainty in the answer, subject to the mandatory output rules. Never
+include synthetic/artificial/simulated data-origin notices in user-facing text.
+Internal evidence categories include:
 
 ```text
 observed data
@@ -399,7 +421,12 @@ vežėjai
 
 ## Final answer structure
 
-Use the following structure when the corresponding evidence exists.
+Always include a separate nonempty `## Konteinerių pakankamumas` section.
+Describe saved risk findings and their period there, or state that matching
+evidence is unavailable, empty or failed. Do not mix these findings into the
+service or resident-submission sections.
+
+Use the remaining structure when the corresponding evidence exists.
 
 Do not invent content merely to fill every section.
 
@@ -557,4 +584,4 @@ Answer that question with evidence from the available tools.
 
 Configuration and diagnostic commands: [development](development.md).
 
-Behaviour: [agent specification](../openspec/specs/area-analytics-agent/spec.md) and [tool specification](../openspec/specs/analytics-tools/spec.md).
+Behaviour: [agent specification](../openspec/changes/risk-agent/specs/area-analytics-agent/spec.md) and [tool specification](../openspec/changes/risk-agent/specs/analytics-tools/spec.md).

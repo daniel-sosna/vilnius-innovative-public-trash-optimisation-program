@@ -193,6 +193,80 @@ def aggregate_daily(path: Path, registry: dict[int, dict], bin_to_point: dict) -
             "cohort_bins": len(cohort), "excluded_bins": sorted(set(registry) - cohort), "rows": total_rows}
 
 
+def aggregate_september(path: Path, registry: dict[int, dict], bin_to_point: dict) -> dict:
+    """Read September once; membership on day one fixes the source cohort."""
+    counts, calendars = defaultdict(Assessments), {}
+    rows = 0
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        required = {"bin_id", "date", "waste_type", "capacity_m3", "object_group", "site_id", "fill_level"}
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError(f"Fill CSV missing columns: {sorted(required - set(reader.fieldnames or []))}")
+        for line, row in enumerate(reader, 2):
+            day = date.fromisoformat(row['date'])
+            if day.year != 2026 or day.month != 9:
+                continue
+            identity = int(row['bin_id'])
+            if identity not in registry:
+                raise ValueError(f"September line {line}: unknown bin {identity}")
+            flag = 1 << (day.day - 1)
+            if calendars.get(identity, 0) & flag:
+                raise ValueError(f"Duplicate bin/day: {identity}/{day}")
+            calendars[identity] = calendars.get(identity, 0) | flag
+            source = registry[identity]
+            for key in ('waste_type', 'object_group', 'site_id'):
+                if row[key] not in (source[key], '' if source[key] == 'NULL' else source[key]):
+                    raise ValueError(f"September line {line}: {key} disagrees with registry bin {identity}")
+            def capacity(value):
+                return None if value in ('', 'NULL') else float(value)
+            if capacity(row['capacity_m3']) != capacity(source['capacity_m3']):
+                raise ValueError(f"September line {line}: capacity disagrees with registry bin {identity}")
+            label = row['fill_level']
+            if label not in ('', 'NULL', '0', '1', '2', '3', '4'):
+                raise ValueError(f"September line {line}: invalid fill level {label!r}")
+            rows += 1
+            if label not in ('', 'NULL') and identity in bin_to_point:
+                waste, point = bin_to_point[identity]
+                item = counts[(day.day, waste, point)]
+                item.total += 1
+                item.level4 += int(label == '4')
+                item.days |= flag
+                item.bins.add(identity)
+    cohort = {identity for identity, mask in calendars.items() if mask & 1}
+    if not cohort:
+        raise ValueError('No September 1 source cohort')
+    return {'day_counts': counts, 'calendars': calendars, 'cohort': cohort,
+            'excluded_bins': sorted(set(registry) - cohort), 'rows': rows}
+
+
+def september_prefixes(daily: dict):
+    """Accumulate only evidence up to each inclusive cutoff, in stable point order."""
+    counts = defaultdict(Assessments)
+    by_day = defaultdict(list)
+    for (day, waste, point), item in sorted(daily['day_counts'].items()):
+        by_day[day].append((waste, point, item))
+    for day in range(1, 31):
+        full = (1 << day) - 1
+        cohort = daily['cohort']
+        masks = {identity: mask & full for identity, mask in daily['calendars'].items() if mask & full}
+        missing = sorted(identity for identity in cohort if masks.get(identity) != full)
+        extra = sorted(set(masks) - cohort)
+        cutoff = date(2026, 9, day)
+        if missing or extra:
+            raise ValueError(f'{cutoff}: incomplete source calendar; missing bin/day for {missing[:10]}, undeclared bins {extra[:10]}')
+        for waste, point, item in by_day[day]:
+            prefix = counts[('2026-09', waste, point)]
+            prefix.total += item.total
+            prefix.level4 += item.level4
+            prefix.days |= item.days
+            prefix.bins.update(item.bins)
+        coverage = {'complete': True, 'period_start': '2026-09-01', 'period_end': cutoff.isoformat(),
+                    'cohort_bins': len(cohort), 'bins_present': len(masks),
+                    'bins_with_full_calendar': len(cohort), 'calendar_rows': len(cohort) * day}
+        yield cutoff, {'counts': counts, 'complete_months': ['2026-09'],
+                       'coverage': {'2026-09': coverage}, 'excluded_bins': daily['excluded_bins']}
+
+
 def fit_assessments(items: dict[int, Assessments], bin_counts: dict[int, int], policy: Policy) -> tuple[dict, dict | None]:
     import numpy as np
     from scipy.optimize import minimize
@@ -255,15 +329,23 @@ def classify(properties: dict, policy: Policy) -> tuple[str, list[str]]:
     return category, reasons
 
 
-def make_document(snapshot: dict, daily: dict, month: str, source_hashes: dict, policy: Policy) -> dict:
+def make_document(snapshot: dict, daily: dict, month: str, source_hashes: dict, policy: Policy, cutoff: date | None = None) -> dict:
     if month not in daily["complete_months"]:
         raise ValueError(f"{month} has no complete daily calendar for the source cohort")
     start, end = month_bounds(month)
+    if cutoff is not None:
+        if month != '2026-09' or not start <= cutoff <= end:
+            raise ValueError('Cutoff must be in September 2026')
+        end = cutoff
+    version = '2' if cutoff else '1'
     priors, estimates, point_summaries = {}, {}, {}
     for waste_type in WASTE_TYPES:
         points = snapshot["allocation"].points_by_type.get(waste_type, [])
         items = {p.min_bin_id: daily["counts"].get((month, waste_type, p.min_bin_id), Assessments()) for p in points}
-        estimated, prior = fit_assessments(items, {p.min_bin_id: len(p.bins) for p in points}, policy)
+        try:
+            estimated, prior = fit_assessments(items, {p.min_bin_id: len(p.bins) for p in points}, policy)
+        except ValueError as error:
+            raise ValueError(f'{end.isoformat()} / {waste_type}: {error}') from error
         estimates[waste_type], priors[waste_type] = estimated, prior
         point_summaries[waste_type] = {"points": len(points), "assessed_points": len(estimated),
                                       "assessments": sum(x.total for x in items.values()),
@@ -280,10 +362,13 @@ def make_document(snapshot: dict, daily: dict, month: str, source_hashes: dict, 
         properties["category"], properties["reasons"] = classify(properties, policy)
         features.append({**area, "properties": properties})
     policy_values = asdict(policy)
-    identity = {"sources": source_hashes, "policy": policy_values, "method": METHOD_VERSION, "schema": SCHEMA_VERSION, "month": month}
+    identity = {"sources": source_hashes, "policy": policy_values, "method": version, "schema": version, "month": month, **({"cutoff": cutoff.isoformat()} if cutoff else {})}
     return {"type": "FeatureCollection", "analysis": {
-        "id": f"adequacy-{month}", "month": month, "period_start": start.isoformat(), "period_end": end.isoformat(),
-        "complete": True, "schema_version": SCHEMA_VERSION, "method_version": METHOD_VERSION,
+        "id": f"adequacy-{cutoff.isoformat() if cutoff else month}", "month": month, "period_start": start.isoformat(), "period_end": end.isoformat(),
+        "complete": end == month_bounds(month)[1], "schema_version": version, "method_version": version,
+        **({'static_reference_fingerprint': fingerprint({'sources': {k: v for k, v in source_hashes.items() if k != 'daily_synthetic_fill'},
+                                                          'policy': policy_values, 'thresholds': snapshot['thresholds']}),
+            'policy_fingerprint': fingerprint(policy_values)} if cutoff else {}),
         "fill_provenance": "synthetic", "source_fingerprints": source_hashes,
         "input_fingerprint": fingerprint(identity), "policy": policy_values,
         "pressure_thresholds": snapshot["thresholds"], "priors": priors,
@@ -308,7 +393,7 @@ def file_hash(path: Path) -> str:
 def publish(document: dict, directory: Path, regenerate=False) -> tuple[Path, str]:
     validate_artifact(document)
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"adequacy_{document['analysis']['month']}.geojson"
+    path = directory / f"{document['analysis']['id'].replace('adequacy-', 'adequacy_', 1)}.geojson"
     if path.exists():
         existing = validate_artifact(json.loads(path.read_text(encoding="utf-8")))
         if existing["analysis"]["input_fingerprint"] == document["analysis"]["input_fingerprint"]:

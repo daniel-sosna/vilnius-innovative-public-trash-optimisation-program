@@ -182,8 +182,8 @@ Run local diagnostics without an OpenAI key:
 ```bash
 docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --catalogue
 docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --guide
-docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30
-docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --tool get_service_summary --arguments '{"scope":"area","grouping":"waste_carrier","period":null}'
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --project-date 2026-09-14
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --project-date 2026-09-14 --tool get_service_summary --arguments '{"scope":"area","grouping":"waste_carrier","period":null}'
 ```
 
 Local mode uses short rollback-only database snapshots and never calls a
@@ -193,7 +193,7 @@ provider. `--full` prints bounded JSON evidence. Native execution uses the
 Live execution is explicit:
 
 ```bash
-docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --live
+docker compose exec backend uv run python -m app.interfaces.analytics_agent.check --bbox 54.68 25.27 54.70 25.30 --project-date 2026-09-14 --live
 ```
 
 A live run has ceilings of 60 seconds, five model requests, twelve executed

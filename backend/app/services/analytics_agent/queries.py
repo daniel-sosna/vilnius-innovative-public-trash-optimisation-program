@@ -105,6 +105,8 @@ def area_overview(session, ctx, args):
         coverage[model.__tablename__]['available'] = model is ResidentRequest or coverage[model.__tablename__]['rows'] > 0
     for model in (PopulationCell, Landfill, Truck):
         coverage[model.__tablename__] = {'global_rows': session.scalar(select(func.count()).select_from(model))}
+    from .adequacy import overview as adequacy_overview
+    coverage['container_adequacy_analyses'] = adequacy_overview(session, ctx)
     counts['coverage'] = coverage
     return counts
 

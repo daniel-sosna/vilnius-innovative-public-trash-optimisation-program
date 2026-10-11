@@ -36,7 +36,7 @@ class ContainerAdequacyAnalysis(Base):
         CheckConstraint(
             "jsonb_typeof(analysis) = 'object' AND "
             "analysis->>'id' IS NOT DISTINCT FROM id AND "
-            "analysis->'complete' IS NOT DISTINCT FROM 'true'::jsonb",
+            "jsonb_typeof(analysis->'complete') IS NOT DISTINCT FROM 'boolean'",
             name="ck_adequacy_analysis",
         ),
         CheckConstraint("jsonb_typeof(features) = 'array'", name="ck_adequacy_features"),
