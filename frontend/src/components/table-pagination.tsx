@@ -59,7 +59,7 @@ export function TablePagination({
   return (
     <nav
       aria-label="Sąrašo puslapiai"
-      className="flex flex-wrap items-center justify-between gap-4"
+      className="vip-pagination flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4"
     >
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {loading

@@ -178,7 +178,7 @@ function Workflow({ truckId, projectDate }: { truckId: number; projectDate: stri
         ))}
       {state.status === 'completed' && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-background p-6 text-center">
-          <CheckCircle2 className="size-20 text-primary" aria-hidden="true" />
+          <CheckCircle2 className="size-20 text-[var(--vip-success)]" aria-hidden="true" />
           <h1 className="text-3xl font-bold">Maršrutas baigtas</h1>
           <p className="text-xl">Aptarnauta: {state.serviced} konteinerių</p>
           <Button asChild className="mt-4 h-14 w-full max-w-xs text-lg">

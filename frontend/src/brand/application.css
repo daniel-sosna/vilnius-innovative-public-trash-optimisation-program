@@ -1,0 +1,30 @@
+/* Application controls only: never target native map buttons, images or SVGs. */
+[data-slot="button"], [data-slot="input"], [data-slot="select-trigger"] {
+  border-radius: var(--radius);
+  transition-duration: var(--vip-motion-fast);
+}
+[data-slot="button"][data-variant="default"]:hover {
+  background: var(--vip-red-hover);
+}
+[data-slot="dialog-content"], [data-slot="alert-dialog-content"] {
+  overflow-wrap: anywhere;
+  box-shadow: var(--vip-shadow);
+}
+[data-slot="dialog-header"] { padding-right: 2rem; }
+[data-slot="select-content"] { max-width: calc(100vw - 2rem); }
+[data-slot="label"] { line-height: 1.5; }
+.vip-management table thead { background: var(--muted); }
+.vip-management table { border-collapse: collapse; }
+.vip-management > div:has(> h1) { padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.vip-pagination { font-size: 14px; }
+@media (max-width: 639px) {
+  [data-slot="button"], [data-slot="input"], [data-slot="select-trigger"],
+  [data-slot="select-item"] { min-height: 44px; }
+  [data-slot="button"] { min-width: 44px; }
+  [data-slot="button"][data-size^="icon"] { min-width: 44px; }
+  [data-slot="dialog-content"], [data-slot="alert-dialog-content"] { padding: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="button"], [data-slot="input"], [data-slot="select-trigger"],
+  [data-slot="switch"], [data-slot="switch-thumb"] { transition: none; }
+}

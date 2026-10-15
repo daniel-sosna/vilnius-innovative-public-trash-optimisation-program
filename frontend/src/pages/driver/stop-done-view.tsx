@@ -14,7 +14,7 @@ type Props = {
 
 export function StopDoneView({ stop, levels, saving, onBack, onConfirm }: Props) {
   return (
-    <div className="fixed inset-0 z-20 flex flex-col bg-background">
+    <div className="fixed inset-0 z-20 flex flex-col bg-background pb-[env(safe-area-inset-bottom)]">
       <header className="px-4 pt-4">
         <button
           type="button"
@@ -26,16 +26,16 @@ export function StopDoneView({ stop, levels, saving, onBack, onConfirm }: Props)
         </button>
       </header>
       <div className="px-4 pt-4">
-        <CheckCircle2 className="size-12 text-primary" aria-hidden="true" />
+        <CheckCircle2 className="size-12 text-[var(--vip-success)]" aria-hidden="true" />
         <h1 className="mt-2 text-2xl font-bold">Visi konteineriai pažymėti</h1>
-        <p className="truncate text-sm text-muted-foreground">{stop.address ?? 'Be adreso'}</p>
+        <p className="break-words text-sm text-muted-foreground">{stop.address ?? 'Be adreso'}</p>
       </div>
       <ul className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {stop.bins.map((bin, index) => (
           <li key={bin.bin_id} className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
             <span
               className={cn(
-                'flex size-9 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white',
+                'flex size-9 shrink-0 items-center justify-center rounded-full text-lg font-semibold',
                 FILL_OPTIONS[levels[index]].color,
               )}
             >

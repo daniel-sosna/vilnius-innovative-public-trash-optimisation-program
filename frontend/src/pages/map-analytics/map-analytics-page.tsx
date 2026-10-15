@@ -129,8 +129,8 @@ export function MapAnalyticsPage() {
       }} />
       {mode && <Button variant="outline" className="absolute left-3 top-3 z-20" onClick={cancelSelection}>Atšaukti</Button>}
       {!mode && <div className="absolute left-3 top-3 z-10 flex gap-2">
-        <Button ref={layersTrigger} className={sidebarMode === 'layers' ? 'shadow-md hover:bg-primary' : 'bg-card hover:bg-accent dark:bg-card dark:hover:bg-accent shadow-md'} variant={sidebarMode === 'layers' ? 'default' : 'outline'} size="icon" aria-label="Sluoksniai ir legenda" aria-expanded={sidebarMode === 'layers'} aria-controls="analytics-sidebar" onClick={() => sidebarMode === 'layers' ? close() : setSidebarMode('layers')}><Layers aria-hidden="true" /></Button>
-        <Button ref={aiTrigger} className={sidebarMode === 'ai' ? 'shadow-md hover:bg-primary' : 'bg-card hover:bg-accent dark:bg-card dark:hover:bg-accent shadow-md'} variant={sidebarMode === 'ai' ? 'default' : 'outline'} size="icon" aria-label="AI ploto analizė" aria-expanded={sidebarMode === 'ai'} aria-controls="analytics-sidebar" onClick={() => sidebarMode === 'ai' ? close() : setSidebarMode('ai')}><Sparkles aria-hidden="true" /></Button>
+        <Button ref={layersTrigger} className={sidebarMode === 'layers' ? 'shadow-md' : 'bg-card hover:bg-accent shadow-md'} variant={sidebarMode === 'layers' ? 'default' : 'outline'} size="icon" aria-label="Sluoksniai ir legenda" aria-expanded={sidebarMode === 'layers'} aria-controls="analytics-sidebar" onClick={() => sidebarMode === 'layers' ? close() : setSidebarMode('layers')}><Layers aria-hidden="true" /></Button>
+        <Button ref={aiTrigger} className={sidebarMode === 'ai' ? 'shadow-md' : 'bg-card hover:bg-accent shadow-md'} variant={sidebarMode === 'ai' ? 'default' : 'outline'} size="icon" aria-label="AI ploto analizė" aria-expanded={sidebarMode === 'ai'} aria-controls="analytics-sidebar" onClick={() => sidebarMode === 'ai' ? close() : setSidebarMode('ai')}><Sparkles aria-hidden="true" /></Button>
       </div>}
       {sidebarMode && !mode && <aside id="analytics-sidebar" aria-label={sidebarMode === 'layers' ? 'Sluoksniai ir legenda' : 'AI ploto analizė'} className="absolute inset-x-3 bottom-10 z-10 flex max-h-[55%] flex-col rounded-lg border bg-card shadow-lg sm:inset-x-auto sm:bottom-10 sm:right-14 sm:top-3 sm:max-h-none sm:w-[360px] sm:max-w-[calc(100%-8rem)]">
         <div className="flex shrink-0 items-center justify-between border-b px-4 py-2"><h2 className="font-semibold">{sidebarMode === 'layers' ? 'Sluoksniai ir legenda' : 'AI ploto analizė'}</h2><Button variant="ghost" size="icon" aria-label="Uždaryti skydelį" onClick={close}><X aria-hidden="true" /></Button></div>
@@ -141,19 +141,19 @@ export function MapAnalyticsPage() {
                 {mapLayers.map(layer => {
                   const state = states[layer.id], selected = !!selection[layer.id]
                   return <div key={layer.id} className="space-y-2">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={selected} onChange={event => {
+                    <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" className="size-4 shrink-0 accent-primary" checked={selected} onChange={event => {
                       if (layer.id === 'adequacy') adequacy.setEnabled(event.target.checked)
                       toggle(layer.id, event.target.checked)
                     }} />{layer.label}</label>
-                    {layer.id === 'bins' && <div role="group" aria-label="Konteinerių atliekų rūšys" className="ml-6 space-y-3">{binFilters.availableCategories.map(category => <label key={category.id} className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={binFilters.categories[category.id]} onChange={event => binFilters.toggleCategory(category.id, event.target.checked)} /><span>{category.label}</span></label>)}</div>}
+                    {layer.id === 'bins' && <div role="group" aria-label="Konteinerių atliekų rūšys" className="ml-6 space-y-3">{binFilters.availableCategories.map(category => <label key={category.id} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={binFilters.categories[category.id]} onChange={event => binFilters.toggleCategory(category.id, event.target.checked)} /><span>{category.label}</span></label>)}</div>}
                     {layer.id === 'adequacy' && selected && <div className="ml-6 space-y-3">
                       <label className="grid gap-2 text-sm font-medium">Mėnuo
-                        <select aria-label="Analizės mėnuo" className="min-w-0 w-full rounded-md border bg-background p-2 text-sm" value={adequacy.month} onChange={event => adequacy.setMonth(event.target.value)}>
+                        <select aria-label="Analizės mėnuo" className="min-w-0 w-full rounded-md border bg-card p-2 text-sm" value={adequacy.month} onChange={event => adequacy.setMonth(event.target.value)}>
                           {adequacy.months.map(month => <option key={month} value={month}>{adequacyMonthLabel(month)}</option>)}
                         </select>
                       </label>
                       <label className="grid gap-2 text-sm font-medium">Atliekų rūšis
-                        <select aria-label="Analizės atliekų rūšis" className="min-w-0 w-full rounded-md border bg-background p-2 text-sm" value={adequacy.wasteType} onChange={event => adequacy.setWasteType(event.target.value)}>
+                        <select aria-label="Analizės atliekų rūšis" className="min-w-0 w-full rounded-md border bg-card p-2 text-sm" value={adequacy.wasteType} onChange={event => adequacy.setWasteType(event.target.value)}>
                           {adequacyWasteTypes.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
                         </select>
                       </label>

@@ -14,7 +14,8 @@ export function ProjectCalendar() {
     <DialogContent className="sm:max-w-sm p-4">
       <DialogTitle>2026 m. rugsėjis</DialogTitle>
       <DialogDescription>Projekto data: {projectDate}{locked ? '. Planavimas vyksta; data užrakinta.' : ''}</DialogDescription>
-      <table role="grid" aria-label="2026 m. rugsėjo kalendorius" className="w-full table-fixed text-center">
+      <div className="overflow-x-auto" tabIndex={0} aria-label="Slinkti kalendorių">
+      <table role="grid" aria-label="2026 m. rugsėjo kalendorius" className="w-full min-w-[308px] table-fixed text-center">
         <thead><tr>{['Pr', 'An', 'Tr', 'Kt', 'Pn', 'Št', 'Sk'].map(day => <th key={day} scope="col" className="py-2 text-xs font-normal text-muted-foreground">{day}</th>)}</tr></thead>
         <tbody>{Array.from({ length: 5 }, (_, week) => <tr key={week}>{Array.from({ length: 7 }, (_, weekday) => {
           const day = week * 7 + weekday, value = `2026-09-${String(day).padStart(2, '0')}`
@@ -29,6 +30,7 @@ export function ProjectCalendar() {
           }}>{day}</Button></td>
         })}</tr>)}</tbody>
       </table>
+      </div>
     </DialogContent>
   </Dialog>
 }

@@ -79,7 +79,7 @@ export function AdminLayout() {
                       toggle.current?.focus()
                   }}
                   className={({ isActive }) =>
-                    `rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring ${isActive ? 'underline decoration-primary underline-offset-8' : ''}`
+                    `flex min-h-11 items-center rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring ${isActive ? 'bg-accent text-primary' : ''}`
                   }
                 >
                   {label}
@@ -92,7 +92,7 @@ export function AdminLayout() {
               className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring sm:ml-auto"
               aria-label="Vilnius – pradžia"
             >
-              <VilniusLogo className="size-10" />
+              <VilniusLogo className="h-10 w-auto max-w-24" />
             </Link>
           </div>
         </header>

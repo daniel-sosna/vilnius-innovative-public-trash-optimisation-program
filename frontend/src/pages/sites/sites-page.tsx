@@ -70,7 +70,7 @@ export function SitesPage() {
   }
 
   return (
-    <section aria-labelledby="sites-title" className="space-y-6">
+    <section aria-labelledby="sites-title" className="vip-management min-w-0 space-y-6">
       <div>
         <h1 id="sites-title" className="text-2xl font-semibold tracking-tight">
           Šiukšlių surinkimo vietos

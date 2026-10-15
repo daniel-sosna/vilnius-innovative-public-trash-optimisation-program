@@ -132,7 +132,7 @@ export function TruckDemoPage() {
     'driving-stops': { status: 'ready' as const, data: { type: 'FeatureCollection', features: (route?.stops ?? []).map((point, index) => ({ type: 'Feature', id: index + 1, geometry: { type: 'Point', coordinates: [point.longitude, point.latitude] }, properties: { collected: index < collected } })) } as FeatureCollection },
   }), [roadData, route, collected])
   return <section className="min-w-0 space-y-4">
-    <h1 className="text-2xl font-semibold">Šiukšliavežės sekimas</h1>
+    <h1 className="border-b pb-4 text-2xl font-semibold">Šiukšliavežės sekimas</h1>
     {error ? <p role="alert" className="text-destructive">{error}</p> : !route ? <p role="status">Kraunamas šiukšliavežės maršrutas…</p> : <>
       <div className="h-[72dvh] min-h-80 overflow-hidden rounded-lg border"><AnalyticsMap definitions={drivingLayers} selection={drivingSelection} states={states} accessibleLabel="Šiukšliavežės sekimo žemėlapis" onMapState={onMapState} /></div>
       {mapError && <p role="alert" className="text-destructive">Žemėlapis nepasiekiamas. Bandykite įkelti dar kartą.</p>}

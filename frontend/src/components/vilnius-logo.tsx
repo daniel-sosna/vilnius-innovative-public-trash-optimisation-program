@@ -1,4 +1,4 @@
-import logo from '@/assets/vilnius-logo.webp'
+const logo = `${import.meta.env.BASE_URL}brand/vilnius-logo-transparent.png`
 import { cn } from '@/lib/utils'
 
 export function VilniusLogo({ className }: { className?: string }) {
@@ -6,9 +6,9 @@ export function VilniusLogo({ className }: { className?: string }) {
     <img
       src={logo}
       alt="Vilniaus logotipas"
-      width={960}
-      height={960}
-      className={cn('block size-24 max-w-full shrink-0 object-contain', className)}
+      width={1334}
+      height={1179}
+      className={cn('block h-auto w-24 max-w-full shrink-0 object-contain', className)}
     />
   )
 }

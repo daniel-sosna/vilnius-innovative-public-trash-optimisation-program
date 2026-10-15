@@ -73,6 +73,22 @@ VIPTOP_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
 - Deep links work in both dev and preview. A static production host would need the same `/api` proxy and an SPA fallback.
 - `npm run lint` runs ESLint.
 
+## Frontend brand assets
+
+Local artwork lives in `frontend/public/brand/`; the isolated launch document is
+`brand/launch/launch.html`. Components and styles live in `frontend/src/brand/`.
+Asset URLs use Vite's `BASE_URL`, so deploy the public folder with the bundle.
+No font download or animation dependency is required.
+
+`main.tsx` imports `index.css`, then `brand/theme.css`, `brand/components.css`
+and `brand/application.css`. Keep the Tailwind mappings and base rules in
+`index.css`; adjust palette and typography in `theme.css`, shared presentation
+in `application.css`, and launch placement in `launch-gate.css`.
+
+Behavior specs: [brand presentation](../openspec/changes/ui/specs/brand-presentation/spec.md),
+[application launch](../openspec/changes/ui/specs/application-launch/spec.md),
+[resident requests](../openspec/changes/ui/specs/resident-requests/spec.md).
+
 ## Several worktrees at once
 
 Every checkout gets its own Compose project, containers, network and volumes, so only the host ports clash. To run several checkouts side by side, turn on **worktree mode** in each checkout's `.env`:

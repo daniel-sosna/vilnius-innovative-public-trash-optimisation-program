@@ -58,13 +58,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               'pointer-events-auto flex items-start gap-3 rounded-lg border bg-card p-4 text-card-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:slide-in-from-top-2 motion-safe:data-[state=open]:slide-in-from-right-4',
               variant === 'error'
                 ? 'border-destructive/50'
-                : 'border-primary/50',
+                : 'border-[var(--vip-success)]/50',
             )}
           >
             {variant === 'success' ? (
               <CheckCircle2
                 aria-hidden="true"
-                className="size-5 shrink-0 text-primary"
+                className="size-5 shrink-0 text-[var(--vip-success)]"
               />
             ) : (
               <CircleAlert
@@ -80,7 +80,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             </ToastPrimitive.Title>
             <ToastPrimitive.Close
               aria-label="Uždaryti pranešimą"
-              className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
             >
               <X aria-hidden="true" className="size-4" />
             </ToastPrimitive.Close>

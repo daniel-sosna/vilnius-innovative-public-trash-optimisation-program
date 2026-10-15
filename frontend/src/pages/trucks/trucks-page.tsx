@@ -143,7 +143,7 @@ export function TrucksPage() {
     loading || !!filterError || !!current?.error || !data?.total
 
   return (
-    <section aria-labelledby="trucks-title" className="space-y-6">
+    <section aria-labelledby="trucks-title" className="vip-management min-w-0 space-y-6">
       <div>
         <h1 id="trucks-title" className="text-2xl font-semibold tracking-tight">
           Šiukšliavežės
@@ -256,11 +256,11 @@ export function TrucksPage() {
         </p>
       )}
       {notice && (
-        <p role="status" className="text-sm text-primary">
+        <p role="status" className="text-sm text-[var(--vip-success)]">
           {notice}
         </p>
       )}
-      <div aria-busy={loading} className="border-y bg-card">
+      <div aria-busy={loading} className="overflow-x-auto rounded-lg border bg-card">
         {loading ? (
           <p
             role="status"
@@ -343,7 +343,7 @@ export function TrucksPage() {
                     <span className="inline-flex items-center gap-2">
                       <span
                         aria-hidden="true"
-                        className={`inline-flex size-5 items-center justify-center rounded-full text-white ${truck.available ? 'bg-green-700' : 'bg-red-700'}`}
+                        className={`inline-flex size-5 items-center justify-center rounded-full text-white ${truck.available ? 'bg-[var(--vip-success)]' : 'bg-red-700'}`}
                       >
                         {truck.available ? (
                           <Check className="size-3.5" strokeWidth={3} />

@@ -16,7 +16,7 @@ type Props = {
 
 export function BinLevelStep({ address, bin, position, total, chosen, onChoose, onBack }: Props) {
   return (
-    <div className="fixed inset-0 z-20 flex flex-col bg-background">
+    <div className="fixed inset-0 z-20 flex flex-col bg-background pb-[env(safe-area-inset-bottom)]">
       <header className="flex items-center gap-3 px-4 pt-4">
         {onBack ? (
           <button
@@ -32,7 +32,7 @@ export function BinLevelStep({ address, bin, position, total, chosen, onChoose, 
         <span className="ml-auto text-lg font-semibold tabular-nums">{position} / {total}</span>
       </header>
       <div className="px-4 pt-3">
-        <p className="truncate text-sm text-muted-foreground">{address ?? 'Be adreso'}</p>
+        <p className="break-words text-sm text-muted-foreground">{address ?? 'Be adreso'}</p>
         <h1 className="mt-1 text-2xl font-bold">Inventorinis Nr.: {bin.inventory_number ?? '–'}</h1>
         <p className="text-base text-muted-foreground">{wasteLabel(bin.waste_type)}</p>
         <h2 className="mt-4 text-xl font-semibold">Kiek konteineris buvo užpildytas?</h2>
@@ -47,7 +47,7 @@ export function BinLevelStep({ address, bin, position, total, chosen, onChoose, 
               aria-pressed={selected}
               onClick={() => onChoose(option.level)}
               className={cn(
-                'flex min-h-16 flex-1 items-center gap-4 rounded-xl border-2 px-4 text-left text-xl font-semibold text-white active:scale-[0.99]',
+                'flex min-h-16 flex-1 items-center gap-4 rounded-xl border-2 px-4 text-left text-xl font-semibold motion-safe:active:scale-[0.99] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring',
                 option.color,
                 selected ? 'border-foreground ring-4 ring-foreground/30' : 'border-transparent opacity-90',
               )}

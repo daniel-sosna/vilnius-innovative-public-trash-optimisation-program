@@ -1,3 +1,4 @@
+import { VipTopLogo } from '@/components/viptop-logo'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, LoaderCircle } from 'lucide-react'
@@ -23,6 +24,7 @@ export function TruckPickerPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 py-6">
+      <VipTopLogo />
       <div>
         <h1 className="text-2xl font-semibold">Pasirinkite šiukšliavežę</h1>
         <p className="text-muted-foreground">Maršruto diena: <span className="tabular-nums">{forecastDate(projectDate)}</span></p>
@@ -39,9 +41,9 @@ export function TruckPickerPage() {
             <li key={truck.truck_id}>
               <Link
                 to={`/driver/${truck.truck_id}`}
-                className="flex min-h-16 items-center justify-between rounded-xl border bg-card px-4 text-lg font-medium"
+                className="flex min-h-16 items-center justify-between rounded-lg border bg-card px-4 py-3 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring text-lg font-medium"
               >
-                <span>
+                <span className="min-w-0 break-words">
                   {truck.truck_name}
                   <span className="block text-sm font-normal text-muted-foreground">Sustojimų: {truck.stop_count}</span>
                 </span>

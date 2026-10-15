@@ -1,113 +1,120 @@
-# VipTop Waste Collection Optimisation
+# VipTop — Waste Collection Optimisation for Vilnius
 
-VipTop is a hackathon MVP for more efficient public waste-container collection in Vilnius. It stores collection sites, bins and service history; builds resident estimates, a simulated bin-day calendar and a daily collection plan; and has a Lithuanian admin UI and public resident request page. Offline fill prediction provides a trained standalone package; the database collection plan runs it for September 2026. Route optimisation is not implemented.
+Project made in 2 days during Hack4Vilnius 2026 hackathon using spec driven development (SDD) with OpenSpec framework
 
-React, TypeScript, Vite, Tailwind CSS and shadcn/ui · Python 3.12, FastAPI, SQLAlchemy and Alembic · PostgreSQL · Docker Compose
+**From bin data to a collection plan, optimised truck routes and driver guidance.**
+
+Waste collection involves two connected decisions: which containers need service, and how to collect them with the available fleet. VipTop brings fill prediction, route optimisation and geographic analysis into one application so dispatchers can plan collections around predicted demand and drivers can record what they find on site.
+
+Built by **two software developers and one data analyst during a one-week hackathon**, this MVP connects data engineering, machine learning, constrained optimisation and a Lithuanian-language web interface for administrators, drivers and residents.
+
+**Workflow:** Import collection data → predict next-day fill → prioritise stops → optimise truck trips → follow road routes → record bin observations.
+
+![Map analytics showing Vilnius collection sites and container adequacy](screenshots/map-analytics.png)
+![Collection planning with optimised truck routes and assigned stops](screenshots/truck-routes.png)
+![Truck route viewer](screenshots/route-planning.png)
+![Mobile driver workflow with the next stop and bin fill recording](screenshots/driver-navigation.png)
+
+## Features
+
+| Capability | Value | Implementation / reference |
+|---|---|---|
+| Next-day fill prediction | Identifies bins likely to need collection | CatBoost / Random Forest comparison, one exported model and shared CPU inference; [ML workflow](docs/data/fill-prediction.md) |
+| Capacity-constrained route optimisation | Assigns stops to trucks, including landfill reloads, and compares stored plans with a nearest-neighbour baseline | PyVRP, carrier-specific fleets and explicit unserved stops; [route planning](docs/data/route-plan.md) |
+| Road routes and driver workflow | Connects dispatch planning to stop-by-stop guidance and recorded bin fill observations | OSRM road geometry, mobile driver screens and simulated truck movement; [driver guide](docs/driver.md) |
+| Geographic analytics | Helps assess container coverage against population and service areas | MapLibre maps, population estimates and monthly container adequacy; [map specification](openspec/specs/map-analytics/spec.md) |
+| AI area analysis | Turns a selected map area into an explanation backed by database queries | Bounded, read-only tool calling; [area analyst specification](openspec/specs/area-analytics-agent/spec.md) |
+| Site and fleet management | Keeps collection sites, containers and truck capacity in one operational view | [Sites](openspec/specs/collection-site-management/spec.md), [trucks](openspec/specs/truck-management/spec.md) |
+| Resident requests | Gives residents a direct way to request a bin emptying | Bin-specific public page; [resident requests](openspec/specs/resident-requests/spec.md) |
+
+**MVP scope:** Registry and collection records come from VASA exports; fill labels are synthetic, so predictions demonstrate the workflow rather than validated field accuracy. Planning uses a September 2026 simulation window. Optimiser distances are estimates; displayed road paths come from OSRM. The UI has no authentication. See [prediction assumptions](docs/data/fill-prediction.md#assumptions) and [routing assumptions](docs/data/route-plan.md#assumptions).
+
+**Stack:** React · TypeScript · Vite · Tailwind CSS · shadcn/ui · MapLibre GL · Python 3.12 · FastAPI · Pydantic · SQLAlchemy · Alembic · PostgreSQL · PyVRP · Docker Compose · GitHub Actions
+
+The backend keeps data processing, prediction and optimisation behind separate Python modules in one application. A portable inference package shares feature construction between research and application use. [OpenSpec](openspec/specs/) captures product behaviour and implementation changes.
 
 ## Quick Start
 
-You need Docker with Docker Compose and the CSV exports from a teammate.
+You need **Docker with Docker Compose** and **data exports supplied separately by the team**. CSVs, GeoJSON sources and trained model artifacts are not bundled with the repository.
 
-1. Create `.env` and start the stack. Migrations run automatically.
+1. Put `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv` in `backend/data/` (or set `VIPTOP_DATA_DIR` in `.env`).
+2. Create the configuration and start the stack; database migrations run automatically:
 
    ```bash
    test -f .env || cp .env.example .env
    docker compose up --build -d
    ```
 
-2. Put the exports in `backend/data/`: `sites_<digits>.csv`, `bins_<digits>.csv` and `bin_hist_<digits>.csv` are required. `bin_schedule_<digits>.csv` and `population_density_1ha.geojson` are needed for the [data pipeline](#data-pipeline). `vilnius_seniuniju_ribos.geojson` and `service_zones.geojson` feed the district and service-zone map layers.
-3. Import them:
+3. Import the exports:
 
    ```bash
    docker compose exec backend uv run python -m app.interfaces.table_import
    ```
 
-4. Open the frontend at <http://localhost:5173>. The backend is at <http://localhost:8000>, with its API reference at <http://localhost:8000/docs>.
+4. Open **[the application](http://localhost:5173)** or **[the API reference](http://localhost:8000/docs)**. The backend runs at <http://localhost:8000>.
 
-Do not use `bin_sync` to get development data: it takes hours. To run several checkouts side by side or to run without Docker, see [Development](docs/development.md).
+This starts the application and loads collection records. For the full planning demo, supply the [trained model and input CSVs](docs/data/fill-prediction.md#application-demo-runtime), prepare the fleet using [route planning setup](docs/development.md#route-planning), then open `/admin/routes`. The map analyst also needs backend-only `OPENAI_API_KEY` and `OPENAI_MODEL` settings; see [AI configuration](docs/development.md#area-analyst-configuration-and-diagnostics).
+
+Do not use `bin_sync` for development data: it takes hours. For native development, configuration and parallel checkouts, see [Development](docs/development.md).
 
 ## Data pipeline
 
-Run these in order after an import. Importing `bins` empties every derived table ([details](docs/data/import.md#what-an-import-replaces)). Each command runs as `docker compose exec backend uv run python -m app.interfaces.<module>`.
+The database workflow runs in the order below. Each module runs with `docker compose exec backend uv run python -m app.interfaces.<module>`. Importing bins clears derived tables; see [import side effects](docs/data/import.md#what-an-import-replaces).
 
-| Step | Module | Builds | Docs |
+| Step | Module | Output / prerequisites | Docs |
 |---|---|---|---|
-| 1 | `table_import` | `sites`, `bins`, `bin_hist` (optionally `bin_schedule`, `resident_requests`) from CSV, plus district boundaries and service zones from GeoJSON | [import](docs/data/import.md) |
-| 2 | `bin_population` | Estimated residents per bin | [bin population](docs/data/bin-population.md) |
-| 3 | `bin_days --start ... --end ...` | Bin-day calendar with simulated collections | [bin days](docs/data/bin-days.md) |
-| 4 | `collection_plan` | Sites to serve per carrier for a date (model prediction, September 2026) | [collection plan](docs/data/collection-plan.md) |
-| 5 | `demo_fleet --date ...` | Invented demo trucks sized from the plan of a date | [route plan](docs/data/route-plan.md#demo-fleet) |
-| 6 | `route_plan --carrier ... --date ...` | Trips per truck for a carrier and date, compared with a baseline | [route plan](docs/data/route-plan.md) |
+| 1 | `table_import` | Sites, bins and collection records; optional schedules, resident requests, district and service-zone GeoJSON | [Import](docs/data/import.md) |
+| 2 | `bin_population` | Residents estimated per bin; requires `population_density_1ha.geojson` | [Population](docs/data/bin-population.md) |
+| 3 | `bin_days --start ... --end ...` | Bin-day calendar with simulated collections; supply schedule exports for planned dates | [Bin days](docs/data/bin-days.md) |
+| 4 | `collection_plan --date ...` | Sites due per carrier, using the supplied prediction model and enriched CSV inputs | [Collection plan](docs/data/collection-plan.md) |
+| 5 | `demo_fleet --date ...` | Invented fleet sized from the stored collection plan | [Demo fleet](docs/data/route-plan.md#demo-fleet) |
+| 6 | `route_plan --carrier ... --date ...` | Stored truck trips and baseline comparison | [Route plan](docs/data/route-plan.md) |
 
-The offline CSV workflow uses separate optional dependencies and does not need a database:
+Offline preparation and analysis use separate inputs and optional dependencies:
 
-| Stage | Command from repository root | Docs |
+| Stage | Command | Docs |
 |---|---|---|
-| Base exports and synthetic fill/QR labels | `python scripts/prepare_training_data.py`, then `python scripts/fill_qr.py` | [fill/QR generation](docs/data/fill-qr.md) |
-| Train, compare and package fill prediction | From `backend/`: `python -m app.ml.run --config configs/ml.yaml` | [fill prediction](docs/data/fill-prediction.md) |
-| Monthly residential container adequacy GeoJSON | From `backend/`: `uv run --extra analytics python -m app.interfaces.container_adequacy --all-complete --daily data/bin_days_20231010_20261009_enriched.csv` | [container adequacy](docs/data/container-adequacy.md) |
+| Prepare synthetic fill labels | From root: `python scripts/prepare_training_data.py`, then `python scripts/fill_qr.py` | [Fill/QR generation](docs/data/fill-qr.md) |
+| Compare models and export inference product | From `backend/`: `python -m app.ml.run --config configs/ml.yaml` | [Fill prediction](docs/data/fill-prediction.md) |
+| Build monthly container adequacy layers | From `backend/`: `uv run --extra analytics python -m app.interfaces.container_adequacy --all-complete --daily data/bin_days_20231010_20261009_enriched.csv` | [Container adequacy](docs/data/container-adequacy.md) |
 
-Other commands:
-
-| Module | Does | Docs |
-|---|---|---|
-| `district_boundaries` | Loads only the district boundaries | [district boundaries](docs/data/district-boundaries.md) |
-| `service_zones` | Loads only the service zones | [service zones](docs/data/service-zones.md) |
-| `container_adequacy_import --all` | Loads monthly adequacy GeoJSON into PostgreSQL for the map | [container adequacy](docs/data/container-adequacy.md) |
-| `bin_schedule_sync` | Refreshes VASA planned dates for the current month (about 13 min) | [schedule sync](docs/data/bin-schedule-sync.md) |
-| `bin_sync` | Refreshes sites, bins and history from VASA (takes hours) | [bin sync](docs/data/bin-sync.md) |
-| `demo --date 2026-09-14 --navigation` | Runs real CSV prediction and road routing without saving plans | [demo setup](docs/development.md#planning-demo) |
-
-## Features
-
-| Screen | URL | Spec |
-|---|---|---|
-| Role selection | `/` | – |
-| Truck management | `/admin/trucks` | [truck-management](openspec/specs/truck-management/spec.md) |
-| Collection sites, details, adding and deleting sites and bins | `/admin/sites`, `/admin/sites/{id}` | [collection-site-browsing](openspec/specs/collection-site-browsing/spec.md), [collection-site-management](openspec/specs/collection-site-management/spec.md) |
-| Map analytics (landfills, bins, population density, districts, service zones, monthly container adequacy, area AI analysis) | `/admin/map-analytics` | [map-analytics](openspec/specs/map-analytics/spec.md), [map-layers](openspec/specs/map-layers/spec.md), [container adequacy](openspec/specs/container-adequacy-analysis/spec.md), [area agent](openspec/specs/area-analytics-agent/spec.md), [analytics tools](openspec/specs/analytics-tools/spec.md) |
-| Public resident emptying request | `/resident-request/{bin_id}` | [resident-requests](openspec/specs/resident-requests/spec.md) |
-| Standalone next-day fill prediction | Offline Python package | [daily-fill-prediction](openspec/specs/daily-fill-prediction/spec.md) |
-| Driver navigation (truck picker, road route of the selected date, per-bin fill levels) | `/driver`, `/driver/{truck_id}` | [driver-navigation](openspec/specs/driver-navigation/spec.md) |
-| Route planning and per-truck road tracking | `/admin/routes`, `/admin/routes/truck/{truck_id}` | [demo-planning](openspec/specs/demo-planning/spec.md), [truck-driving-demo](openspec/specs/truck-driving-demo/spec.md), [project-date](openspec/specs/project-date/spec.md) |
-
-The admin screens have no authentication.
+The interactive planning demo uses the current fleet and calculates transient road routes; it is separate from the stored-plan commands above. Run `docker compose exec backend uv run python -m app.interfaces.demo --date 2026-09-14 --navigation` for a repeatable prediction-and-routing check; see [demo setup](docs/development.md#route-planning).
 
 ## Project structure
 
 ```text
 .
 ├── frontend/src/
-│   ├── pages/              # One folder per screen
-│   └── components/         # Layout, maps, shared UI (shadcn/ui)
+│   ├── pages/              # Admin, driver and resident workflows
+│   ├── components/         # Maps, layout and shared UI
+│   └── brand/              # Application theme and presentation
 ├── backend/
-│   ├── alembic/            # Migrations (applied on startup)
-│   ├── configs/ml.yaml     # Offline ML paths, periods and resource limits
-│   ├── requirements-ml.txt # Optional research dependencies
-│   ├── viptop_fill/        # Portable feature construction and inference
-│   ├── tests/ml/           # Focused ML checks
-│   ├── data/               # Ignored exports, analysis and model delivery
-│   └── app/
-│       ├── core/           # Settings
-│       ├── interfaces/     # HTTP routers and data CLIs (one package each)
-│       ├── services/       # Application logic
-│       ├── infrastructure/ # Database engine and ORM models
-│       ├── integrations/   # VASA client
-│       ├── ml/             # Offline ML stages and the collection-plan prediction
-│       └── optimization/   # Route optimisation (empty)
-├── scripts/                # dev-info.sh and offline data utilities
-├── docs/                   # Reference documentation
-└── openspec/               # Specs and changes (see AGENTS.md)
+│   ├── app/
+│   │   ├── interfaces/     # HTTP routers and data CLIs
+│   │   ├── services/       # Planning, analytics and application logic
+│   │   ├── optimization/   # Shared PyVRP route solver
+│   │   ├── ml/             # Training orchestration and prediction adapter
+│   │   ├── infrastructure/ # Database engine and ORM models
+│   │   ├── integrations/   # VASA client
+│   │   └── core/           # Settings
+│   ├── viptop_fill/        # Portable features and CPU inference
+│   ├── configs/ml.yaml     # Reproducible ML inputs and resource limits
+│   ├── alembic/            # Database migrations
+│   └── data/               # Ignored data exports and model artifacts
+├── scripts/                # Data preparation and development utilities
+├── docs/                   # Setup, data and operational documentation
+└── openspec/               # Product specifications and scoped changes
 ```
 
 ## Documentation
 
-- [Development](docs/development.md): configuration, running without Docker, migrations, several worktrees at once
-- [Agent guidance](docs/agent-skills.md): analytical procedure and runtime domain references
-- [Data model](docs/data-model.md): tables and what their data means
-- [Driver](docs/driver.md): steps before a driver run and the route source and assumptions of the driver screen
-- Data commands: [import](docs/data/import.md), [bin population](docs/data/bin-population.md), [bin days](docs/data/bin-days.md) ([columns](docs/data/bin-days-columns.md)), [collection plan](docs/data/collection-plan.md), [route plan](docs/data/route-plan.md), [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [schedule sync](docs/data/bin-schedule-sync.md), [bin sync](docs/data/bin-sync.md)
-- Offline data/ML: [fill/QR generation](docs/data/fill-qr.md), [fill prediction](docs/data/fill-prediction.md), [container adequacy](docs/data/container-adequacy.md)
-- Behaviour: [`openspec/specs/`](openspec/specs/)
-- HTTP API: `/docs` on the running backend
-- Contributing with AI agents: [AGENTS.md](AGENTS.md)
+- [Development](docs/development.md): configuration, native setup, migrations, parallel worktrees and planning/AI setup
+- [Data model](docs/data-model.md): database tables and data meaning
+- [Driver guide](docs/driver.md): preparing and running the driver demo
+- [Analytics agent guidance](docs/agent-skills.md): analytical procedure and runtime domain references
+- Data preparation: [CSV import](docs/data/import.md), [resident allocation](docs/data/bin-population.md), [bin-day calendar](docs/data/bin-days.md), [column dictionary](docs/data/bin-days-columns.md)
+- Planning: [collection plan](docs/data/collection-plan.md), [route plan and verification](docs/data/route-plan.md)
+- Geographic layers: [district boundaries](docs/data/district-boundaries.md), [service zones](docs/data/service-zones.md), [container adequacy](docs/data/container-adequacy.md)
+- Source refresh commands: [VASA bin sync](docs/data/bin-sync.md), [schedule sync](docs/data/bin-schedule-sync.md)
+- Machine learning: [synthetic fill/QR generation](docs/data/fill-qr.md), [training, evaluation and inference](docs/data/fill-prediction.md)
+- [Product specifications](openspec/specs/) · [AI contributor instructions](AGENTS.md) · [Interactive API reference](http://localhost:8000/docs) (running backend)

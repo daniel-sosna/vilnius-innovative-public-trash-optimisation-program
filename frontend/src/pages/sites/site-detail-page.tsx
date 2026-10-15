@@ -34,7 +34,7 @@ export function SiteDetailPage() {
   }, [id, revision, key])
 
   return (
-    <section aria-labelledby="site-detail-title" className="space-y-6">
+    <section aria-labelledby="site-detail-title" className="vip-management min-w-0 space-y-6">
       <div className="space-y-3">
         <Button asChild variant="outline" size="sm">
           <Link to="/admin/sites"><ArrowLeft aria-hidden="true" /> Grįžti į vietų sąrašą</Link>

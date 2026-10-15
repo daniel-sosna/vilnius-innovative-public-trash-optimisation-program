@@ -13,7 +13,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   --radius: 0.625rem;
-  /* Neutral surfaces with green brand accents. */
+  /* Semantic mappings; supplied brand/theme.css overrides these defaults. */
   --background: #f4f4f5;
   --foreground: #18181b;
   --card: #ffffff;
